@@ -1,6 +1,37 @@
 # CODE1 Cloudflare 전환 인계 — 2026-09-07
 
-## 구현 완료 / 실배포 미완료
+## 최신 — 계정 관리와 농가별 권한
+
+사용자가 Cloudflare 사이트 배포 성공을 보고했으며 실제 사용 주소는 `https://code1-workspace.pages.dev`입니다. 데이터 브리지로 전달받은 URL은 `https://script.google.com/macros/s/AKfycbx1FJr3BfX3DgfYnMmKDFHzZBxoO8NPlWZ4y9I3M68X8UYoptIFoBhL1ufOzoCwInl7/exec`입니다. 아래 최초 전환 기록의 미배포 상태와 구분합니다.
+
+이번 사용자 요구: 최고 관리자=소유자, 서브 관리자=전체 농가·제안서 업무 권한, 농가 계정=지정 페이지·지정 농가만 접근. 작업 범위는 GitHub `main` 반영까지이며 Cloudflare 설정은 사용자 담당입니다.
+
+### 이번 변경
+
+- 자체 ID·비밀번호 로그인과 관리자 계정 발급 화면. 최고 관리자 Google 로그인은 최초 설정/복구용으로 유지.
+- 최고 관리자/서브 관리자/농가 계정. 서브 관리자는 전체 업무와 농가 계정 관리를 수행하며 관리자 권한 변경은 최고 관리자만 수행.
+- 농가/제안서 페이지별 숨김·보기·입력/편집, 농가 ID 배정. 숨긴 자료는 서버 bootstrap·개별 조회·미디어 요청에서 반환하지 않음.
+- 계정 중지·권한 변경·비밀번호 변경 시 세션 버전 증가. 모든 데이터 요청에서 최신 버전/정책을 재확인.
+- 새 `bridge/AccessControl.gs`와 교체할 `CloudflareBridge.gs`. 승인된 기존 소유자의 Google 로그인 시에만 CODE1 계정용 19~21 탭을 생성. 기존 행/헤더 충돌은 덮어쓰지 않음.
+- 예전 Google 두 번째 이메일 허용 경로는 최초 계정 설정 시 닫음 (`ALLOWED_USER_2` 공란, `CONTRIBUTOR_DECK_EDIT=FALSE`). 다른 계정은 새 관리 화면에서 발급. 기존 정본/제출/미디어/덱 저장 형식은 유지.
+- 비밀번호는 서버에서 salt·PBKDF2·별도 pepper로 처리. 실제 비밀번호/검증값을 브라우저 계정 목록·로그·Git에 포함하지 않음. 로그인 시도 제한과 계정 변경 이력 기록.
+
+### 이번에 확인한 결과
+
+- 자동검증 **27개 PASS**: 이전 요청서·농가/덱 DOM 회귀, 새 계정 UI, 두 농가 간 직접 조회/수정/이미지 요청 차단, 읽기 전용 쓰기 차단, 관리자 전체 업무, 최고 관리자 보호, 권한 회수/중지/비밀번호 변경 후 기존 세션 거부, 단일 사용 로그인 확인값·반복 로그인 제한, HMAC 서명·요청 재사용 차단, 브라우저의 내부 인증 API 접근 차단, 실제 WebCrypto 비밀번호 비교 및 쿠키 검증.
+- `node scripts/build.mjs` 통과. Cloudflare Functions 전체 번들, 브라우저 스크립트 구문 검사 통과.
+- 테스트는 격리된 Sheet/Drive 모의 서비스와 DOM, 로컬 WebCrypto로 수행. 실제 Cloudflare 계정 발급·Google 저장·두 실계정 격리 검증은 **미완료**.
+- 이번 작업에서 Google DB/Drive/Cloudflare 설정을 직접 변경하지 않음. 이전 정본 비교·PDF 시각 검증을 새 검증으로 다시 합산하지 않음.
+
+### 남은 적용
+
+[ACCOUNTS.md](ACCOUNTS.md)에 메뉴별 절차 작성: Cloudflare `PASSWORD_PEPPER` Secret 추가 → 기존 Apps Script의 브리지 파일 두 개 적용 → 기존 데이터 연결 배포를 새 버전으로 업데이트 → Cloudflare 환경값 반영 배포 → 소유자 Google 최초 로그인 → 최고 관리자 비밀번호 설정 → 실제 서브 관리자/농가 계정 발급 및 실사용 검증.
+
+변경 전 main 기준은 `f8254a774c68ed807b888ad986c6ec34ecb13b7d`. 참고 India 프로젝트의 소스와 DB 탭 구조만 읽었으며 계정·비밀번호·문서 데이터는 가져오지 않음. 해당 프로젝트와 CODE1의 DB는 별개로 유지.
+
+---
+
+## 이전 기록 — 최초 화면 전환 당시
 
 최신 사용자 지시: GitHub main 반영까지만 수행. Cloudflare 연결과 환경값 입력은 사용자가 직접 진행.
 

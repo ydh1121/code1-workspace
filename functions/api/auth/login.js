@@ -1,7 +1,7 @@
 import { configured, origin, sign, cookie, failure } from '../../_shared/security.js';
 export async function onRequestGet({ env }) {
   try {
-    if (!configured(env)) throw Error('SETUP_REQUIRED');
+    if (!configured(env)||!env.GOOGLE_CLIENT_ID||!env.GOOGLE_CLIENT_SECRET) throw Error('SETUP_REQUIRED');
     const state=crypto.randomUUID(), nonce=crypto.randomUUID(), verifier=crypto.randomUUID()+crypto.randomUUID();
     const challenge=btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier))))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
     const pending=await sign({kind:'oauth',state,nonce,verifier,exp:Date.now()+600000},env.SESSION_SECRET);

@@ -1,4 +1,4 @@
-import { origin, verify, readCookie, decode, bridge, sign, cookie } from '../../_shared/security.js';
+import { origin, verify, readCookie, decode, bridge, cookie, accountCookie } from '../../_shared/security.js';
 export async function onRequestGet({request,env}) {
   const headers=new Headers({'Cache-Control':'no-store','Referrer-Policy':'no-referrer'});
   headers.append('Set-Cookie',cookie('__Host-code1-oauth','',0));
@@ -13,8 +13,8 @@ export async function onRequestGet({request,env}) {
     const info=await fetch('https://openidconnect.googleapis.com/v1/userinfo',{headers:{Authorization:'Bearer '+token.access_token}});
     if(!info.ok)throw Error('DENIED');const user=await info.json();
     if(user.sub!==claims.sub||user.email!==claims.email||user.email_verified!==true)throw Error('DENIED');
-    const email=user.email.trim().toLowerCase();await bridge(env,email,'identity');
-    headers.append('Set-Cookie',cookie('__Host-code1',await sign({kind:'session',email,sub:user.sub,exp:Date.now()+28800000},env.SESSION_SECRET)));
+    const email=user.email.trim().toLowerCase(),account=await bridge(env,email,'identity');
+    headers.append('Set-Cookie',await accountCookie(account,env,'google'));
     headers.set('Location',origin(env)+'/');
   }catch { headers.set('Location',origin(env)+'/?login=failed'); }
   return new Response(null,{status:303,headers});

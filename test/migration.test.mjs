@@ -16,14 +16,3 @@ test('session signature rejects forged, malformed and expired cookies',async()=>
 test('same-origin check rejects cross-site write',()=>{assert.throws(()=>sameOrigin(new Request('https://workspace.test/api/rpc',{headers:{Origin:'https://other.test'}}),{APP_ORIGIN:'https://workspace.test'}));});
 test('anonymous RPC rejected before any bridge call',async()=>{const r=await onRequestPost({request:new Request('https://workspace.test/api/rpc',{method:'POST',headers:{Origin:'https://workspace.test'},body:'{}'}),env:{APP_ORIGIN:'https://workspace.test',SESSION_SECRET:secret}});assert.equal(r.status,401);});
 test('bridge signs exact request and does not trust caller role',async()=>{const original=globalThis.fetch;let body;globalThis.fetch=async(url,init)=>{body=JSON.parse(init.body);return new Response(JSON.stringify({ok:true,data:{ok:true}}));};try{await bridge({BRIDGE_URL:'https://script.google.com/macros/s/test/exec',BRIDGE_SECRET:secret},'owner@example.test','bootstrap');assert.equal(body.signature,await hmac(body.body,secret));const data=JSON.parse(body.body);assert.equal(data.email,'owner@example.test');assert.equal('role' in data,false);assert.match(data.nonce,/^[a-f0-9]{32}$/);}finally{globalThis.fetch=original;}});
-test('GAS bridge rejects bad signatures, replay and removed user, clears transient session',async()=>{
-  const entries=new Map();let calls=0;
-  const c=vm.createContext({PropertiesService:{getScriptProperties:()=>({getProperty:()=>secret})},Utilities:{Charset:{UTF_8:'utf8'},computeHmacSha256Signature:()=>Array(32).fill(1)},withLock_:fn=>fn(),cache_:()=>({get:k=>entries.get(k),put:(k,v)=>entries.set(k,v),remove:k=>entries.delete(k)}),role_:email=>{if(email!=='owner@example.test')throw Error('FORBIDDEN');return 'OWNER';},staging_:()=>{},random_:()=> 'a'.repeat(64),sha_:x=>x,api:()=>{calls++;return {saved:true};},ContentService:{MimeType:{JSON:'json'},createTextOutput:value=>({value,setMimeType(){return this;}})}});
-  vm.runInContext(await readFile('bridge/CloudflareBridge.gs','utf8'),c);
-  const payload={email:'owner@example.test',action:'saveSubmission',timestamp:Date.now(),nonce:'b'.repeat(32),payload:{}};
-  const call=(data,sig='01'.repeat(32))=>JSON.parse(c.doPost({postData:{contents:JSON.stringify({body:JSON.stringify(data),signature:sig})}}).value);
-  assert.equal(call(payload,'bad').ok,false);assert.equal(calls,0);
-  assert.equal(call(payload).ok,true);assert.equal(calls,1);assert.equal(entries.has('session:'+'a'.repeat(64)),false);
-  assert.equal(call(payload).ok,false);assert.equal(calls,1);
-  assert.equal(call({...payload,nonce:'c'.repeat(32),email:'removed@example.test'}).ok,false);
-});
