@@ -1,5 +1,5 @@
 /* Add this one file to the EXISTING CODE1 Apps Script project.
- * Install AccessControl.gs too. Verified owner login adds only account storage.
+ * Install AccessControl.gs and QuestionPolicy.gs too.
  * BRIDGE_SECRET: same 32+ character secret as Cloudflare, never committed.
  */
 function doPost(e) {
@@ -24,6 +24,18 @@ function doPost(e) {
       if(p.action==='auth.finish')return accessAuthFinish_(payload);
       if(p.action==='account.credential'){
         var a=accessAccount_(p.actor);return a.password_hash?{salt:a.password_salt,hash:a.password_hash,iterations:Number(a.password_iterations),scheme:a.password_scheme}:null;
+      }
+      if(p.action==='questionPolicy.effective'){
+        if(typeof questionPolicyEffective_!=='function')throw new Error('BRIDGE_UPDATE_REQUIRED');
+        return questionPolicyEffective_(p.actor);
+      }
+      if(p.action==='questionPolicy.list'){
+        if(typeof questionPolicyList_!=='function')throw new Error('BRIDGE_UPDATE_REQUIRED');
+        return questionPolicyList_(p.actor);
+      }
+      if(p.action==='questionPolicy.save'){
+        if(typeof questionPolicySave_!=='function')throw new Error('BRIDGE_UPDATE_REQUIRED');
+        return questionPolicySave_(p.actor,payload);
       }
       return accessDispatch_(p.actor,p.action,payload);
     });
