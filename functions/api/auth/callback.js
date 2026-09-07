@@ -14,6 +14,9 @@ export async function onRequestGet({request,env}) {
     if(!info.ok)throw Error('DENIED');const user=await info.json();
     if(user.sub!==claims.sub||user.email!==claims.email||user.email_verified!==true)throw Error('DENIED');
     const email=user.email.trim().toLowerCase(),account=await bridge(env,email,'identity');
+    // Protocol 2 identity must return a persisted CODE1 account. A legacy bridge
+    // returned only {email, role}; never turn that response into a broken session.
+    if(!account||typeof account.id!=='string'||!account.id||!Number.isInteger(account.version)||account.version<1)throw Error('BRIDGE_UPDATE_REQUIRED');
     headers.append('Set-Cookie',await accountCookie(account,env,'google'));
     headers.set('Location',origin(env)+'/');
   }catch { headers.set('Location',origin(env)+'/?login=failed'); }
