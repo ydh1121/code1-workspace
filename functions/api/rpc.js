@@ -7,7 +7,10 @@ export async function onRequestPost({ request, env }) {
     const raw = await request.text(); if (raw.length > 12000000) return json({error:'TOO_LARGE'},413);
     const { action, payload } = JSON.parse(raw); if (!actions.has(action)) return json({error:'UNKNOWN_ACTION'},400);
     const data = await bridge(env, user, action, payload || {});
-    if (action === 'bootstrap') data.questionPolicies = await bridge(env, user, 'questionPolicy.effective', {});
+    if (action === 'bootstrap') {
+      try { data.questionPolicies = await bridge(env, user, 'questionPolicy.effective', {}); data.questionPolicyReady = true; }
+      catch { data.questionPolicies = []; data.questionPolicyReady = false; }
+    }
     return json({ data });
   } catch(e) { return failure(e); }
 }
