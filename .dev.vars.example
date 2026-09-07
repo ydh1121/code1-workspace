@@ -1,0 +1,7 @@
+# Copy to .dev.vars for local Wrangler ONLY. Never commit populated values.
+APP_ORIGIN=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+SESSION_SECRET=
+BRIDGE_URL=
+BRIDGE_SECRET=

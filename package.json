@@ -1,0 +1,20 @@
+{
+  "name": "code1-workspace",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test test/*.test.mjs",
+    "dev": "wrangler pages dev public",
+    "deploy": "npm run build && wrangler pages deploy public --project-name code1-workspace"
+  },
+  "dependencies": {
+    "jspdf": "^3.0.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "happy-dom": "^20.14.0",
+    "wrangler": "^4.0.0"
+  }
+}

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>CODE1 Internal Workspace</title>
+  <!-- Pinned Pretendard Variable v1.3.9 and its OFL license are embedded in Styles. -->
+  <link rel="stylesheet" href="/assets/base.css"><link rel="stylesheet" href="/assets/workspace.css">
+</head>
+<body>
+  <header class="app-header no-print">
+    <button class="wordmark" id="home" aria-label="CODE1 처음으로">CODE<span>1</span><small>INTERNAL WORKSPACE</small></button>
+    <nav id="main-nav" hidden aria-label="주요 메뉴"><button data-page="farm">농가 자료</button><button data-page="landing">계정 설정</button><button data-page="deck">아자몰 제안서</button></nav>
+    <div id="identity"><span class="private-label">비공개 · 내부용</span></div>
+  </header>
+  <main id="app" class="no-print">
+    <section id="login" class="welcome">
+      <p class="eyebrow">CODE1 / INTERNAL ONLY</p>
+      <h1>농가 자료와 제안서,<br>여기에서 이어서 하세요.</h1>
+      <p>농가 자료를 모으고 검토하는 일.<br>아자몰 제안서를 확인하고 다듬는 일.<br>두 가지 업무를 한곳에서 관리합니다.</p>
+      <button id="sign-in" class="primary">Google 계정으로 로그인</button>
+      <a id="auth-link" class="button primary" target="_blank" rel="noopener noreferrer" hidden>Google에서 계정 확인하기 ↗</a>
+      <p id="login-status" role="status">등록된 Google 계정으로 로그인해 주세요.</p>
+    </section>
+    <section id="landing" hidden class="landing">
+      <p class="eyebrow">OUR WORKSPACE</p><h1>오늘 할 일을 선택해 주세요.</h1>
+      <div class="destinations"><button data-page="farm"><span>01</span><h2>농가 자료</h2><p>입력 · 사진 업로드 · 제출 검토</p><b>자료 모으기 ↗</b></button><button data-page="deck"><span>02</span><h2>아자몰 제안서</h2><p>12장 웹덱 · 보기와 편집 · PDF</p><b>제안서 열기 ↗</b></button></div>
+      <p class="muted">입력한 자료는 검토 대기 공간에 저장됩니다. 기존 정본은 자동 변경되지 않습니다.</p>
+      <section id="owner-settings" hidden><h2>함께 사용할 계정</h2><p class="muted">이메일 등록은 접근 허용 설정입니다. 해당 계정의 실제 로그인은 별도로 확인해야 합니다.</p><form id="settings-form"><label>초대 사용자 이메일<input type="email" id="contributor" placeholder="초대할 Google 계정 이메일"></label><label class="check"><input type="checkbox" id="contributor-deck"> 이 사용자에게 아자몰 제안서 편집도 허용</label><button type="submit">계정 설정 저장</button><output id="settings-result"></output></form></section>
+    </section>
+    <section id="farm-page" hidden>
+      <div class="page-heading"><div><p class="eyebrow">FARM MATERIALS</p><h1>농가 자료</h1></div><button id="new-farm" class="primary">＋ 새 자료 만들기</button></div>
+      <div class="farm-layout">
+        <aside class="farm-side"><label>등록 농가 검색<input id="farm-search" type="search" placeholder="농가 이름 검색"></label><div id="farm-list"></div><h3>작성 중 · 제출한 자료</h3><label>검토 상태<select id="submission-filter"><option value="">모든 상태</option><option value="DRAFT">임시저장</option><option value="SUBMITTED">검토 요청</option><option value="NEEDS_INFO">추가 확인 필요</option><option value="APPROVED">승인</option><option value="REJECTED">반려</option><option value="REFLECTED">정본 반영 완료</option></select></label><div id="submission-list"></div></aside>
+        <div class="farm-work"><div id="farm-empty" class="empty"><h2>어느 농가의 자료를 모을까요?</h2><p>농가를 선택하면 최근 작성한 자료를 이어서 열 수 있습니다.</p></div>
+          <div id="farm-editor" hidden><div class="farm-editor-head"><label>농가 이름<input id="farm-name" autocomplete="off" maxlength="150"></label><span id="submission-state" class="tag"></span><span id="save-status" role="status">작성 중</span></div>
+            <section class="farm-progress" aria-label="자료 수집 현황"><div><strong id="progress-heading"></strong><p id="progress-detail"></p></div><progress id="farm-progress" max="100" value="0"></progress><div class="progress-actions"><button id="answer-summary">작성 내용 한눈에 보기</button><button id="request-pdf" class="primary">남은 자료 요청서 PDF</button></div></section>
+            <div class="question-search"><label>어떤 내용을 찾으세요?<input id="question-search" type="search" placeholder="예: 배송비, 인증서, 사료"></label><label>보여줄 항목<select id="question-filter"><option value="all">전체 항목</option><option value="missing">아직 필요한 내용</option><option value="done">입력한 내용</option></select></label></div>
+            <nav id="categories" aria-label="여섯 가지 자료 분류"></nav><nav id="subcategories" aria-label="세부 분류"></nav><div class="question-section-head"><h2 id="category-title"></h2><span id="question-count"></span></div><form id="question-form"></form><nav id="question-pagination" aria-label="질문 페이지"></nav>
+            <section id="media-panel" hidden><h2>사진·영상과 사용권</h2><p class="muted">촬영 항목을 고르면 촬영법을 바로 확인할 수 있습니다. 8MB 이하 JPG·PNG·WebP·PDF·MP4 원본을 지원합니다. 큰 영상은 소유자가 지정된 비공개 Drive 폴더에 올린 후 원본을 연결할 수 있습니다.</p><label>촬영 항목<select id="shot-select"></select></label><div id="shot-guide" class="shot-guide"></div><form id="media-form"><div class="fields-grid"><label>설명<textarea id="media-caption"></textarea></label><label>촬영자<input id="media-photographer"></label><label>촬영일<input type="date" id="media-date"></label><label>원본 권리자 또는 확인 상태<input id="media-rights" placeholder="예: 농장주 / 사용권 확인 중" required></label><label>인물 얼굴 포함<select id="media-face"><option>미확인</option><option>없음</option><option>있음</option></select></label><label>인물 사용 동의<select id="media-consent"><option>미확인</option><option>해당 없음</option><option>동의 확인</option><option>미동의</option></select></label><label>제안서 사용권<select id="media-usage"><option>미확인</option><option>허용</option><option>불허</option></select></label><label>개인정보 확인<select id="media-privacy"><option>미확인</option><option>노출 없음 확인</option><option>가림 처리 필요</option></select></label></div><details><summary>추가 사용권 확인</summary><div class="fields-grid"><label>웹사이트 사용<select data-media-meta="web_use"><option>미확인</option><option>허용</option><option>불허</option></select></label><label>매거진 사용<select data-media-meta="magazine_use"><option>미확인</option><option>허용</option><option>불허</option></select></label><label>SNS 사용<select data-media-meta="sns_use"><option>미확인</option><option>허용</option><option>불허</option></select></label><label>광고 사용<select data-media-meta="ad_use"><option>미확인</option><option>허용</option><option>불허</option></select></label><label>크롭·리사이즈·색보정<select data-media-meta="edit_allowed"><option>미확인</option><option>허용</option><option>불허</option></select></label><label>AI 보정<select data-media-meta="ai_edit_allowed"><option>미확인</option><option>허용</option><option>불허</option></select></label></div></details><label>원본 파일<input type="file" id="media-file" accept="image/jpeg,image/png,image/webp,application/pdf,video/mp4" required></label><button type="submit" class="primary">비공개 원본 업로드</button><button type="button" id="link-drive">비공개 Drive 원본 연결 · 소유자</button><output id="media-status"></output></form><div id="media-list"></div></section>
+            <div class="form-actions"><button type="button" id="draft-save">임시저장</button><button type="button" id="submit-farm" class="primary">검토 요청으로 제출</button></div>
+            <section id="review-panel" hidden><h2>소유자 검토</h2><p>승인해도 정본을 자동 수정하지 않습니다. 별도 수동 반영 후 완료로 표시해 주세요.</p><label>검토 의견<textarea id="review-note"></textarea></label><div id="review-buttons"></div></section>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section id="deck-page" hidden>
+      <div class="deck-title"><div><p class="eyebrow">INTERNAL WORKING COPY</p><h1>아자몰 입점제안서</h1></div><span id="deck-saved" role="status">원본은 별도 보존</span></div>
+      <div class="deck-toolbar" role="toolbar" aria-label="제안서 도구"><button id="view-mode" aria-pressed="true">보기</button><button id="edit-mode">편집</button><span class="divider"></span><button id="undo" aria-label="실행 취소">↶ 취소</button><button id="redo" aria-label="다시 실행">↷ 다시</button><button id="deck-save">저장</button><button id="version-save">새 버전 저장</button><span class="grow"></span><button id="preview">미리보기</button><button id="pdf">PDF로 내보내기</button><button id="print">인쇄</button></div>
+      <p class="mobile-note">글과 사진을 누르면 아래에 편집 도구가 열립니다. 큰 배치 수정은 넓은 화면에서 더 편리합니다.</p>
+      <div class="deck-layout"><aside id="thumbnails" aria-label="슬라이드 목록"></aside><div class="canvas-column"><div id="canvas-viewport"><div id="slide-canvas"></div></div><div class="slide-nav"><button id="prev-slide" aria-label="이전 슬라이드">← 이전</button><span id="slide-counter"></span><button id="next-slide" aria-label="다음 슬라이드">다음 →</button><button id="fullscreen">전체화면</button></div><p id="editor-hint" class="muted">보기 모드 · 방향키로 슬라이드를 이동할 수 있습니다.</p></div><aside id="properties"><h3>선택한 항목 편집</h3><div id="property-fields"><p class="muted">편집 모드에서 요소를 선택해 주세요.</p></div><div id="element-tools" hidden class="insert-tools"><button id="add-text">텍스트 추가</button><button id="add-image">이미지 추가</button><button id="deck-drive-image">Drive 이미지 연결</button><button id="duplicate-slide">슬라이드 복제</button><button id="delete-slide" class="danger">슬라이드 삭제</button><button id="background-edit">슬라이드 배경</button><button id="delete-element" class="danger">선택 요소 삭제</button></div><h3>레이어</h3><div id="layer-list"></div></aside></div>
+      <input type="file" accept="image/jpeg,image/png,image/webp" id="deck-image-file" hidden>
+    </section>
+  </main>
+  <dialog id="export-dialog" class="no-print"><h2>PDF · 인쇄</h2><p>이미지와 글자가 준비됐는지 확인합니다.</p><ul id="qa-list"></ul><input type="checkbox" id="qa-confirm" hidden><p class="muted">인쇄창에서 배경 그래픽을 켜고, 머리글·바닥글을 끄고, 여백 없음을 선택해 주세요. PDF 버튼은 같은 인쇄창에서 PDF로 저장합니다.</p><div class="dialog-actions"><button id="cancel-print">취소</button><button id="confirm-print" class="primary">인쇄창 열기</button></div></dialog>
+  <dialog id="summary-dialog" class="no-print wide-dialog"><div class="dialog-heading"><h2>작성 내용 한눈에 보기</h2><button id="close-summary" aria-label="작성 내용 닫기">닫기</button></div><p>내용을 누르면 해당 질문으로 이동합니다.</p><div id="summary-content"></div></dialog>
+  <dialog id="request-dialog" class="no-print wide-dialog"><div class="dialog-heading"><h2>농가에 부탁할 자료</h2><button id="close-request" aria-label="요청 목록 닫기">닫기</button></div><p>아직 받지 못한 자료만 모았습니다. 이번에 부탁할 항목을 골라 주세요.</p><div class="request-options"><label>보내주실 날짜 (선택)<input id="request-date" type="date"></label><label>연락처 (선택)<input id="request-contact" type="text" maxlength="100" placeholder="자료를 보낼 담당자 연락처"></label></div><label>덧붙일 말씀 (선택)<textarea id="request-note" maxlength="1000" placeholder="예: 사진은 휴대폰으로 찍어 보내주셔도 됩니다."></textarea></label><div class="request-controls"><button id="request-select-all">모두 선택</button><button id="request-select-none">선택 해제</button><span id="request-count" role="status"></span></div><div id="request-items"></div><div class="dialog-actions"><button id="request-download" class="primary">선택한 자료 PDF 다운로드</button></div></dialog>
+  <div id="print-deck" aria-hidden="true"></div><div id="toast" role="status" aria-live="polite" hidden></div>
+  <script src="/assets/core.js" defer></script><script src="/assets/farm-model.js" defer></script><script src="/assets/pdf.bundle.js" defer></script>
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>
