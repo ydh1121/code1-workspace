@@ -65,12 +65,12 @@ function questionPolicySave_(principal,p){
   p.changes.forEach(function(c){
     var scope=String(c.scope||''),farmId=String(c.farmId||''),itemKey=String(c.itemKey||''),mode=String(c.mode||''),reasonCode=String(c.reasonCode||''),reasonNote=String(c.reasonNote||'').trim();
     if(scope!=='GLOBAL'&&scope!=='FARM')throw new Error('INVALID_POLICY_SCOPE');if(!catalog[itemKey])throw new Error('INVALID_POLICY_ITEM');
-    if(scope==='GLOBAL'){farmId='';if(['SHOW','HIDE','PERMANENT_EXCLUDE'].indexOf(mode)<0)throw new Error('INVALID_POLICY_MODE');}
-    else{if(!farms[farmId])throw new Error('INVALID_POLICY_FARM');if(['INHERIT','SHOW','HIDE','NOT_APPLICABLE'].indexOf(mode)<0)throw new Error('INVALID_POLICY_MODE');}
-    var needsReason=['HIDE','NOT_APPLICABLE','PERMANENT_EXCLUDE'].indexOf(mode)>=0;
-    if(needsReason&&(!questionPolicyReasonKnown_(reasonCode)||!reasonNote))throw new Error('제외 사유와 운영 메모를 입력해 주세요.');
+    if(scope==='GLOBAL'){farmId='';if(['SHOW','OPTIONAL','HIDE','PERMANENT_EXCLUDE'].indexOf(mode)<0)throw new Error('INVALID_POLICY_MODE');}
+    else{if(!farms[farmId])throw new Error('INVALID_POLICY_FARM');if(['INHERIT','SHOW','OPTIONAL','HIDE','NOT_APPLICABLE'].indexOf(mode)<0)throw new Error('INVALID_POLICY_MODE');}
+    var needsReason=['OPTIONAL','HIDE','NOT_APPLICABLE','PERMANENT_EXCLUDE'].indexOf(mode)>=0;
+    if(needsReason&&(!questionPolicyReasonKnown_(reasonCode)||!reasonNote))throw new Error('수집 정책 사유와 운영 메모를 입력해 주세요.');
     if(!needsReason){reasonCode='';reasonNote='';}
-    if(reasonNote.length>500)throw new Error('제외 사유 메모는 500자 이하로 입력해 주세요.');
+    if(reasonNote.length>500)throw new Error('수집 정책 메모는 500자 이하로 입력해 주세요.');
     var key=questionPolicyKey_(scope,farmId,itemKey);if(seen[key])throw new Error('DUPLICATE_POLICY_ITEM');seen[key]=true;
     var old=byKey[key]||null,base=Number(c.baseVersion||0);if((old?Number(old.version):0)!==base)throw new Error('CONFLICT');
     var next=Object.assign({},old||{policy_id:'QP_'+random_().slice(0,24)},{scope:scope,farm_id:farmId,item_key:itemKey,mode:mode,reason_code:reasonCode,reason_note:reasonNote,version:(old?Number(old.version):0)+1,status:'active',updated_by:actor.account_id,updated_at:now,request_id:p.requestId});
