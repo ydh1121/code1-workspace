@@ -27,8 +27,29 @@ function accessLog_(actor,action,target,detail) {
   // Credentials, cookies and request payloads never enter this log.
   accessWrite_('20_WEB_ACCESS_LOG',{at:new Date().toISOString(),actor_id:actor||'',action:action,target_id:target||'',detail:detail||''});
 }
+function accessOwnerEmail_(email) {
+  var normalized=String(email||'').trim().toLowerCase();
+  if(!normalized)throw new Error('FORBIDDEN');
+  // Preserve the existing CODE1 auth contract first. Older bridge versions
+  // already relied on role_(email), so account bootstrap must not introduce
+  // a new global owner constant that the live Apps Script never required.
+  if(typeof role_==='function'){
+    try{if(role_(normalized)==='OWNER')return normalized;}catch(_){}
+  }
+  var settings=db_().getSheetByName('14_WEB_설정');
+  if(!settings)throw new Error('AUTH_SETUP_REQUIRED');
+  var rows=settings.getDataRange().getValues(),owner='';
+  for(var i=0;i<rows.length;i++){
+    if(String(rows[i][0]||'').trim()==='ALLOWED_USER_1'){
+      owner=String(rows[i][1]||'').trim().toLowerCase();
+      break;
+    }
+  }
+  if(!owner||normalized!==owner)throw new Error('FORBIDDEN');
+  return owner;
+}
 function accessInstall_(email) {
-  if(email!==CODE1_OWNER_)throw new Error('FORBIDDEN');
+  var ownerEmail=accessOwnerEmail_(email);
   staging_();
   Object.keys(ACCESS_SCHEMA_).forEach(function(name){
     var s=db_().getSheetByName(name),h=ACCESS_SCHEMA_[name];
@@ -40,7 +61,7 @@ function accessInstall_(email) {
   if(!owner){
     if(rows.length)throw new Error('OWNER_ACCOUNT_MISSING');
     var now=new Date().toISOString();
-    accessWrite_('19_WEB_ACCOUNTS',{account_id:'OWNER',username:'owner',display_name:'최고 관리자',email:CODE1_OWNER_,role:'SUPER_ADMIN',status:'active',permissions_json:'{}',session_version:1,created_at:now,updated_at:now});
+    accessWrite_('19_WEB_ACCOUNTS',{account_id:'OWNER',username:'owner',display_name:'최고 관리자',email:ownerEmail,role:'SUPER_ADMIN',status:'active',permissions_json:'{}',session_version:1,created_at:now,updated_at:now});
     accessLog_('OWNER','account.initialize','OWNER','Google 소유자 확인 후 최초 계정 생성');
   }
   // Retire the former second-email path, including old GAS UI deployments.
@@ -62,15 +83,18 @@ function accessAccount_(principal) {
   if(!principal||typeof principal.accountId!=='string')throw new Error('UNAUTHENTICATED');
   var a=accessRows_('19_WEB_ACCOUNTS').filter(function(x){return x.account_id===principal.accountId;})[0];
   if(!a||a.status!=='active'||!['SUPER_ADMIN','ADMIN','FARMER'].includes(a.role)||Number(a.session_version)!==principal.version)throw new Error('UNAUTHENTICATED');
-  if(a.role==='SUPER_ADMIN'&&(a.account_id!=='OWNER'||a.email!==CODE1_OWNER_))throw new Error('FORBIDDEN');
+  if(a.role==='SUPER_ADMIN'){
+    if(a.account_id!=='OWNER')throw new Error('FORBIDDEN');
+    accessOwnerEmail_(a.email);
+  }
   return a;
 }
 function accessGoogle_(email) {
   // Google remains a recovery/first-setup entry for the verified owner only.
-  if(email!==CODE1_OWNER_)throw new Error('FORBIDDEN');
-  accessInstall_(email);
+  var ownerEmail=accessOwnerEmail_(email);
+  accessInstall_(ownerEmail);
   var a=accessRows_('19_WEB_ACCOUNTS').filter(function(x){return x.account_id==='OWNER';})[0];
-  if(a.email!==email||a.role!=='SUPER_ADMIN'||a.status!=='active')throw new Error('FORBIDDEN');
+  if(String(a.email||'').trim().toLowerCase()!==ownerEmail||a.role!=='SUPER_ADMIN'||a.status!=='active')throw new Error('FORBIDDEN');
   return accessPublic_(a);
 }
 function accessFarmChoices_() {
