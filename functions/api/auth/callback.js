@@ -1,4 +1,17 @@
 import { origin, verify, readCookie, decode, bridge, cookie, accountCookie } from '../../_shared/security.js';
+function failureReason(error) {
+  const message=String(error?.message||'');
+  if(message==='DENIED')return 'oauth_denied';
+  if(message==='BRIDGE_UPDATE_REQUIRED')return 'bridge_version';
+  if(message==='FORBIDDEN')return 'owner_forbidden';
+  if(message==='AUTH_SETUP_REQUIRED')return 'owner_setup';
+  if(message==='ACCOUNT_SCHEMA_MISMATCH')return 'account_schema';
+  if(message==='OWNER_ACCOUNT_MISSING')return 'owner_account';
+  if(message==='SETUP_REQUIRED')return 'cloudflare_config';
+  if(message==='BRIDGE_UNAVAILABLE')return 'bridge_unavailable';
+  if(/CODE1_OWNER_|ReferenceError|is not defined/.test(message))return 'bridge_runtime';
+  return 'unknown';
+}
 export async function onRequestGet({request,env}) {
   const headers=new Headers({'Cache-Control':'no-store','Referrer-Policy':'no-referrer'});
   headers.append('Set-Cookie',cookie('__Host-code1-oauth','',0));
@@ -19,6 +32,8 @@ export async function onRequestGet({request,env}) {
     if(!account||typeof account.id!=='string'||!account.id||!Number.isInteger(account.version)||account.version<1)throw Error('BRIDGE_UPDATE_REQUIRED');
     headers.append('Set-Cookie',await accountCookie(account,env,'google'));
     headers.set('Location',origin(env)+'/');
-  }catch { headers.set('Location',origin(env)+'/?login=failed'); }
+  }catch(error) {
+    headers.set('Location',origin(env)+'/?login=failed&reason='+failureReason(error));
+  }
   return new Response(null,{status:303,headers});
 }
