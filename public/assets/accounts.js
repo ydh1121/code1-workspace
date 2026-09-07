@@ -54,7 +54,7 @@
   $('account-form').addEventListener('submit',async e=>{
     e.preventDefault();const button=$('save-account');button.disabled=true;$('account-save-result').textContent='저장 중…';
     try{
-      const payload={action:'save',id:editing?.id||'',baseVersion:editing?.version,username:$('account-username').value,displayName:$('account-name').value,password:$('account-password').value,role:$('account-role').value,status:$('account-status').value,permissions:{farm:$('permission-farm').value,deck:$('permission-deck').value,farmIds:[...$('account-farms input:checked')].map(n=>n.value)}};
+      const payload={action:'save',id:editing?.id||'',baseVersion:editing?.version,username:$('account-username').value,displayName:$('account-name').value,password:$('account-password').value,role:$('account-role').value,status:$('account-status').value,permissions:{farm:$('permission-farm').value,deck:$('permission-deck').value,farmIds:[...document.querySelectorAll('#account-farms input:checked')].map(n=>n.value)}};
       const saved=await call(payload);editing=saved;$('account-password').value='';$('account-password').required=false;$('account-username').readOnly=true;
       $('account-save-result').textContent=`${saved.displayName} 계정을 저장했습니다. 아이디는 ${saved.username}입니다. 권한을 바꾸거나 접근을 중지하면 기존 로그인도 해제됩니다.`;
       await load();
