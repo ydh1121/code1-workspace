@@ -11,7 +11,12 @@
   const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const overflowText=t=>/글자가 텍스트 상자를 넘습니다\.?$/.test(String(t||'').trim());
   const issues=()=>Array.from(list.querySelectorAll('li'));
-  let bypass=false,preparing=false;
+  let bypass=false,preparing=false,printSignal=0;
+
+  // The legacy preflight used to open the browser print dialog automatically after
+  // several async checks. Keep that call as a completion signal instead, so a late
+  // check can never pop a print dialog after the user already cancelled or timed out.
+  window.print=()=>{printSignal++;};
 
   function row(text,cls){const li=document.createElement('li');li.textContent=text;if(cls)li.className=cls;return li;}
   function blockingRows(){return issues().filter(li=>!overflowText(li.textContent)&&!li.classList.contains('qa-status')&&!li.classList.contains('qa-ok')&&!li.classList.contains('qa-warning'));}
@@ -28,34 +33,30 @@
   }
 
   function installFastChecks(){
-    let printRequested=false;
-    const originalPrint=window.print;
     const imageProto=window.HTMLImageElement&&HTMLImageElement.prototype;
     const originalDecode=imageProto&&imageProto.decode;
     const fontProto=document.fonts?Object.getPrototypeOf(document.fonts):null;
     const originalFontLoad=fontProto&&fontProto.load;
 
-    window.print=()=>{printRequested=true;};
     if(originalDecode){
       imageProto.decode=function(){
         if(this.complete&&this.naturalWidth>0)return Promise.resolve();
         let timer;
         const timeout=new Promise(resolve=>{timer=setTimeout(resolve,2500);});
         return Promise.race([
-          Promise.resolve().then(()=>originalDecode.call(this)).catch(()=>undefined),
+          Promise.resolve().then(()=>originalDecode.call(this)),
           timeout
         ]).finally(()=>clearTimeout(timer));
       };
     }
     if(originalFontLoad){
       fontProto.load=function(font){
+        // Do not shape every character from all 12 slides just to verify one font.
         return originalFontLoad.call(this,font,'CODE1 가나다 ABC 123');
       };
     }
     return {
-      requested:()=>printRequested,
       restore(){
-        window.print=originalPrint;
         if(originalDecode)imageProto.decode=originalDecode;
         if(originalFontLoad)fontProto.load=originalFontLoad;
       }
@@ -70,9 +71,11 @@
     confirm.textContent='출력 준비 중…';
     if(!dialog.open)dialog.showModal();
 
-    // Let the modal paint before the legacy full-deck preflight starts.
+    // Paint the modal first. Previously the page started building all 12 print pages
+    // before the user saw any feedback, which looked like a frozen browser.
     await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
     const patch=installFastChecks();
+    const signalAtStart=printSignal;
     let finished=false;
     const observer=new MutationObserver(()=>{
       const rows=issues();
@@ -85,12 +88,13 @@
       button.click();
       bypass=false;
 
-      // Existing preflight calls window.print() when all hard checks pass. We suppress
-      // that automatic call so the user always sees this dialog first.
-      while(!patch.requested()&&!finished)await sleep(50);
+      const deadline=Date.now()+8000;
+      while(printSignal===signalAtStart&&!finished&&Date.now()<deadline)await sleep(50);
 
-      if(patch.requested()&&!issues().length){
+      if(printSignal!==signalAtStart&&!issues().length){
         list.replaceChildren(row('출력 준비가 완료되었습니다.','qa-ok'));
+      }else if(!finished&&printSignal===signalAtStart){
+        list.replaceChildren(row('자동 사전검사가 8초 안에 끝나지 않아 대기를 중단했습니다. 브라우저 부하를 막기 위해 검사를 더 기다리지 않습니다. 현재 저장된 제안서를 그대로 인쇄할 수 있습니다.','qa-warning'));
       }
     }finally{
       observer.disconnect();
