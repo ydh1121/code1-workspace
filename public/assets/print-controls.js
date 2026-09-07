@@ -21,6 +21,8 @@
       slide.classList.remove('mini');
       slide.style.transform='';
       slide.style.transformOrigin='';
+      slide.style.left='';
+      slide.style.top='';
       slide.querySelectorAll('[contenteditable]').forEach(n=>n.removeAttribute('contenteditable'));
       slide.querySelectorAll('.resize-handle').forEach(n=>n.remove());
       page.append(slide);
@@ -32,8 +34,8 @@
   function openExportDialog(){
     if(preparing)return;
     list.replaceChildren(
-      row('A4 가로 용지에 현재 제안서 12장을 출력합니다.','qa-ok'),
-      row('텍스트 상자 초과는 출력 차단 사유로 사용하지 않습니다. 실제 인쇄 미리보기에서 최종 확인해 주세요.','qa-warning')
+      row('현재 제안서 12장을 원본 규격 1920×1080 · 16:9로 출력합니다.','qa-ok'),
+      row('한 페이지에 슬라이드 한 장이 들어갑니다. PDF 저장 후 실제 종이에 출력할 때만 프린터에서 용지에 맞춤을 사용하세요.','qa-warning')
     );
     confirm.disabled=false;
     confirm.textContent='인쇄창 열기';
