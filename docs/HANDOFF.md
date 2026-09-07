@@ -1,6 +1,50 @@
-# CODE1 Cloudflare 전환 인계 — 2026-09-07
+# CODE1 Cloudflare 전환 인계 — 2026-09-08
 
-## 최신 — 계정 관리와 농가별 권한
+## 최신 — 농가 입력 항목 정책과 수집 간소화
+
+상태: **ACTIVE WORK / 실사이트 적용 전**
+
+사용자 피드백: 농가 입력 화면에서 일부 텍스트가 보이지 않는 문제를 확인하고, 모든 농가에 231개 항목을 동일하게 요구하지 않도록 전체/농가별 수집 정책, 제외 사유 DB, 노출 체크박스 관리 화면, 향후 관리자단·Supabase/회사 서버 이전 가능한 구조를 추가하기로 함. 작업 과정은 기존 CODE1 AI 작업 하네스의 CURRENT/이력/QA 규칙을 따른다.
+
+### 이번 변경
+
+- 실제 `13_WEB_질문카탈로그` A:P를 확인. 현재 231개 행의 `item_label`, `plain_question`은 모두 존재함. 따라서 제목/질문 문구 소실이 아니라 렌더링/도움말 품질 문제를 별도로 추적. `help_text`는 다수 항목이 의도적으로 공란.
+- 기존 질문 카탈로그를 삭제·수정하지 않고 정책 overlay를 분리.
+- 실제 Google Sheet에 `22_WEB_질문정책`, `23_WEB_질문정책_이력` 생성 및 헤더 설치.
+- `bridge/QuestionPolicy.gs` 추가. 전체/농가별 정책, 이유 코드, 버전 충돌, 관리자 권한, append-only 변경 이력 지원.
+- `CloudflareBridge.gs`에 `questionPolicy.effective/list/save`만 별도 라우팅. 기존 `AccessControl.gs`, 제출·미디어·제안서 저장 로직은 재작성하지 않음.
+- Cloudflare `bootstrap`에 유효 정책을 합치되 Apps Script가 아직 구버전이면 기존 농가/제안서가 중단되지 않도록 정책 기능만 비활성 fallback.
+- 농가 모델에 `SHOW / OPTIONAL / HIDE / PERMANENT_EXCLUDE`, 농가별 `INHERIT / SHOW / OPTIONAL / HIDE / NOT_APPLICABLE` 적용.
+- `OPTIONAL`은 화면에 보이지만 진행률과 미입력 요청서에서 제외. 숨김·해당없음·영구제외는 화면에서도 제외. 과거 답변은 삭제하지 않음.
+- 최고 관리자와 서브 관리자에게 `입력 항목 관리` UI 제공. 범위 선택, 분류/검색, 노출 체크박스, 수집 상태, 사유 코드, 운영 메모, 변경 저장 지원.
+- 정책 규칙과 향후 DB 이전 계약은 `docs/QUESTION_POLICY.md`에 정리.
+- 정책 전용 DOM 테스트 추가. `OPTIONAL` 진행률 제외, 농가 override, 전역 영구제외 우선, 서브 관리자 메뉴 노출을 검증하도록 작성.
+
+### 데이터/이관 경계
+
+현재 Google Sheet는 임시 운영 저장소다. 논리 계약은 `question_catalog / question_policy / question_policy_history`로 분리되어 있어 이후 Supabase 또는 회사 서버로 저장 구현을 교체해도 UI 정책 의미를 유지할 수 있게 설계함. Sheet 행 번호를 외부 계약으로 사용하지 않음.
+
+### 현재 적용 상태
+
+- Google Sheet 22/23 탭: **생성 완료**.
+- GitHub `main`: 정책 코드·UI·문서 반영 완료.
+- Apps Script 실제 편집기: `QuestionPolicy.gs` 신규 파일과 최신 `CloudflareBridge.gs`를 아직 사용자가 적용/재배포해야 함.
+- Cloudflare: GitHub 자동 배포가 먼저 되어도 기존 Apps Script에서는 정책 기능만 준비되지 않은 상태로 표시되고 기존 업무 bootstrap은 fallback하도록 함.
+- 실사이트 정책 저장/진행률 변화: **미검증**. 실제 Apps Script 새 버전 배포 후 검증 필요.
+- 이번 실행환경은 GitHub clone 네트워크가 차단되어 `npm test`를 직접 재실행하지 못함. 테스트 파일은 추가했으나 **PASS로 기록하지 않음**.
+
+### 다음 정확한 시작점
+
+1. Apps Script 기존 프로젝트에 GitHub `bridge/QuestionPolicy.gs` 전체를 새 파일로 추가.
+2. 기존 `CloudflareBridge.gs`를 GitHub 최신본으로 교체.
+3. 기존 `Cloudflare 데이터 연결` 배포를 **같은 배포 ID/URL 유지 + 새 버전**으로 갱신.
+4. Cloudflare 최신 main 배포 후 최고 관리자와 서브 관리자 각각 `입력 항목 관리` 접근 확인.
+5. 테스트 정책 1개를 `OPTIONAL`로 저장 → `22_WEB_질문정책`, `23_WEB_질문정책_이력` 행 생성 → 농가 진행률/미입력 요청서 변화 검증.
+6. 실제 운영 자료를 보며 영구 제외 후보는 자동 적용하지 말고 우선 `OPTIONAL`부터 검토.
+
+---
+
+## 이전 — 계정 관리와 농가별 권한
 
 사용자가 Cloudflare 사이트 배포 성공을 보고했으며 실제 사용 주소는 `https://code1-workspace.pages.dev`입니다. 데이터 브리지로 전달받은 URL은 `https://script.google.com/macros/s/AKfycbx1FJr3BfX3DgfYnMmKDFHzZBxoO8NPlWZ4y9I3M68X8UYoptIFoBhL1ufOzoCwInl7/exec`입니다. 아래 최초 전환 기록의 미배포 상태와 구분합니다.
 
