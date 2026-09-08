@@ -1,6 +1,72 @@
 # CODE1 Cloudflare 전환 인계 — 2026-09-08
 
-## 최신 — 농가 입력 항목 정책과 수집 간소화
+## 최신 — 농가 미디어 원본·삭제·자동정리 복구
+
+상태: **IMPLEMENTED / APPS SCRIPT DEPLOY + LIVE QA PENDING**
+
+사용자 피드백: 업로드된 자료 삭제 기능이 없고, 모바일·디지털카메라 고화질 원본은 8MB 제한 때문에 직접 받을 수 없으며, 실제 농가 사진을 업로드해도 `24_WEB_미디어정리_이력`이 생성되지 않고 Drive 파일명이 의도한 표준명이 아니라 `M_<긴ID>_<원본명>`으로 남아 있음을 확인함.
+
+### 실제 확인 증거
+
+- `12_WEB_미디어큐`에 2026-09-08 `애향방사유정란 / PHOTO-P01 / 포장 정면` 농가 업로드 3건 존재.
+- 같은 시점 `24_WEB_미디어정리_이력`은 헤더만 있고 데이터 행 0개.
+- 실제 Drive 파일은 미디어 루트 바로 아래에 `M_3897..._KakaoTalk....jpg`, `M_0da9..._1231.png`, `M_b1bc..._12.webp` 형태로 존재.
+- 따라서 표준 파일명 로직 오류가 아니라 `MediaOrganizer.gs`가 실제 배포에서 실행되지 않은 것이 원인으로 확정.
+- 현재 채팅의 Drive 커넥터로 기존 파일을 직접 이동·rename하려 했으나 `appNotAuthorizedToFile` 403. 폴더 생성은 가능했지만 파일 쓰기는 불가. Apps Script는 소유자 실행이므로 배포 후 복구 액션으로 정리하도록 전환.
+
+### 이번 변경
+
+- `bridge/MediaLifecycle.gs` 추가.
+- 농가 미디어 `자료 삭제` 추가: Drive 영구삭제가 아니라 휴지통 이동, `12_WEB_미디어큐.status=DELETED`, 삭제 사유·시각 기록, `24_WEB_미디어정리_이력`에 `TRASHED` append, 이후 조회에서 제외.
+- 승인/정본 반영 완료 제출에서는 삭제 차단. 농가 편집 권한 재검사.
+- 고화질 원본 업로드 추가: 8MB 초과 또는 HEIC/HEIF/TIFF/RAW/MOV는 Google Drive resumable upload로 자동 전환. 4MiB 청크, 브라우저 압축·리사이즈 없음.
+- 직접 원본 업로드 임시 상한 250MB. 그 이상 대형 영상은 기존 비공개 Drive 원본 연결 사용.
+- 지원 원본: JPG/JPEG/PNG/WebP/HEIC/HEIF/TIFF/DNG/CR2/CR3/NEF/ARW/RAF/RW2/ORF/PEF/PDF/MP4/MOV.
+- 고화질 업로드 완료 후 기존 `linkDrive_()`를 재사용해 `12_WEB_미디어큐` 계약을 유지하고 Organizer를 후처리.
+- 기존 소형 `upload`도 Organizer 미설치/실패를 더 이상 조용히 무시하지 않고 `organization` 결과를 Cloudflare 응답에 포함.
+- `mediaOrganizer.status` 추가: 설치 버전, 이력 수, 미정리 수 반환.
+- `mediaOrganizer.repair` 추가: 최고 관리자/서브 관리자가 기존 미정리 파일을 최대 50건 단위로 폴더 이동 + 표준명 변경 + `ORGANIZED` 이력 생성.
+- 프론트에서 Organizer 미설치 상태와 미정리 파일 수를 표시하고, 관리자에게 `기존 미정리 파일 N개 정리` 버튼 제공.
+- `자료 삭제` 버튼을 미디어 카드에 추가.
+- `media-lifecycle.js`는 `app.js`보다 먼저 로드하여 기존 `/api/rpc` 흐름을 관찰하고 현재 submission/media 상태를 유지하면서 기존 앱 로직을 최소 변경.
+- 고화질 파일 선택 시 기존 “8MB 초과 → Drive 연결” 경고를 “자동 분할 업로드 전환” 안내로 교체.
+- `docs/MEDIA_ORGANIZATION.md`를 v0.2로 갱신.
+- `test/media-lifecycle.test.mjs` 추가. 배포 경로, 삭제, resumable action, repair action, 표준 파일명 계약을 정적으로 고정.
+
+### 기존 Drive 구조 보정
+
+채팅의 Drive 연결로 미디어 루트 아래에 다음 빈 폴더 구조까지 생성됨. Organizer는 이름 기준으로 재사용 가능.
+
+- `농가별`
+- `[GF-ORIGIN-01] 애향방사유정란`
+- `01_사진`
+- `01_상품·포장`
+
+기존 3개 파일은 권한 403으로 아직 이동/rename되지 않았으므로 **실제 복구 미완료**.
+
+### 다음 정확한 시작점
+
+1. 기존 Apps Script 프로젝트에 GitHub 최신 `bridge/MediaLifecycle.gs`를 새 파일로 추가.
+2. `bridge/MediaOrganizer.gs`가 최신본인지 확인/교체.
+3. `bridge/CloudflareBridge.gs`를 최신본으로 교체.
+4. 저장 후 기존 `Cloudflare 데이터 연결` 배포를 **동일 배포 ID/URL + 새 버전**으로 갱신.
+5. Cloudflare Pages 최신 `main` 배포 확인 후 강력 새로고침.
+6. 농가 자료 → 사진·영상 진입. Organizer 상태가 정상인지 확인.
+7. 화면의 `기존 미정리 파일 3개 정리` 실행 → Drive 표준 폴더/파일명 및 `24_WEB_미디어정리_이력` `ORGANIZED` 3행 확인.
+8. 테스트 파일 1개 `자료 삭제` → Drive 휴지통, `12` 상태 DELETED, `24` TRASHED, 화면 제거 확인.
+9. 8MB 초과 JPG 또는 HEIC/RAW 1개 업로드 → 분할 진행률, 원본 크기 보존, `12` 기록, 표준 파일명, `24` ORGANIZED 확인.
+10. Apps Script manifest에 `oauthScopes`를 명시적으로 제한한 프로젝트에서 resumable 시작 시 권한 오류가 나오면 `script.external_request` 및 Drive 쓰기 scope를 재확인. 자동 scope 프로젝트에서는 불필요.
+
+### 검증 상태
+
+- 실 Sheet/Drive 상태 진단은 완료.
+- GitHub 코드와 정적 테스트 파일 반영 완료.
+- 현재 실행환경에서 `npm test`/실 Cloudflare 대용량 업로드를 직접 재실행하지 못했으므로 **PASS로 기록하지 않음**.
+- 실제 Apps Script 새 버전 배포 후에만 미디어 lifecycle을 LIVE PASS로 전환한다.
+
+---
+
+## 이전 — 농가 입력 항목 정책과 수집 간소화
 
 상태: **ACTIVE WORK / 실사이트 적용 전**
 
