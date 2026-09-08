@@ -37,13 +37,12 @@ function doPost(e) {
         if(typeof questionPolicySave_!=='function')throw new Error('BRIDGE_UPDATE_REQUIRED');
         return questionPolicySave_(p.actor,payload);
       }
-      var result=accessDispatch_(p.actor,p.action,payload);
-      // Keep the existing upload transaction authoritative. Organization is a
-      // fail-soft post-step so a Drive move/rename problem never turns a
-      // successful upload into a duplicate retry.
-      if(p.action==='upload'&&result&&result.upload_id&&typeof mediaOrganizeUploaded_==='function')mediaOrganizeUploaded_(p.actor,result.upload_id);
-      return result;
+      return accessDispatch_(p.actor,p.action,payload);
     });
+    // Keep Drive folder creation/move/rename outside the shared data lock.
+    // The organizer is fail-soft: a successful upload stays successful even
+    // when organization cannot be completed, and the failure is logged.
+    if(p.action==='upload'&&data&&data.upload_id&&typeof mediaOrganizeUploaded_==='function')mediaOrganizeUploaded_(p.actor,data.upload_id);
     return bridgeJson_({ok:true,data:data});
   }catch(error){
     var message=String(error.message||'REQUEST_FAILED');
