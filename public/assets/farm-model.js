@@ -7,7 +7,7 @@
     {id:'story',name:'농장 이야기',hint:'농가 인터뷰',codes:['R']},
     {id:'media',name:'사진과 자료',hint:'사진 · 영상 · 사용 범위',codes:['S','MEDIA']}
   ];
-  const policy={records:[],catalog:[],farms:[],reasons:[],user:null,dirty:new Map(),loaded:false,ready:false};
+  const policy={records:[],catalog:[],farms:[],reasons:[],user:null,dirty:new Map(),index:new Map(),loaded:false,ready:false};
   const nativeFetch=root.fetch.bind(root);
   const hiddenModes=['HIDE','NOT_APPLICABLE','PERMANENT_EXCLUDE'];
   const nonBlockingModes=['OPTIONAL','HIDE','NOT_APPLICABLE','PERMANENT_EXCLUDE'];
@@ -19,7 +19,12 @@
     if(q.input_type==='file')return hasValue(v)&&(form.media||[]).some(m=>m.upload_id===v&&m.status!=='REJECTED');
     return hasValue(v)&&!(typeof v==='string'&&['미확인','확인 중','모름','미정'].includes(v.trim()));
   }
-  function record(scope,farmId,itemKey,records=policy.records){return records.find(r=>r.scope===scope&&(r.farmId||'')===(farmId||'')&&r.itemKey===itemKey);}
+  function policyKey(scope,farmId,itemKey){return scope+'|'+(farmId||'')+'|'+itemKey;}
+  function rebuildPolicyIndex(){policy.index=new Map(policy.records.map(r=>[policyKey(r.scope,r.farmId,r.itemKey),r]));}
+  function record(scope,farmId,itemKey,records=policy.records){
+    if(records===policy.records)return policy.index.get(policyKey(scope,farmId,itemKey));
+    return records.find(r=>r.scope===scope&&(r.farmId||'')===(farmId||'')&&r.itemKey===itemKey);
+  }
   function policyMode(itemKey,farmId,records=policy.records){
     const global=record('GLOBAL','',itemKey,records),farm=farmId&&record('FARM',farmId,itemKey,records);
     if(global?.mode==='PERMANENT_EXCLUDE')return 'PERMANENT_EXCLUDE';
@@ -47,9 +52,12 @@
       if(url.includes('/api/rpc')&&body?.action==='bootstrap'&&response.ok){
         const parsed=await response.clone().json(),data=parsed?.data||{};
         policy.records=Array.isArray(data.questionPolicies)?data.questionPolicies:[];
+        rebuildPolicyIndex();
         policy.catalog=Array.isArray(data.catalog)?data.catalog:[];
         policy.farms=Array.isArray(data.farms)?data.farms:[];
+        policy.reasons=Array.isArray(data.questionPolicyReasons)?data.questionPolicyReasons:policy.reasons;
         policy.ready=data.questionPolicyReady===true;
+        policy.loaded=data.questionPolicyPrefetched===true;
       }
     }catch(_){ }
     return response;
@@ -108,12 +116,12 @@
   async function showPolicyPage(){
     if(!admin())return;['landing','farm-page','deck-page','accounts-page'].forEach(id=>{const n=document.getElementById(id);if(n)n.hidden=true;});
     document.querySelectorAll('#main-nav [data-page]').forEach(n=>n.classList.remove('active'));document.getElementById('question-policy-nav').classList.add('active');document.getElementById('question-policy-page').hidden=false;
-    if(!policy.loaded)await loadPolicies();else renderPolicies();
+    if(!policy.loaded)await loadPolicies();else{buildSelectors();renderPolicies();}
   }
   async function loadPolicies(){
     const out=document.getElementById('question-policy-status');out.textContent='입력 항목 정책을 불러오는 중…';
     try{
-      const data=await call('questionPolicy.list');policy.records=data.policies||[];policy.reasons=data.reasons||[];policy.farms=data.farms||policy.farms;policy.catalog=data.catalog||policy.catalog;policy.loaded=true;policy.ready=true;policy.dirty.clear();buildSelectors();renderPolicies();
+      const data=await call('questionPolicy.list');policy.records=data.policies||[];rebuildPolicyIndex();policy.reasons=data.reasons||[];policy.farms=data.farms||policy.farms;policy.catalog=data.catalog||policy.catalog;policy.loaded=true;policy.ready=true;policy.dirty.clear();buildSelectors();renderPolicies();
     }catch(error){out.textContent=/UNKNOWN_ACTION|BRIDGE_UPDATE_REQUIRED/.test(String(error.message))?'Apps Script 데이터 연결에 QuestionPolicy.gs 최신 버전을 적용해야 합니다. 기존 농가 자료와 제안서는 계속 사용할 수 있습니다.':error.message;document.getElementById('question-policy-list').replaceChildren();}
   }
   function buildSelectors(){
@@ -145,7 +153,7 @@
     if(!policy.dirty.size)return;const out=document.getElementById('question-policy-status'),button=document.getElementById('question-policy-save'),changes=[...policy.dirty.values()];
     for(const c of changes){if(nonBlockingModes.includes(c.mode)&&(!c.reasonCode||!c.reasonNote.trim())){out.textContent=`${c.itemKey}: 수집 정책 이유와 운영 메모를 입력해 주세요.`;return;}}
     button.disabled=true;out.textContent=`${changes.length}개 정책 저장 중…`;
-    try{const data=await call('questionPolicy.save',{requestId:uid(),changes});policy.records=data.policies||policy.records;policy.dirty.clear();out.textContent=`${changes.length}개 입력 항목 정책을 저장했습니다. 변경 이력도 함께 기록했습니다.`;renderPolicies();}
+    try{const data=await call('questionPolicy.save',{requestId:uid(),changes});policy.records=data.policies||policy.records;rebuildPolicyIndex();policy.dirty.clear();out.textContent=`${changes.length}개 입력 항목 정책을 저장했습니다. 변경 이력도 함께 기록했습니다.`;renderPolicies();}
     catch(error){out.textContent=error.message;button.disabled=false;}
   }
 
