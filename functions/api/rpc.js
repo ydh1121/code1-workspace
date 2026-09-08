@@ -6,15 +6,6 @@ export async function onRequestPost({ request, env }) {
     if (Number(request.headers.get('Content-Length')) > 12000000) return json({error:'TOO_LARGE',message:'요청 크기가 너무 큽니다. 고화질 원본은 자동 분할 업로드를 이용해 주세요.'},413);
     const raw = await request.text(); if (raw.length > 12000000) return json({error:'TOO_LARGE'},413);
     const { action, payload } = JSON.parse(raw); if (!actions.has(action)) return json({error:'UNKNOWN_ACTION'},400);
-    if (action === 'bootstrap') {
-      const [data, policies] = await Promise.all([
-        bridge(env, user, 'bootstrap', payload || {}),
-        bridge(env, user, 'questionPolicy.effective', {}).then(value=>({ok:true,value})).catch(()=>({ok:false,value:[]}))
-      ]);
-      data.questionPolicies = policies.value;
-      data.questionPolicyReady = policies.ok;
-      return json({ data });
-    }
     const data = await bridge(env, user, action, payload || {});
     return json({ data });
   } catch(e) { return failure(e); }
