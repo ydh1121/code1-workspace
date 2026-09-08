@@ -19,7 +19,7 @@ function doPost(e) {
 
     // Large original uploads and Drive lifecycle operations must not hold the
     // shared sheet lock while Google Drive receives chunks or moves files.
-    if(['mediaUpload.begin','mediaUpload.chunk','mediaUpload.finish','deleteMedia','mediaOrganizer.status'].indexOf(p.action)>=0){
+    if(['mediaUpload.begin','mediaUpload.chunk','mediaUpload.finish','deleteMedia','mediaOrganizer.status','mediaOrganizer.repair'].indexOf(p.action)>=0){
       withLock_(function(){if(cache_().get('bridge:'+p.nonce))throw new Error('FORBIDDEN');cache_().put('bridge:'+p.nonce,'1',180);staging_();});
       var direct;
       if(p.action==='mediaUpload.begin'){if(typeof mediaUploadBegin_!=='function')throw new Error('MEDIA_LIFECYCLE_UPDATE_REQUIRED');direct=mediaUploadBegin_(p.actor,p.payload||{});}
@@ -27,6 +27,7 @@ function doPost(e) {
       if(p.action==='mediaUpload.finish'){if(typeof mediaUploadFinish_!=='function')throw new Error('MEDIA_LIFECYCLE_UPDATE_REQUIRED');direct=mediaUploadFinish_(p.actor,p.payload||{});}
       if(p.action==='deleteMedia'){if(typeof mediaDelete_!=='function')throw new Error('MEDIA_LIFECYCLE_UPDATE_REQUIRED');direct=mediaDelete_(p.actor,p.payload||{});}
       if(p.action==='mediaOrganizer.status'){if(typeof mediaOrganizerStatus_!=='function')throw new Error('MEDIA_LIFECYCLE_UPDATE_REQUIRED');direct=mediaOrganizerStatus_(p.actor);}
+      if(p.action==='mediaOrganizer.repair'){if(typeof mediaOrganizerRepair_!=='function')throw new Error('MEDIA_LIFECYCLE_UPDATE_REQUIRED');direct=mediaOrganizerRepair_(p.actor,p.payload||{});}
       return bridgeJson_({ok:true,data:direct});
     }
 
