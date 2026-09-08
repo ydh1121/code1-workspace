@@ -29,8 +29,8 @@ function mediaOrganizerEnsureLog_() {
 }
 function mediaOrganizerAlready_(sheet, uploadId, driveFileId) {
   if(sheet.getLastRow()<2)return false;
-  var range=sheet.getRange(2,3,sheet.getLastRow()-1,2),values=range.getValues();
-  for(var i=0;i<values.length;i++)if(String(values[i][0])===String(uploadId)&&String(values[i][1])===String(driveFileId))return true;
+  var range=sheet.getRange(2,3,sheet.getLastRow()-1,12),values=range.getValues();
+  for(var i=0;i<values.length;i++)if(String(values[i][0])===String(uploadId)&&String(values[i][1])===String(driveFileId)&&String(values[i][11])==='ORGANIZED')return true;
   return false;
 }
 function mediaOrganizerLog_(row) {
