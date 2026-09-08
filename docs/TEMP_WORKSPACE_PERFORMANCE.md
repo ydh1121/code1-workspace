@@ -1,6 +1,6 @@
-# CODE1 임시 내부웹 성능·이관 경계 v0.2
+# CODE1 임시 내부웹 성능·이관 경계 v0.3
 
-상태: ACTIVE / LIVE QA PENDING / 2026-09-08
+상태: ACTIVE / 3차 LIVE QA PENDING / 2026-09-08
 대상: CODE1 Internal Workspace
 
 ## 전제
@@ -19,78 +19,117 @@
 
 ## 2026-09-08 성능 개선 1차
 
-### 1. 세션 복구
-
-이전에는 `/api/session` 호출마다 Apps Script `account.self`를 다시 호출했다.
-
-변경 후:
+### 세션 복구
 
 - `/api/session`은 Cloudflare edge에서 서명 세션만 확인한다.
-- 계정 상태, 권한, `session_version`은 첫 실제 데이터 요청(`bootstrap` 등)에서 다시 검증한다.
-- 계정 중지/권한 변경 보안 규칙은 데이터 접근 시 그대로 fail-closed다.
+- 계정 상태, 권한, `session_version`은 첫 실제 데이터 요청에서 다시 검증한다.
 
-### 2. Apps Script 전역 Lock
+### Apps Script 전역 Lock
 
-- nonce 재사용 방지 부분만 짧게 lock.
-- 조회(`bootstrap`, `getSubmission`, `media`, `mediaBatch`, `deckAssets`, 계정/정책 조회)는 장시간 전역 write lock을 잡지 않는다.
-- 저장/검토/계정 변경/정책 변경 등 mutation은 기존대로 serialized write lock을 유지한다.
+- nonce 재사용 방지만 짧게 lock.
+- 조회는 장시간 전역 write lock을 잡지 않는다.
+- mutation은 기존 serialized write lock을 유지한다.
 
-### 3. 농가 이미지 N+1 완화
+### 농가 이미지 N+1 완화
 
-`PerformanceRead.gs`의 `mediaBatch`를 추가했다.
+- 같은 렌더 주기의 media read를 최대 32개 batch로 합친다.
+- 브라우저 세션 동안 받은 media 응답을 메모리 캐시한다.
+- 이미지에 lazy loading/async decoding을 적용한다.
 
-- 같은 렌더 주기에 발생하는 개별 `media` 요청을 최대 32개까지 한 batch로 합친다.
-- 각 media ID는 기존 권한을 다시 검사한다.
-- 브라우저 세션 동안 이미 받은 media 응답은 메모리 캐시한다.
-- `<img loading="lazy" decoding="async">`를 적용한다.
+사용자 체감: 개선이 명확하지 않음. PASS 아님.
 
-## 사용자 체감 피드백
+## 2026-09-08 성능 개선 2차 — 폐기/부분 유지
 
-1차 배포 후 사용자는 속도 개선 체감이 명확하지 않다고 피드백했다. 따라서 1차를 성능 PASS로 판정하지 않는다.
+2차에서는 Apps Script 왕복을 줄이기 위해 deck/catalog 결과를 `CacheService`에 chunked JSON으로 저장하고 bootstrap에 정책까지 합쳤다. PDF runtime 지연 로딩도 추가했다.
 
-## 2026-09-08 성능 개선 2차
+사용자 체감: 여전히 느리고 오히려 조금 더 느려진 느낌이라고 피드백함. 따라서 2차 CacheService 전략은 성능 개선으로 채택하지 않는다.
 
-### 4. bootstrap 왕복 축소
+유지하는 부분:
 
-이전 1차에서는 `bootstrap`과 `questionPolicy.effective`를 Cloudflare에서 병렬로 두 번 Apps Script 호출했다.
+- edge-local session restore
+- read/write lock 분리
+- media batch/cache
+- PDF runtime lazy load
 
-2차 변경 후:
+폐기하는 부분:
 
-- `performanceBootstrap_()` 한 번의 Apps Script 실행 안에서 계정/권한/농가/제출/질문카탈로그/제안서/질문정책을 구성한다.
-- Cloudflare `functions/api/rpc.js`는 bootstrap 시 추가 bridge 호출을 하지 않는다.
-- 질문 정책 실패 시 기존처럼 정책 기능만 fail-soft 처리하고 기본 업무 bootstrap은 유지한다.
+- 대형 deck JSON의 chunked CacheService read/write
+- catalog CacheService read/write
+- 농가 화면 bootstrap에서 deck을 함께 구성하는 방식
 
-목적: 네트워크 왕복 1회를 제거한다.
+## 2026-09-08 성능 개선 3차
 
-### 5. 제안서 read cache
+사용자가 실제 느린 구간을 `로그인`, `농가 입력화면`, `입력 항목 관리`라고 특정했고 제안서 편집은 열지 않았다고 확인했다. 따라서 제안서 UI 자체는 병목 판정에서 제외하고 초기 bootstrap 경계를 재설계했다.
 
-기존 앱 UI 계약을 깨지 않기 위해 이번 단계에서는 제안서 자체를 bootstrap에서 제거하지 않는다. 대신 임시 Apps Script read cache를 둔다.
+### 1. bootstrap에서 제안서 완전 제외
 
-- `loadDeck_()` 결과를 5분 동안 chunked CacheService에 저장한다.
-- `bootstrap`과 `deckAssets`가 같은 cached deck을 재사용한다.
-- `saveDeck` 성공 직후 cache를 즉시 폐기한다.
-- 캐시 크기 제한을 넘으면 자동으로 기존 uncached read로 동작한다.
+`performanceBootstrap_()`은 이제 다음만 반환한다.
 
-이 캐시는 임시 내부웹 전용이며 정식 관리자 서버의 영구 설계가 아니다.
+- 현재 계정/권한
+- 농가 선택 목록
+- 제출 요약
+- 질문 카탈로그
+- 적용 질문 정책
 
-### 6. 질문 카탈로그 read cache
+`deck`은 `null`이며 `loadDeck_()`을 호출하지 않는다.
 
-231개 질문 카탈로그는 2분짜리 read cache를 적용한다. 원본 Sheet는 계속 정본이며 cache는 읽기 가속용이다.
+프런트도 로그인 직후 `deckAssets`를 자동 요청하지 않는다. 사용자가 실제 `아자몰 제안서` 메뉴를 눌렀을 때만 신규 `deckBootstrap` read로 deck + 참조 asset을 한 번에 가져온다.
 
-### 7. PDF 런타임 지연 로딩
+목적: 농가 업무만 하는 사용자가 12장 제안서 Sheet 조립과 제안서 이미지 read 비용을 전혀 지불하지 않게 한다.
 
-기존에는 앱 초기 진입 시 jsPDF 번들을 항상 생성/다운로드/파싱했다.
+### 2. Apps Script 대형 CacheService 제거
 
-변경 후 빌드 산출물:
+`PerformanceRead.gs` v4에서 deck/catalog chunk cache를 제거했다. 현재 데이터량의 임시웹에서 JSON stringify/chunk put/get 비용이 실제 Sheet read 절감보다 더 클 가능성을 제거한다.
 
-- `pdf.bundle.js`: 아주 작은 loader
-- `pdf.runtime.js`: 실제 jsPDF runtime
+### 3. 농가 선택 목록 중복 scan 감소
 
-사용자가 농가 자료 요청서 PDF 기능을 실제 실행할 때만 runtime을 추가 로드한다. 일반 농가 입력/사진 업무에서는 PDF runtime 초기 비용을 지불하지 않는다.
+기존 `accessFarmChoices_()`는 `farms_()`와 `commits_()`를 모두 다시 읽었다. 3차 bootstrap은 이미 읽은 submission summaries를 재사용하고 `farms_()`만 결합하여 농가 선택 목록을 만든다.
+
+### 4. 제출 상세 조회 중복 scan 감소
+
+기존 `getSubmission` 권한 검사는 `latest_()`로 한 번 읽고, 이후 `getSubmission_()`에서 다시 제출 자료를 읽을 수 있었다.
+
+`performanceGetSubmission_()`은 먼저 상세 자료를 한 번 읽고 반환된 `farmId`로 권한을 검사한다. 권한 fail-closed 의미는 유지하면서 별도 `latest_()` 선행 scan을 제거한다.
+
+### 5. 입력 항목 관리 추가 왕복 제거
+
+최고 관리자/서브 관리자 bootstrap 시 현재 질문 정책과 사유 목록을 함께 반환하고 `questionPolicyPrefetched=true`로 표시한다.
+
+`farm-model.js`는 이 데이터를 즉시 정책 관리 화면 데이터로 재사용한다. 따라서 `입력 항목 관리` 첫 진입에서 `questionPolicy.list`를 다시 Apps Script로 호출하지 않는다. 구버전 bridge 또는 prefetch 실패 시 기존 list 요청 fallback은 유지한다.
+
+### 6. 질문 정책 lookup index
+
+기존에는 진행률/카테고리 렌더 때 질문마다 `Array.find()`로 정책 row를 반복 탐색했다. 이제 `scope|farmId|itemKey` Map index를 만들어 일반 lookup을 O(1)로 처리한다.
+
+### 7. 농가 첫 렌더 중복 계산 제거
+
+기존 `renderFarm()`은 `renderGroupNavigation()` 호출 후 `renderCategory()`를 호출했고 `renderCategory()` 내부에서 다시 `renderGroupNavigation()`을 실행했다. 첫 렌더의 중복 호출을 제거했다.
+
+### 8. 질문 도움말 DOM observer 완화
+
+`question-help.js`의 MutationObserver는 mutation마다 즉시 전체 질문 도움말을 다시 순회하지 않고 requestAnimationFrame당 최대 한 번만 처리한다.
+
+## 아직 남아 있는 로그인 병목 후보
+
+비밀번호 로그인은 현재 구조상 Apps Script를 최소 두 번 사용한다.
+
+1. `auth.begin`: 로그인 throttle + credential ticket
+2. `auth.finish`: 검증 결과 확인 + 세션용 계정 반환
+3. 로그인 성공 후 별도 `bootstrap`: 업무 데이터 로드
+
+또한 `accessAuthBegin_()`은 `21_WEB_LOGIN_GUARD`를 IP와 username 각각 처리하면서 시트를 반복 읽고 쓸 수 있고, `accessAuthFinish_()`도 계정 row를 읽은 뒤 `accessAccount_()`에서 계정 시트를 다시 읽는다.
+
+3차 배포 후에도 **로그인 자체**가 느리면 다음 작업은 캐시가 아니라 이 auth 경로를 합치는 것이다.
+
+후보:
+
+- 로그인 guard sheet 1회 read/write로 IP/user throttle 함께 처리
+- `auth.finish`의 계정 중복 read 제거
+- 성공한 `auth.finish` 실행 안에서 lightweight farm bootstrap까지 반환하여 로그인 성공 뒤 세 번째 Apps Script cold start 제거
+
+이 변경은 인증 계약을 건드리므로 3차 LIVE QA 이후 독립 회귀 작업으로 진행한다.
 
 ## 현재 비목표
-
-이번 단계에서는 아래를 하지 않는다.
 
 - Supabase/R2/회사 서버로 실제 이전
 - 공개 웹용 CDN 자산 발행
@@ -99,9 +138,9 @@
 - 농가/회원/결제 등 상용 DB 스키마 확정
 - Apps Script 데이터 계층 전면 재작성
 
-## 정식 관리자단 이전 시 유지할 논리 계약
+상용 수준 성능을 만들기 위해 임시 Apps Script를 과도하게 고도화하지 않는다. 임시웹에 필요한 수준을 넘는 병목은 정식 관리자 서버 이관 단계에서 해결한다.
 
-현재 임시 구현에서 다음 식별자는 저장소 교체 후에도 연결 키로 유지할 가치가 있다.
+## 정식 관리자단 이전 시 유지할 논리 계약
 
 - `account_id`
 - `farm_id`
@@ -111,7 +150,7 @@
 - `shot_code`
 - deck/slide/element logical IDs
 
-반대로 다음은 영구 계약으로 사용하지 않는다.
+영구 계약으로 사용하지 않는 값:
 
 - Google Sheet row number
 - Drive folder path
@@ -119,13 +158,13 @@
 - Apps Script deployment URL
 - Apps Script CacheService key
 
-정식 관리자단에서는 인증/권한, 업무 DB, 미디어 asset registry, 원본/공개 저장소를 서버 측 계층으로 분리한다.
+정식 관리자단에서는 인증/권한, 업무 DB, 미디어 asset registry, 원본/공개 저장소를 서버 계층으로 분리한다.
 
 ## 공개 미디어의 미래 경계
 
 현재 Drive 파일명은 내부 원본 추적용이다. 상용 웹은 Drive 파일명이나 Drive URL을 직접 참조하지 않는다.
 
-향후에는 다음 개념을 별도 관리한다.
+향후 개념:
 
 - source asset: 원본 및 감사용
 - asset registry: `asset_id`, `farm_id`, 역할, 권리, 검증상태, checksum, version
@@ -133,17 +172,21 @@
 
 상용 저장소 선택과 R2/Supabase 비용 검토는 Production Admin 설계 단계에서 별도 결정한다.
 
-## 남은 성능 작업
+## 3차 배포/검증 상태
 
-1. 2차 배포 후 로그인/새로고침/농가 열기/사진 5~20장 표기 시간을 실제 사용 체감으로 재확인한다.
-2. 그래도 느리면 Apps Script `listSubmissions_`, `farms_`, `commits_` 계열의 전수 Sheet scan을 계측·단기 index/cache 대상으로 검토한다.
-3. 제안서 자체를 bootstrap에서 완전히 빼는 true lazy-load는 `app.js` 상태 구조 변경이 필요하므로 별도 회귀 작업으로 진행한다.
-4. 상용 수준 성능을 위해 임시 Apps Script 구조를 과도하게 고도화하지 않는다. 성능 한계가 명확해지면 정식 관리자 서버 이관 시 해결한다.
+GitHub `main` 구현 완료. 실제 Apps Script에는 최신 두 파일만 다시 반영하면 된다.
 
-## 배포/검증 상태
+- `bridge/PerformanceRead.gs` v4
+- `bridge/CloudflareBridge.gs`
 
-GitHub main 구현 완료. 실제 Apps Script에는 최신 `CloudflareBridge.gs`와 최신 `PerformanceRead.gs` 반영이 필요하다.
+Cloudflare Pages는 최신 main에서 `app.js`, `farm-model.js`, `question-help.js`, `functions/api/rpc.js`가 자동 배포되어야 한다.
 
-Cloudflare Pages는 최신 main build에서 PDF loader/runtime 분리가 적용되어야 한다.
+실사이트에서 확인할 항목:
 
-현재 실행환경에서는 github.com DNS 해석 실패로 `npm test` / `npm run build` 재실행이 불가능했다. 정적 회귀 테스트는 갱신했지만 LIVE/CI PASS로 기록하지 않는다.
+1. 로그인 후 농가 화면 표시 시간
+2. 기존 농가 클릭 후 질문 5개가 나타날 때까지 시간
+3. `입력 항목 관리` 클릭 후 정책 목록 표시 시간
+4. 농가 ↔ 입력 항목 관리 반복 전환 시 두 번째부터 추가 서버 대기가 없는지
+5. 아자몰 제안서를 열지 않은 상태에서 `deckBootstrap/deckAssets` 요청이 발생하지 않는지
+
+현재 실행환경에서는 로컬 `npm test`/`npm run build`를 재실행하지 못했다. 정적 회귀 테스트는 3차 구조에 맞게 갱신했지만 LIVE/CI PASS로 기록하지 않는다.
