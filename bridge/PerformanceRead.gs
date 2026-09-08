@@ -3,72 +3,71 @@
  * This file is intentionally temporary infrastructure and can be replaced when
  * the workspace moves to the future production admin server.
  */
-var PERFORMANCE_READ_VERSION_ = 3;
+var PERFORMANCE_READ_VERSION_ = 4;
 var PERFORMANCE_MEDIA_BATCH_MAX_ = 32;
-var PERFORMANCE_DECK_CACHE_KEY_ = 'perf:deck:v3';
-var PERFORMANCE_CATALOG_CACHE_KEY_ = 'perf:catalog:v3';
-var PERFORMANCE_DECK_CACHE_SECONDS_ = 300;
-var PERFORMANCE_CATALOG_CACHE_SECONDS_ = 120;
-var PERFORMANCE_CACHE_CHUNK_ = 70000;
-var PERFORMANCE_CACHE_MAX_CHUNKS_ = 12;
 
-function performanceCache_(){return cache_();}
-function performanceCacheReadLarge_(key){
-  try{
-    var cache=performanceCache_(),meta=cache.get(key+':meta');if(!meta)return null;
-    var count=Number(meta);if(!Number.isInteger(count)||count<1||count>PERFORMANCE_CACHE_MAX_CHUNKS_)return null;
-    var parts=[];for(var i=0;i<count;i++){var part=cache.get(key+':'+i);if(part===null)return null;parts.push(part);}
-    return JSON.parse(parts.join(''));
-  }catch(_){return null;}
+function performanceDeckCacheInvalidate_(){/* v4: no eager deck cache */}
+function performanceCatalogCacheInvalidate_(){/* v4: no catalog cache */}
+
+function performanceFarmChoices_(summaries){
+  var map={};
+  farms_().forEach(function(f){if(f&&f.id)map[f.id]={id:f.id,name:f.name};});
+  (summaries||[]).forEach(function(s){if(s&&s.farmId&&!map[s.farmId])map[s.farmId]={id:s.farmId,name:s.name||s.farmName||s.farmId};});
+  return Object.keys(map).map(function(k){return map[k];});
 }
-function performanceCacheWriteLarge_(key,value,seconds){
+function performancePolicyBundle_(a,permissions,farms){
+  var out={records:[],reasons:[],ready:false,prefetched:false};
+  if(permissions.farm==='none'||typeof questionPolicyRows_!=='function')return out;
   try{
-    var text=JSON.stringify(value),count=Math.ceil(text.length/PERFORMANCE_CACHE_CHUNK_);if(count<1||count>PERFORMANCE_CACHE_MAX_CHUNKS_)return false;
-    var cache=performanceCache_();
-    for(var i=0;i<count;i++)cache.put(key+':'+i,text.slice(i*PERFORMANCE_CACHE_CHUNK_,(i+1)*PERFORMANCE_CACHE_CHUNK_),seconds);
-    cache.put(key+':meta',String(count),seconds);return true;
-  }catch(_){return false;}
-}
-function performanceCacheRemoveLarge_(key){
-  try{
-    var cache=performanceCache_(),meta=Number(cache.get(key+':meta')||0);cache.remove(key+':meta');
-    for(var i=0;i<Math.min(meta||PERFORMANCE_CACHE_MAX_CHUNKS_,PERFORMANCE_CACHE_MAX_CHUNKS_);i++)cache.remove(key+':'+i);
+    var rows=questionPolicyRows_('22_WEB_질문정책').filter(function(r){return r.status==='active';});
+    if(accessAdmin_(a)){
+      out.records=rows.map(questionPolicyPublic_);
+      out.reasons=typeof QUESTION_POLICY_REASONS_!=='undefined'?QUESTION_POLICY_REASONS_:[];
+      out.prefetched=true;
+    }else{
+      var allowed=permissions.farmIds;
+      out.records=rows.filter(function(r){return r.scope==='GLOBAL'||(r.scope==='FARM'&&allowed.indexOf(r.farm_id)>=0);}).map(questionPolicyEffectivePublic_);
+    }
+    out.ready=true;
   }catch(_){ }
-}
-function performanceDeckCacheInvalidate_(){performanceCacheRemoveLarge_(PERFORMANCE_DECK_CACHE_KEY_);}
-function performanceCatalogCacheInvalidate_(){performanceCacheRemoveLarge_(PERFORMANCE_CATALOG_CACHE_KEY_);}
-function performanceDeckLoad_(){
-  var cached=performanceCacheReadLarge_(PERFORMANCE_DECK_CACHE_KEY_);if(cached)return cached;
-  var deck=loadDeck_();performanceCacheWriteLarge_(PERFORMANCE_DECK_CACHE_KEY_,deck,PERFORMANCE_DECK_CACHE_SECONDS_);return deck;
-}
-function performanceCatalogLoad_(){
-  var cached=performanceCacheReadLarge_(PERFORMANCE_CATALOG_CACHE_KEY_);if(cached)return cached;
-  var value=catalog_();performanceCacheWriteLarge_(PERFORMANCE_CATALOG_CACHE_KEY_,value,PERFORMANCE_CATALOG_CACHE_SECONDS_);return value;
+  return out;
 }
 function performanceBootstrap_(principal){
-  var a=accessAccount_(principal),permissions=accessPermissions_(a),u={email:a.email||'account:'+a.account_id,role:'OWNER'};
-  var list=permissions.farm==='none'?[]:listSubmissions_(u).filter(function(c){return permissions.allFarms||permissions.farmIds.indexOf(c.farmId)>=0;});
-  if(!accessAdmin_(a))list.forEach(function(c){delete c.by;});
-  var out={
-    user:accessPublic_(a),permissions:permissions,canEditDeck:permissions.deck==='edit',
-    catalog:permissions.farm==='none'?[]:performanceCatalogLoad_(),
-    farms:permissions.farm==='none'?[]:accessFarmChoices_().filter(function(f){return permissions.allFarms||permissions.farmIds.indexOf(f.id)>=0;}),
-    submissions:list,deck:permissions.deck==='none'?null:performanceDeckLoad_(),settings:null,
-    questionPolicies:[],questionPolicyReady:false
-  };
-  if(permissions.farm!=='none'&&typeof questionPolicyEffective_==='function'){
-    try{out.questionPolicies=questionPolicyEffective_(principal);out.questionPolicyReady=true;}catch(_){ }
+  var started=Date.now(),a=accessAccount_(principal),permissions=accessPermissions_(a),u={email:a.email||'account:'+a.account_id,role:'OWNER'};
+  var list=[],catalog=[],farms=[];
+  if(permissions.farm!=='none'){
+    list=listSubmissions_(u).filter(function(c){return permissions.allFarms||permissions.farmIds.indexOf(c.farmId)>=0;});
+    if(!accessAdmin_(a))list.forEach(function(c){delete c.by;});
+    farms=performanceFarmChoices_(list).filter(function(f){return permissions.allFarms||permissions.farmIds.indexOf(f.id)>=0;});
+    catalog=catalog_();
   }
-  return out;
+  var policy=performancePolicyBundle_(a,permissions,farms);
+  return {
+    user:accessPublic_(a),permissions:permissions,canEditDeck:permissions.deck==='edit',
+    catalog:catalog,farms:farms,submissions:list,
+    // Deck data is intentionally absent from initial farm/account bootstrap.
+    deck:null,settings:null,
+    questionPolicies:policy.records,questionPolicyReasons:policy.reasons,
+    questionPolicyReady:policy.ready,questionPolicyPrefetched:policy.prefetched,
+    performance:{version:PERFORMANCE_READ_VERSION_,bootstrapMs:Date.now()-started}
+  };
 }
-function performanceDeckAssets_(principal){
-  var a=accessAccount_(principal);accessPage_(a,'deck',false);var u={email:a.email||'account:'+a.account_id,role:'OWNER'},out={};
-  Array.from(deckReferences_(performanceDeckLoad_())).forEach(function(id){
-    try{accessMediaRow_(a,id,false);out[id]=media_(u,id);if(!accessAdmin_(a)){delete out[id].source;delete out[id].note;}}
-    catch(_){out[id]={error:'이미지를 불러올 수 없습니다.'};}
+function performanceGetSubmission_(principal,p){
+  p=p||{};var a=accessAccount_(principal),u={email:a.email||'account:'+a.account_id,role:'OWNER'};
+  var sub=getSubmission_(u,p.id);if(!sub||!sub.id)throw new Error('FORBIDDEN');
+  accessFarm_(a,sub.farmId,false);
+  sub.media=(sub.media||[]).filter(function(m){return String(m.status||'')!=='DELETED';}).map(function(m){return accessMediaPublic_(a,m);});
+  return sub;
+}
+function performanceDeckBootstrap_(principal){
+  var a=accessAccount_(principal);accessPage_(a,'deck',false);var u={email:a.email||'account:'+a.account_id,role:'OWNER'},deck=loadDeck_(),assets={};
+  Array.from(deckReferences_(deck)).forEach(function(id){
+    try{accessMediaRow_(a,id,false);assets[id]=media_(u,id);if(!accessAdmin_(a)){delete assets[id].source;delete assets[id].note;}}
+    catch(_){assets[id]={error:'이미지를 불러올 수 없습니다.'};}
   });
-  return out;
+  return {deck:deck,assets:assets,canEditDeck:accessPermissions_(a).deck==='edit'};
 }
+function performanceDeckAssets_(principal){return performanceDeckBootstrap_(principal).assets;}
 function performanceMediaBatch_(principal,p) {
   p=p||{};
   var a=accessAccount_(principal),ids=Array.isArray(p.ids)?p.ids:[];
