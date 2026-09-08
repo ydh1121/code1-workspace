@@ -10,7 +10,7 @@ function bridgeReplayGuard_(p){
   });
 }
 function bridgeReadAction_(action){
-  return ['account.self','account.list','bootstrap','getSubmission','media','mediaBatch','deckAssets','questionPolicy.effective','questionPolicy.list'].indexOf(action)>=0;
+  return ['account.self','account.list','bootstrap','getSubmission','media','mediaBatch','deckAssets','deckBootstrap','questionPolicy.effective','questionPolicy.list'].indexOf(action)>=0;
 }
 function doPost(e) {
   try {
@@ -56,6 +56,11 @@ function doPost(e) {
         readData=performanceMediaBatch_(p.actor,payload);
       }else if(p.action==='bootstrap'&&typeof performanceBootstrap_==='function'){
         readData=performanceBootstrap_(p.actor);
+      }else if(p.action==='getSubmission'&&typeof performanceGetSubmission_==='function'){
+        readData=performanceGetSubmission_(p.actor,payload);
+      }else if(p.action==='deckBootstrap'){
+        if(typeof performanceDeckBootstrap_!=='function')throw new Error('PERFORMANCE_READ_UPDATE_REQUIRED');
+        readData=performanceDeckBootstrap_(p.actor);
       }else if(p.action==='deckAssets'&&typeof performanceDeckAssets_==='function'){
         readData=performanceDeckAssets_(p.actor);
       }else{
@@ -82,7 +87,8 @@ function doPost(e) {
       return accessDispatch_(p.actor,p.action,payload);
     });
 
-    // A deck mutation invalidates the temporary read cache immediately.
+    // v4 no longer keeps an eager deck read cache. Keep this call compatible
+    // with older PerformanceRead installations without making it mandatory.
     if(p.action==='saveDeck'&&typeof performanceDeckCacheInvalidate_==='function')performanceDeckCacheInvalidate_();
 
     // Existing Media.gs remains authoritative for the small-file upload itself.
