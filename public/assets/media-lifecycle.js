@@ -5,7 +5,23 @@
   const rpcUrl=url=>typeof url==='string'?url:(url&&url.url)||'';
   const uid=()=>crypto.randomUUID().replace(/-/g,'');
   const isAdmin=()=>['SUPER_ADMIN','ADMIN'].includes(state.user?.role);
+  const mediaAssetCache=new Map(),mediaBatchWaiters=new Map();let mediaBatchTimer=null;
   function mediaStatus(text,kind){const n=document.getElementById('media-status');if(!n)return;n.textContent=text;n.dataset.kind=kind||'';}
+  function synthetic(body,status=200){return new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}});}
+  function queueMediaAsset(id){
+    id=String(id||'');if(!id)return Promise.resolve(synthetic({error:'INVALID_REQUEST'},400));
+    if(mediaAssetCache.has(id))return Promise.resolve(synthetic({data:mediaAssetCache.get(id)}));
+    return new Promise(resolve=>{const waiters=mediaBatchWaiters.get(id)||[];waiters.push(resolve);mediaBatchWaiters.set(id,waiters);if(!mediaBatchTimer)mediaBatchTimer=setTimeout(flushMediaAssets,16);});
+  }
+  async function flushMediaAssets(){
+    mediaBatchTimer=null;const ids=[...mediaBatchWaiters.keys()].slice(0,32);if(!ids.length)return;
+    try{
+      const response=await nativeFetch('/api/rpc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'mediaBatch',payload:{ids}})});
+      let body;try{body=await response.json();}catch{body={error:'REQUEST_FAILED',message:'이미지를 불러오지 못했습니다.'};}
+      ids.forEach(id=>{const waiters=mediaBatchWaiters.get(id)||[];mediaBatchWaiters.delete(id);const item=body?.data?.[id];if(response.ok&&!body?.error&&item&&!item.error){mediaAssetCache.set(id,item);waiters.forEach(done=>done(synthetic({data:item})));}else{const payload=body?.error?body:{error:'REQUEST_FAILED',message:item?.error||'이미지를 불러오지 못했습니다.'};waiters.forEach(done=>done(synthetic(payload,response.ok?400:(response.status||400))));}});
+    }catch(_){ids.forEach(id=>{const waiters=mediaBatchWaiters.get(id)||[];mediaBatchWaiters.delete(id);waiters.forEach(done=>done(synthetic({error:'REQUEST_FAILED',message:'이미지를 불러오지 못했습니다.'},502)));});}
+    if(mediaBatchWaiters.size)mediaBatchTimer=setTimeout(flushMediaAssets,0);
+  }
   function handleRpc(action,payload,data){
     if(action==='bootstrap'&&data){state.user=data.user||null;state.permissions=data.permissions||null;}
     if(action==='saveSubmission'&&data){state.submissionId=String(payload?.id||state.submissionId);state.submissionStatus=String(data.status||'');state.farmId=String(data.farmId||state.farmId);state.farmName=String(payload?.name||state.farmName);}
@@ -13,7 +29,7 @@
     if((action==='upload'||action==='linkDrive')&&data?.upload_id){state.media.push(data);if(data.organization)setTimeout(()=>organizationMessage(data.organization),0);}
     if(action==='mediaUpload.finish'&&data?.media){state.media.push(data.media);if(data.organization)setTimeout(()=>organizationMessage(data.organization),0);}
     if(action==='reviewMedia'&&data?.upload_id){const m=state.media.find(x=>x.upload_id===data.upload_id);if(m)Object.assign(m,data);}
-    if(action==='deleteMedia'&&data?.id){state.deleted.add(data.id);const m=state.media.find(x=>x.upload_id===data.id);if(m)m.status='DELETED';}
+    if(action==='deleteMedia'&&data?.id){mediaAssetCache.delete(String(data.id));state.deleted.add(data.id);const m=state.media.find(x=>x.upload_id===data.id);if(m)m.status='DELETED';}
   }
   function organizationMessage(org){
     if(!org)return;
@@ -24,6 +40,7 @@
   window.fetch=async function(input,init){
     let meta=null;
     try{if(rpcUrl(input).endsWith('/api/rpc')&&init?.method?.toUpperCase()==='POST'&&typeof init.body==='string'){const b=JSON.parse(init.body);meta={action:b.action,payload:b.payload||{}};}}catch{}
+    if(meta?.action==='media'&&meta.payload?.id)return queueMediaAsset(meta.payload.id);
     const response=await nativeFetch(input,init);
     if(meta){try{const body=await response.clone().json();if(response.ok&&!body.error)handleRpc(meta.action,meta.payload,body.data);}catch{}}
     return response;
@@ -58,8 +75,8 @@
     const reason=prompt('삭제 사유를 간단히 적어 주세요.','잘못 업로드한 자료');if(reason===null)return;
     try{await rpc('deleteMedia',{id:m.upload_id,reason:reason||'사용자 삭제',requestId:uid()});card?.remove();mediaStatus('파일을 삭제했습니다. Drive 원본은 휴지통으로 이동했고 이력은 보존됩니다.','ok');ensureMediaCards();}catch(e){mediaStatus(String(e.message||e).replace(/^Error:\s*/,''),'error');}
   }
-  function makeFallbackCard(m){const card=document.createElement('article');card.className='media-card';if(/^image\//.test(m.mime_type||'')){const im=document.createElement('img');im.alt=m.caption||m.shot_label||'업로드 이미지';card.append(im);rpc('media',{id:m.upload_id}).then(a=>{if(a?.url)im.src=a.url;}).catch(()=>im.remove());}const strong=document.createElement('strong');strong.textContent=m.shot_label||m.shot_code||'자료';const p=document.createElement('p');p.textContent=m.file_name||'';const small=document.createElement('small');small.textContent=m.status==='APPROVED'?'사용권 검토 승인':m.status==='REJECTED'?'사용 보류':'사용권 검토 대기';card.append(strong,p,small);return card;}
-  function enhanceCard(card,m){if(!card||!m)return;card.dataset.mediaId=m.upload_id||'';if(card.querySelector('.media-delete'))return;if(canDelete()){const b=document.createElement('button');b.type='button';b.className='media-delete danger';b.textContent='자료 삭제';b.addEventListener('click',()=>removeMedia(m,card));card.append(b);}}
+  function makeFallbackCard(m){const card=document.createElement('article');card.className='media-card';if(/^image\//.test(m.mime_type||'')){const im=document.createElement('img');im.loading='lazy';im.decoding='async';im.alt=m.caption||m.shot_label||'업로드 이미지';card.append(im);rpc('media',{id:m.upload_id}).then(a=>{if(a?.url)im.src=a.url;}).catch(()=>im.remove());}const strong=document.createElement('strong');strong.textContent=m.shot_label||m.shot_code||'자료';const p=document.createElement('p');p.textContent=m.file_name||'';const small=document.createElement('small');small.textContent=m.status==='APPROVED'?'사용권 검토 승인':m.status==='REJECTED'?'사용 보류':'사용권 검토 대기';card.append(strong,p,small);return card;}
+  function enhanceCard(card,m){if(!card||!m)return;card.dataset.mediaId=m.upload_id||'';const img=card.querySelector('img');if(img){img.loading='lazy';img.decoding='async';}if(card.querySelector('.media-delete'))return;if(canDelete()){const b=document.createElement('button');b.type='button';b.className='media-delete danger';b.textContent='자료 삭제';b.addEventListener('click',()=>removeMedia(m,card));card.append(b);}}
   function ensureMediaCards(){const list=document.getElementById('media-list');if(!list)return;const media=visibleMedia();let cards=[...list.querySelectorAll('.media-card')];for(let i=0;i<Math.min(cards.length,media.length);i++)enhanceCard(cards[i],media[i]);if(cards.length<media.length){for(let i=cards.length;i<media.length;i++){const card=makeFallbackCard(media[i]);enhanceCard(card,media[i]);list.append(card);}}cards=[...list.querySelectorAll('.media-card')];cards.forEach(card=>{const id=card.dataset.mediaId;if(id&&state.deleted.has(id))card.remove();});const count=document.getElementById('media-history-count');if(count)count.textContent=`${visibleMedia().length}개`;}
   function repairControls(status){
     const panel=document.getElementById('media-panel');if(!panel)return;let wrap=document.getElementById('media-organizer-tools');if(!wrap){wrap=document.createElement('div');wrap.id='media-organizer-tools';wrap.className='media-organizer-tools';const history=panel.querySelector('.media-history')||document.getElementById('media-list');panel.insertBefore(wrap,history||null);}
@@ -71,7 +88,7 @@
       b.addEventListener('click',async()=>{if(!confirm(`${status.unorganizedCount}개 파일을 농가별 폴더로 이동하고 표준 파일명으로 변경할까요? 원본 바이트는 변경하지 않습니다.`))return;b.disabled=true;try{mediaStatus('기존 파일 자동정리 중…','progress');const r=await rpc('mediaOrganizer.repair',{limit:50});const failed=(r.results||[]).filter(x=>!x.organized);mediaStatus(failed.length?`${r.processed-failed.length}건 정리 완료 · ${failed.length}건 확인 필요`:`${r.processed}건 자동정리 완료 · 파일명과 24_WEB_미디어정리_이력을 갱신했습니다.` ,failed.length?'warn':'ok');await refreshOrganizerStatus();}catch(e){mediaStatus(String(e.message||e).replace(/^Error:\s*/,''),'error');}finally{b.disabled=false;}});wrap.append(p,b);
     }else if(Number(status.unorganizedCount)===0){const p=document.createElement('p');p.className='muted';p.textContent='Drive 자동 분류 상태 정상 · 새 업로드는 농가별 폴더와 표준 파일명으로 정리됩니다.';wrap.append(p);}
   }
-  async function refreshOrganizerStatus(){try{const s=await rpc('mediaOrganizer.status');repairControls(s);if(!s.installed)mediaStatus('자동 분류 모듈이 아직 Apps Script 배포에 반영되지 않았습니다. 원본은 저장되지만 폴더 정리와 파일명 변경은 실행되지 않습니다.','warn');return s;}catch(e){const text=String(e.message||e);if(/MEDIA_LIFECYCLE_UPDATE_REQUIRED|UNKNOWN_ACTION/.test(text))mediaStatus('Apps Script의 MediaLifecycle.gs와 최신 CloudflareBridge.gs를 새 버전으로 배포해야 합니다.','warn');return null;}}
+  async function refreshOrganizerStatus(){try{const s=await rpc('mediaOrganizer.status');repairControls(s);if(!s.installed)mediaStatus('자동 분류 모듈이 아직 Apps Script 배포에 반영되지 않았습니다. 원본은 저장되지만 폴더 정리와 파일명 변경은 실행되지 않습니다.','warn');return s;}catch(e){const text=String(e.message||e);if(/MEDIA_LIFECYCLE_UPDATE_REQUIRED|PERFORMANCE_READ_UPDATE_REQUIRED|UNKNOWN_ACTION/.test(text))mediaStatus('Apps Script의 미디어/성능 연결 파일과 최신 CloudflareBridge.gs를 새 버전으로 배포해야 합니다.','warn');return null;}}
   function installOrganizerStatus(){document.addEventListener('code1-ready',()=>refreshOrganizerStatus());}
   const list=document.getElementById('media-list');if(list)new MutationObserver(()=>queueMicrotask(ensureMediaCards)).observe(list,{childList:true});
   installHighRes();installOrganizerStatus();ensureMediaCards();
