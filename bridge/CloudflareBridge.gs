@@ -28,9 +28,8 @@ function doPost(e) {
     if(p.protocol!==2||typeof accessDispatch_!=='function')throw new Error('BRIDGE_UPDATE_REQUIRED');
     var payload=p.payload||{};
 
-    // Keep replay protection serialized, but release the shared lock before
-    // any Drive transfer or read-only Sheet/Drive work. This prevents image
-    // reads and bootstrap requests from queueing behind unrelated reads.
+    // Serialize only replay protection. Long read/Drive operations run without
+    // the shared write lock so unrelated reads do not queue behind each other.
     bridgeReplayGuard_(p);
 
     if(['mediaUpload.begin','mediaUpload.chunk','mediaUpload.finish','deleteMedia','mediaOrganizer.status','mediaOrganizer.repair'].indexOf(p.action)>=0){
@@ -44,8 +43,6 @@ function doPost(e) {
       return bridgeJson_({ok:true,data:direct});
     }
 
-    // Read-only actions no longer hold the global write lock for their whole
-    // execution. Account/session version checks still run inside each action.
     if(bridgeReadAction_(p.action)){
       var readData;
       if(p.action==='questionPolicy.effective'){
@@ -57,6 +54,10 @@ function doPost(e) {
       }else if(p.action==='mediaBatch'){
         if(typeof performanceMediaBatch_!=='function')throw new Error('PERFORMANCE_READ_UPDATE_REQUIRED');
         readData=performanceMediaBatch_(p.actor,payload);
+      }else if(p.action==='bootstrap'&&typeof performanceBootstrap_==='function'){
+        readData=performanceBootstrap_(p.actor);
+      }else if(p.action==='deckAssets'&&typeof performanceDeckAssets_==='function'){
+        readData=performanceDeckAssets_(p.actor);
       }else{
         readData=accessDispatch_(p.actor,p.action,payload);
       }
@@ -64,15 +65,11 @@ function doPost(e) {
       return bridgeJson_({ok:true,data:readData});
     }
 
-    // Credential lookup is read-only but participates in the login handshake,
-    // so keep it outside the long write lock after the replay guard.
     if(p.action==='account.credential'){
       var credentialAccount=accessAccount_(p.actor);
       return bridgeJson_({ok:true,data:credentialAccount.password_hash?{salt:credentialAccount.password_salt,hash:credentialAccount.password_hash,iterations:Number(credentialAccount.password_iterations),scheme:credentialAccount.password_scheme}:null});
     }
 
-    // Mutations remain serialized to preserve the existing Sheet/Drive write
-    // contract and conflict behavior.
     var data=withLock_(function(){
       staging_();
       if(p.action==='identity')return accessGoogle_(p.email);
@@ -85,8 +82,10 @@ function doPost(e) {
       return accessDispatch_(p.actor,p.action,payload);
     });
 
-    // Existing Media.gs stays authoritative for the small-file upload itself.
-    // Organization is a fail-soft post-step, but never silently skipped.
+    // A deck mutation invalidates the temporary read cache immediately.
+    if(p.action==='saveDeck'&&typeof performanceDeckCacheInvalidate_==='function')performanceDeckCacheInvalidate_();
+
+    // Existing Media.gs remains authoritative for the small-file upload itself.
     if(p.action==='upload'&&data&&data.upload_id&&payload.kind==='FARM'){
       data.organization=typeof mediaOrganizeUploaded_==='function'?mediaOrganizeUploaded_(p.actor,data.upload_id):{organized:false,error:'MEDIA_ORGANIZER_NOT_INSTALLED'};
     }
