@@ -1,5 +1,5 @@
 import { session, sameOrigin, bridge, json, failure } from '../_shared/security.js';
-const actions = new Set(['bootstrap','saveSubmission','getSubmission','review','upload','linkDrive','reviewMedia','media','deckAssets','saveDeck','questionPolicy.list','questionPolicy.save','mediaUpload.begin','mediaUpload.chunk','mediaUpload.finish','deleteMedia','mediaOrganizer.status','mediaOrganizer.repair']);
+const actions = new Set(['bootstrap','saveSubmission','getSubmission','review','upload','linkDrive','reviewMedia','media','mediaBatch','deckAssets','saveDeck','questionPolicy.list','questionPolicy.save','mediaUpload.begin','mediaUpload.chunk','mediaUpload.finish','deleteMedia','mediaOrganizer.status','mediaOrganizer.repair']);
 export async function onRequestPost({ request, env }) {
   try {
     sameOrigin(request, env); const user = await session(request, env);
