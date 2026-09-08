@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const $=id=>document.getElementById(id),clone=Code1Core.clone;
-  const S={token:null,boot:null,form:null,category:null,deck:null,slide:0,selected:null,edit:false,assets:{},history:null,baseVersion:0,saveFlight:null,dirty:0,savedDirty:0,savedDeckSlides:null,discardChanges:false,questionPage:0,questionQuery:"",questionFilter:"all"};
+  const S={token:null,boot:null,form:null,category:null,deck:null,deckLoading:null,slide:0,selected:null,edit:false,assets:{},history:null,baseVersion:0,saveFlight:null,dirty:0,savedDirty:0,savedDeckSlides:null,discardChanges:false,questionPage:0,questionQuery:"",questionFilter:"all"};
   const statusNames={DRAFT:'임시저장',SUBMITTED:'검토 요청',NEEDS_INFO:'추가 확인 필요',APPROVED:'승인',REJECTED:'반려',REFLECTED:'정본 반영 완료'};
   let autoTimer,toastTimer,loginTimer,drag=null;
   function el(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;}
@@ -24,7 +24,7 @@
   function loginStart(){if(hasUnsavedChanges()){toast('현재 창에 저장하지 못한 내용이 있습니다. 새 탭에서 로그인한 후 이 창의 다시 연결을 눌러 주세요.');window.open('/api/auth/login','code1-login');$('sign-in').textContent='로그인 후 다시 연결';return;}location.assign('/api/auth/login');}
   async function bootstrap(){
     const b=await rpc('bootstrap'),resume=S.boot?.user.id===b.user.id&&S.boot?.user.version===b.user.version;S.boot=b;
-    if(!resume){clearTimeout(autoTimer);S.assets={};S.deck=b.deck?Code1Core.validateDeck(b.deck):null;S.savedDeckSlides=S.deck?deckSnapshot(S.deck):null;S.discardChanges=false;S.baseVersion=S.deck?.version||0;S.history=S.deck?new Code1Core.History(S.deck):null;S.form=null;S.dirty=0;S.savedDirty=0;S.edit=false;S.selected=null;$('farm-editor').hidden=true;$('farm-empty').hidden=false;for(const id of ['question-form','media-list','slide-canvas','thumbnails','layer-list','summary-content','request-items','print-deck'])$(id).replaceChildren();}
+    if(!resume){clearTimeout(autoTimer);S.assets={};S.deck=null;S.deckLoading=null;S.savedDeckSlides=null;S.discardChanges=false;S.baseVersion=0;S.history=null;S.form=null;S.dirty=0;S.savedDirty=0;S.edit=false;S.selected=null;$('farm-editor').hidden=true;$('farm-empty').hidden=false;for(const id of ['question-form','media-list','slide-canvas','thumbnails','layer-list','summary-content','request-items','print-deck'])$(id).replaceChildren();}
     $('login').hidden=true;$('main-nav').hidden=false;$('identity').replaceChildren(el('span','account-email',b.user.displayName||b.user.username),el('span','tag',{SUPER_ADMIN:'최고 관리자',ADMIN:'서브 관리자',FARMER:'농가 계정'}[b.user.role]),btn('로그아웃',async()=>{if(hasUnsavedChanges()&&!confirm('저장하지 않은 변경이 있습니다. 로그아웃할까요?'))return;try{await fetch('/api/auth/logout',{method:'POST'});}finally{S.discardChanges=true;location.reload();}}));
     document.querySelectorAll('[data-page]').forEach(n=>n.hidden=!allowedPage(n.dataset.page));
     $('new-farm').hidden=!isAdmin();$('link-drive').hidden=!isAdmin();$('deck-drive-image').hidden=!isAdmin();
@@ -33,12 +33,22 @@
     window.dispatchEvent(new CustomEvent('code1-ready',{detail:{user:b.user}}));
     for(const id of ['edit-mode','deck-save','version-save','undo','redo'])$(id).disabled=!b.canEditDeck;
     showPage(allowedPage('farm')?'farm':allowedPage('deck')?'deck':'landing');renderFarmList();renderSubmissionList();
-    if(allowedPage('deck'))try{S.assets={...S.assets,...await rpc('deckAssets')};renderDeck();}catch(e){fail(e);}if(resume&&S.form)renderFarm();
+    if(resume&&S.form)renderFarm();
+  }
+  async function loadDeckWorkspace(force=false){
+    if(!allowedPage('deck'))return;
+    if(S.deck&&!force){renderDeck();requestAnimationFrame(scaleCanvas);return;}
+    if(S.deckLoading)return S.deckLoading;
+    $('deck-saved').textContent='제안서 불러오는 중…';
+    S.deckLoading=rpc('deckBootstrap').then(bundle=>{
+      S.deck=Code1Core.validateDeck(bundle.deck);S.assets=bundle.assets||{};S.baseVersion=S.deck.version||0;S.savedDeckSlides=deckSnapshot(S.deck);S.history=new Code1Core.History(S.deck);S.edit=false;S.selected=null;S.slide=0;renderDeck();requestAnimationFrame(scaleCanvas);$('deck-saved').textContent='불러옴 · r'+S.baseVersion;
+    }).catch(e=>{$('deck-saved').textContent='제안서 불러오기 실패';throw e;}).finally(()=>{S.deckLoading=null;});
+    return S.deckLoading;
   }
   function showPage(page){
     if(!S.boot||!allowedPage(page))return;for(const p of ['landing','farm-page','deck-page','accounts-page'])$(p).hidden=p!==(page==='landing'?'landing':page+'-page');
     document.querySelectorAll('#main-nav [data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===page));
-    if(page==='deck'){renderDeck();requestAnimationFrame(scaleCanvas);}
+    if(page==='deck')loadDeckWorkspace().catch(fail);
     if(page==='accounts')window.dispatchEvent(new Event('code1-accounts-open'));
   }
   document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>showPage(b.dataset.page)));
@@ -63,8 +73,7 @@
     const locked=!canWriteFarm()||['APPROVED','REFLECTED'].includes(S.form.status);$('farm-name').disabled=locked;$('submit-farm').disabled=locked;$('draft-save').disabled=locked;
     $('media-form').querySelectorAll('input,select,textarea,button').forEach(n=>n.disabled=locked);
     $('submission-state').textContent=statusNames[S.form.status];$('save-status').textContent=S.form.revision?'저장됨 · r'+S.form.revision:'작성 중';
-    renderGroupNavigation();refreshProgress();
-    renderCategory();renderReview();renderMediaList();
+    renderCategory();refreshProgress();renderReview();renderMediaList();
   }
   $('farm-name').addEventListener('input',()=>{S.form.name=$('farm-name').value;S.form.answers['A-01']=S.form.name;markFarmDirty();});
   function renderCategory(){
@@ -152,7 +161,7 @@
       if(/^image\//.test(m.mime_type)){const im=el('img');im.alt=m.caption||m.shot_label;card.prepend(im);rpc('media',{id:m.upload_id}).then(a=>im.src=a.url).catch(()=>im.remove());}
       return card;}));
   }
-  function currentSlide(){return S.deck.slides[S.slide];}
+  function currentSlide(){return S.deck?.slides?.[S.slide];}
   function selected(){return currentSlide()?.elements.find(e=>e.element_id===S.selected);}
   function applyElementStyle(node,e){
     const s=e.style||{};Object.assign(node.style,{left:e.x+'px',top:e.y+'px',width:e.width+'px',height:e.height+'px',zIndex:String(e.z),opacity:s.opacity??1,transform:`rotate(${s.rotation||0}deg)`,fontFamily:'"'+(s.fontFamily||'Pretendard Variable')+'",Pretendard,sans-serif',fontSize:(s.fontSize||32)+'px',fontWeight:s.fontWeight||400,lineHeight:s.lineHeight||1.3,letterSpacing:(s.letterSpacing||0)+'px',color:s.color||'#111111',textAlign:s.textAlign||'left',fontStyle:s.fontStyle||'normal',textDecoration:s.textDecoration||'none',borderRadius:(s.borderRadius||0)+'px',backgroundColor:s.backgroundColor||'transparent'});
@@ -169,7 +178,7 @@
     }
     return dom;
   }
-  function scaleCanvas(){if($('deck-page').hidden)return;const w=$('canvas-viewport').clientWidth;$('slide-canvas').style.transform=`scale(${w/1920})`;}
+  function scaleCanvas(){if($('deck-page').hidden||!S.deck)return;const w=$('canvas-viewport').clientWidth;$('slide-canvas').style.transform=`scale(${w/1920})`;}
   new ResizeObserver(scaleCanvas).observe($('canvas-viewport'));
   function renderDeck(){
     if(!S.deck)return;S.slide=Math.max(0,Math.min(S.slide,S.deck.slides.length-1));
@@ -186,26 +195,26 @@
   function renderLayers(){
     $('layer-list').replaceChildren(...[...currentSlide().elements].sort((a,b)=>b.z-a.z).map(e=>btn((e.locked?'🔒 ':'')+(e.type==='text'?e.content.slice(0,20):e.type==='image'?'이미지':'도형'),()=>select(e.element_id),e.element_id===S.selected?'active':'')));
   }
-  function select(id){S.selected=id;document.querySelectorAll('#slide-canvas .deck-element').forEach(n=>{n.classList.toggle('selected',S.edit&&n.dataset.elementId===id);n.querySelector('.resize-handle')?.remove();if(S.edit&&n.dataset.elementId===id&&!selected().locked)n.append(el('span','resize-handle'));});renderProperties();renderLayers();}
-  function record(){S.history.record(S.deck);$('deck-saved').textContent='저장하지 않은 변경';$('undo').disabled=!S.history.past.length;$('redo').disabled=!S.history.future.length;}
-  function mutation(fn){if(!S.edit)return;commitText();fn();try{Code1Core.validateDeck(S.deck);}catch(e){S.deck=clone(S.history.present);fail(e);}record();renderDeck();}
-  $('view-mode').addEventListener('click',()=>{commitText();S.edit=false;S.selected=null;renderDeck();});
-  $('edit-mode').addEventListener('click',()=>{if(!S.boot.canEditDeck)return;S.edit=true;renderDeck();});
-  function slideMove(n){commitText();S.slide=Math.max(0,Math.min(S.deck.slides.length-1,S.slide+n));S.selected=null;renderDeck();}
+  function select(id){if(!S.deck)return;S.selected=id;document.querySelectorAll('#slide-canvas .deck-element').forEach(n=>{n.classList.toggle('selected',S.edit&&n.dataset.elementId===id);n.querySelector('.resize-handle')?.remove();if(S.edit&&n.dataset.elementId===id&&!selected().locked)n.append(el('span','resize-handle'));});renderProperties();renderLayers();}
+  function record(){if(!S.history)return;S.history.record(S.deck);$('deck-saved').textContent='저장하지 않은 변경';$('undo').disabled=!S.history.past.length;$('redo').disabled=!S.history.future.length;}
+  function mutation(fn){if(!S.edit||!S.deck)return;commitText();fn();try{Code1Core.validateDeck(S.deck);}catch(e){S.deck=clone(S.history.present);fail(e);}record();renderDeck();}
+  $('view-mode').addEventListener('click',()=>{if(!S.deck)return;commitText();S.edit=false;S.selected=null;renderDeck();});
+  $('edit-mode').addEventListener('click',()=>{if(!S.deck||!S.boot.canEditDeck)return;S.edit=true;renderDeck();});
+  function slideMove(n){if(!S.deck)return;commitText();S.slide=Math.max(0,Math.min(S.deck.slides.length-1,S.slide+n));S.selected=null;renderDeck();}
   $('prev-slide').addEventListener('click',()=>slideMove(-1));$('next-slide').addEventListener('click',()=>slideMove(1));
-  $('undo').addEventListener('click',()=>{if(!S.edit)return;S.deck=S.history.undo();S.selected=null;$('deck-saved').textContent='저장하지 않은 변경';renderDeck();});
-  $('redo').addEventListener('click',()=>{if(!S.edit)return;S.deck=S.history.redo();S.selected=null;$('deck-saved').textContent='저장하지 않은 변경';renderDeck();});
+  $('undo').addEventListener('click',()=>{if(!S.edit||!S.history)return;S.deck=S.history.undo();S.selected=null;$('deck-saved').textContent='저장하지 않은 변경';renderDeck();});
+  $('redo').addEventListener('click',()=>{if(!S.edit||!S.history)return;S.deck=S.history.redo();S.selected=null;$('deck-saved').textContent='저장하지 않은 변경';renderDeck();});
   let editingNode=null,editingBefore='';
   function commitText(){if(editingNode)editingNode.blur();}
   $('slide-canvas').addEventListener('dblclick',e=>{
-    const n=e.target.closest('.deck-element'),item=n&&currentSlide().elements.find(x=>x.element_id===n.dataset.elementId);if(!S.edit||!item||item.locked||item.type!=='text')return;
+    const n=e.target.closest('.deck-element'),item=n&&currentSlide()?.elements.find(x=>x.element_id===n.dataset.elementId);if(!S.edit||!item||item.locked||item.type!=='text')return;
     select(item.element_id);n.querySelector('.resize-handle')?.remove();n.contentEditable='true';n.setAttribute('role','textbox');n.setAttribute('aria-label','슬라이드 텍스트 편집');editingNode=n;editingBefore=item.content;n.focus();
     n.onpaste=ev=>{ev.preventDefault();const text=ev.clipboardData.getData('text/plain'),selection=getSelection();if(!selection.rangeCount)return;const range=selection.getRangeAt(0);range.deleteContents();const t=document.createTextNode(text);range.insertNode(t);range.setStartAfter(t);range.collapse(true);selection.removeAllRanges();selection.addRange(range);};
     n.addEventListener('blur',()=>{item.content=n.innerText.slice(0,10000);n.contentEditable='false';n.removeAttribute('role');n.removeAttribute('aria-label');editingNode=null;if(item.content!==editingBefore)record();renderThumbnails();renderLayers();select(item.element_id);},{once:true});
     n.onkeydown=ev=>{if(ev.isComposing)return;if((ev.ctrlKey||ev.metaKey)&&ev.key.toLowerCase()==='s'){ev.preventDefault();n.blur();saveDeck(false);return;}if(ev.key==='Enter'&&(ev.ctrlKey||ev.metaKey)){ev.preventDefault();n.blur();}if(ev.key==='Escape'){ev.preventDefault();n.textContent=editingBefore;n.blur();}};
   });
   $('slide-canvas').addEventListener('pointerdown',ev=>{
-    if(!S.edit||ev.button!==0||ev.target.closest('[contenteditable=true]'))return;const n=ev.target.closest('.deck-element');if(!n){select(null);return;}
+    if(!S.edit||!S.deck||ev.button!==0||ev.target.closest('[contenteditable=true]'))return;const n=ev.target.closest('.deck-element');if(!n){select(null);return;}
     const item=currentSlide().elements.find(e=>e.element_id===n.dataset.elementId),resize=ev.target.classList.contains('resize-handle');select(item.element_id);if(item.locked)return;
     drag={id:item.element_id,node:n,initial:clone(item),px:ev.clientX,py:ev.clientY,scale:$('canvas-viewport').clientWidth/1920,resize,moved:false,pointer:ev.pointerId};n.setPointerCapture(ev.pointerId);ev.preventDefault();
   });
@@ -224,7 +233,6 @@
     if(item.locked){root.append(el('p','muted','잠금을 풀어야 이동하거나 수정할 수 있습니다.'));return;}
     const set=(k,v)=>mutation(()=>item[k]=v),style=(k,v)=>mutation(()=>item.style[k]=v);
     if(item.type==='text'){const label=el('label',null,'글 내용'),text=el('textarea');text.value=item.content;text.rows=4;text.addEventListener('change',()=>mutation(()=>item.content=text.value.slice(0,10000)));label.append(text);root.append(label);}
-
     root.append(pair(field('X',item.x,'number',v=>set('x',v)),field('Y',item.y,'number',v=>set('y',v))),pair(field('너비',item.width,'number',v=>set('width',v)),field('높이',item.height,'number',v=>set('height',v))));
     if(item.type==='text')root.append(field('폰트',item.style.fontFamily||'Pretendard Variable',null,v=>style('fontFamily',v),['Pretendard Variable','Pretendard']),pair(field('글자 크기',item.style.fontSize||32,'number',v=>style('fontSize',v)),field('굵기',item.style.fontWeight||400,'number',v=>style('fontWeight',v))),pair(field('줄 높이',item.style.lineHeight||1.3,'number',v=>style('lineHeight',v)),field('자간',item.style.letterSpacing||0,'number',v=>style('letterSpacing',v))),field('텍스트 색상',item.style.color||'#111111','color',v=>style('color',v)),field('정렬',item.style.textAlign||'left',null,v=>style('textAlign',v),[{value:'left',label:'왼쪽'},{value:'center',label:'가운데'},{value:'right',label:'오른쪽'}]),field('기울임',item.style.fontStyle||'normal',null,v=>style('fontStyle',v),['normal','italic']),field('밑줄',item.style.textDecoration||'none',null,v=>style('textDecoration',v),['none','underline']));
     if(item.type==='image'){
@@ -241,29 +249,29 @@
   async function attachDeckAsset(m,intent,target){S.assets[m.upload_id]=await rpc('media',{id:m.upload_id});if(target){const i=S.deck.slides.findIndex(s=>s.slide_id===target.slide);if(i<0)throw Error('이미지를 넣을 슬라이드가 삭제되었습니다.');S.slide=i;S.selected=target.element;}mutation(()=>{if(intent==='background')currentSlide().background.mediaRef=m.upload_id;else if(intent==='replace'&&selected())selected().mediaRef=m.upload_id;else{const item={element_id:'E_'+uid(),type:'image',x:240,y:250,width:720,height:480,z:Math.max(0,...currentSlide().elements.map(e=>e.z))+1,locked:false,style:{objectFit:'contain',objectPosition:'center',opacity:1},mediaRef:m.upload_id};currentSlide().elements.push(item);S.selected=item.element_id;}});}
   $('deck-drive-image').addEventListener('click',async()=>{if(!S.edit||!isAdmin()){toast('Drive 기존 파일 연결은 소유자가 이용할 수 있습니다.');return;}const value=prompt('비공개 업로드 폴더에 있는 이미지의 Drive 링크 또는 ID');if(!value)return;try{const m=await rpc('linkDrive',{fileId:driveId(value),kind:'DECK',requestId:uid(),metadata:{rights_owner:INTERNAL_DECK_RIGHTS_NOTE,b2b_use:'미확인'}});await attachDeckAsset(m,'add');}catch(e){fail(e);}});
   $('duplicate-slide').addEventListener('click',()=>mutation(()=>{const copy=clone(currentSlide());copy.slide_id='S_'+uid();copy.elements.forEach(e=>e.element_id='E_'+uid());S.deck.slides.splice(S.slide+1,0,copy);S.slide++;S.selected=null;}));
-  $('delete-slide').addEventListener('click',()=>{if(!S.edit||S.deck.slides.length===1)return;if(confirm('현재 슬라이드를 삭제할까요? 실행 취소로 복원할 수 있습니다.'))mutation(()=>{S.deck.slides.splice(S.slide,1);S.slide=Math.min(S.slide,S.deck.slides.length-1);S.selected=null;});});
-  function chooseDeckImage(intent){if(!S.edit)return;imageIntent=intent;imageTarget={slide:currentSlide().slide_id,element:S.selected};$('deck-image-file').click();}
+  $('delete-slide').addEventListener('click',()=>{if(!S.edit||!S.deck||S.deck.slides.length===1)return;if(confirm('현재 슬라이드를 삭제할까요? 실행 취소로 복원할 수 있습니다.'))mutation(()=>{S.deck.slides.splice(S.slide,1);S.slide=Math.min(S.slide,S.deck.slides.length-1);S.selected=null;});});
+  function chooseDeckImage(intent){if(!S.edit||!S.deck)return;imageIntent=intent;imageTarget={slide:currentSlide().slide_id,element:S.selected};$('deck-image-file').click();}
   $('add-image').addEventListener('click',()=>chooseDeckImage('add'));
   $('deck-image-file').addEventListener('change',async()=>{
     const f=$('deck-image-file').files[0];if(!f)return;const target=imageTarget,intent=imageIntent;
     try{toast('이미지 원본을 저장하고 있습니다.');const m=await uploadFile(f,{kind:'DECK',metadata:{rights_owner:INTERNAL_DECK_RIGHTS_NOTE,b2b_use:'미확인',caption:'아자몰 작업본 이미지'}});await attachDeckAsset(m,intent,target);toast('이미지를 넣었습니다. 저장을 누르면 다음에도 이어서 볼 수 있습니다.');}catch(e){fail(e);}finally{$('deck-image-file').value='';}
   });
   $('background-edit').addEventListener('click',()=>{
-    if(!S.edit)return;select(null);const b=currentSlide().background,root=$('property-fields');root.replaceChildren(el('h3',null,'슬라이드 배경'));
+    if(!S.edit||!S.deck)return;select(null);const b=currentSlide().background,root=$('property-fields');root.replaceChildren(el('h3',null,'슬라이드 배경'));
     const change=(k,v)=>{mutation(()=>b[k]=v);$('background-edit').click();};
     root.append(field('배경색',b.color,'color',v=>change('color',v)),btn('배경 이미지 교체',()=>chooseDeckImage('background')),btn('단색 배경으로',()=>change('mediaRef',undefined)),field('배경 이미지 맞춤',b.fit,null,v=>change('fit',v),['cover','contain']),field('배경 이미지 위치',b.position,null,v=>change('position',v),['center','top','bottom','left','right']),field('배경 확대',b.zoom,'number',v=>change('zoom',v)),field('배경 불투명도',b.opacity,'number',v=>change('opacity',v)),field('오버레이 색상',b.overlayColor,'color',v=>change('overlayColor',v)),field('오버레이 불투명도',b.overlayOpacity,'number',v=>change('overlayOpacity',v)));
   });
   let deckSaving=false;
   async function saveDeck(newVersion=false){
-    if(deckSaving||!S.boot.canEditDeck)return;commitText();const summary=newVersion?'새 디자인 작업본 저장':'현재 작업본 수정';
+    if(deckSaving||!S.deck||!S.boot.canEditDeck)return;commitText();const summary=newVersion?'새 디자인 작업본 저장':'현재 작업본 수정';
     deckSaving=true;$('deck-saved').textContent='저장 중…';try{const d=Code1Core.validateDeck(S.deck),savedModel=deckSnapshot(d),r=await rpc('saveDeck',{deck:d,baseVersion:S.baseVersion,newVersion,summary,requestId:uid()});S.baseVersion=r.version;S.deck.version=r.version;S.deck.version_label=r.versionLabel||S.deck.version_label;S.savedDeckSlides=savedModel;$('deck-saved').textContent=(savedModel===deckSnapshot(S.deck)?'저장됨 · r':'저장하지 않은 추가 변경 · 저장된 r')+r.version;toast('작업본을 저장했습니다. 기존 CURRENT는 그대로입니다.');}catch(e){$('deck-saved').textContent='저장 실패 · 변경 내용은 현재 창에 남아 있습니다.';fail(e);}finally{deckSaving=false;}
   }
   $('deck-save').addEventListener('click',()=>saveDeck(false));$('version-save').addEventListener('click',()=>saveDeck(true));
-  $('preview').addEventListener('click',()=>{commitText();S.edit=false;S.selected=null;document.body.classList.add('preview-mode');renderDeck();});
+  $('preview').addEventListener('click',()=>{if(!S.deck)return;commitText();S.edit=false;S.selected=null;document.body.classList.add('preview-mode');renderDeck();});
   const exitPreview=btn('미리보기 닫기',()=>{document.body.classList.remove('preview-mode');renderDeck();});document.querySelector('.slide-nav').append(exitPreview);
   $('fullscreen').addEventListener('click',()=>{if(document.fullscreenElement)document.exitFullscreen().catch(fail);else $('deck-page').requestFullscreen?.().catch(fail);});
   window.addEventListener('keydown',ev=>{
-    if(!S.boot||$('deck-page').hidden)return;const typing=ev.target.isContentEditable||/INPUT|TEXTAREA|SELECT/.test(ev.target.tagName);if(typing||ev.isComposing)return;
+    if(!S.boot||!S.deck||$('deck-page').hidden)return;const typing=ev.target.isContentEditable||/INPUT|TEXTAREA|SELECT/.test(ev.target.tagName);if(typing||ev.isComposing)return;
     if(ev.key==='Escape'){document.body.classList.remove('preview-mode');S.selected=null;renderDeck();return;}
     if((ev.ctrlKey||ev.metaKey)&&ev.key.toLowerCase()==='s'){ev.preventDefault();saveDeck(false);return;}
     if(S.edit&&(ev.ctrlKey||ev.metaKey)&&['z','y'].includes(ev.key.toLowerCase())){ev.preventDefault();(ev.key.toLowerCase()==='y'||ev.shiftKey?$('redo'):$('undo')).click();return;}
@@ -272,8 +280,7 @@
   });
   let exportBlocking=false;
   async function preparePrint(){
-    commitText();const errors=[],warnings=Code1Core.copyWarnings(S.deck);$('print-deck').replaceChildren(...S.deck.slides.map(s=>{const p=el('section','print-page');p.append(slideDOM(s));return p;}));
-    // Temporarily lay out the SAME DOM tree for font/image/overflow checks.
+    if(!S.deck)throw Error('제안서를 먼저 불러와 주세요.');commitText();const errors=[],warnings=Code1Core.copyWarnings(S.deck);$('print-deck').replaceChildren(...S.deck.slides.map(s=>{const p=el('section','print-page');p.append(slideDOM(s));return p;}));
     const print=$('print-deck');Object.assign(print.style,{display:'block',position:'absolute',left:'-2200px',top:'0',visibility:'hidden'});
     try{
       const words=S.deck.slides.flatMap(s=>s.elements.filter(e=>e.type==='text').map(e=>e.content)).join('');
@@ -283,7 +290,6 @@
       print.querySelectorAll('.deck-element').forEach(n=>{if(n.textContent.trim()&&(n.scrollHeight>n.clientHeight+2||n.scrollWidth>n.clientWidth+2))errors.push(n.dataset.elementId+': 글자가 텍스트 상자를 넘습니다.');});
     }catch(e){errors.push(errorText(e));}
     print.style.cssText='';
-
     $('qa-list').replaceChildren(...errors.map(t=>el('li','qa-error',t)));exportBlocking=errors.length>0;if(exportBlocking){$('confirm-print').disabled=true;$('export-dialog').showModal();return;}window.print();
   }
   $('pdf').addEventListener('click',()=>preparePrint().catch(fail));$('print').addEventListener('click',()=>preparePrint().catch(fail));$('qa-confirm').addEventListener('change',()=>{$('confirm-print').disabled=exportBlocking||!$('qa-confirm').checked;});$('cancel-print').addEventListener('click',()=>$('export-dialog').close());
@@ -323,7 +329,7 @@
     const button=$('request-download');button.disabled=true;button.textContent='PDF 만드는 중…';
     try{const keys=new Set([...$('request-items').querySelectorAll('input:checked')].map(n=>n.value));const items=F.missing(S.boot.catalog,S.form).filter(q=>keys.has(q.item_key));if(!items.length)throw Error('요청할 항목을 선택해 주세요.');await Code1Pdf.downloadRequest({name:S.form.name||'농가',items,due:$('request-date').value,contact:$('request-contact').value,note:$('request-note').value});toast('농가에 보낼 요청서를 다운로드했습니다.');}catch(e){fail(e);}finally{button.textContent='선택한 자료 PDF 다운로드';updateRequestCount();}
   });
-  const reloadDeck=btn('다시 불러오기',async()=>{if(hasUnsavedChanges()){toast('저장하지 않은 내용이 있습니다. 먼저 저장해 주세요.');return;}reloadDeck.disabled=true;try{const b=await rpc('bootstrap');S.deck=Code1Core.validateDeck(b.deck);S.baseVersion=S.deck.version;S.savedDeckSlides=deckSnapshot(S.deck);S.history=new Code1Core.History(S.deck);S.assets=await rpc('deckAssets');S.selected=null;renderDeck();toast('저장된 제안서를 불러왔습니다.');}catch(e){fail(e);}finally{reloadDeck.disabled=false;}});
+  const reloadDeck=btn('다시 불러오기',async()=>{if(hasUnsavedChanges()){toast('저장하지 않은 내용이 있습니다. 먼저 저장해 주세요.');return;}reloadDeck.disabled=true;try{await loadDeckWorkspace(true);toast('저장된 제안서를 불러왔습니다.');}catch(e){fail(e);}finally{reloadDeck.disabled=false;}});
   document.querySelector('.deck-toolbar').append(reloadDeck);
 
   async function restoreSession(){try{const response=await fetch('/api/session');const data=await response.json();if(data.error){$('login-status').textContent=data.message;return;}if(!data.configured){$('login-status').textContent='운영 연결 설정 중입니다. 관리자 설정이 끝나면 여기에서 로그인할 수 있습니다.';$('sign-in').disabled=true;$('password-sign-in').disabled=true;return;}$('sign-in').hidden=!data.googleEnabled;if(data.authenticated)await bootstrap();else if(new URLSearchParams(location.search).get('login')==='failed')$('login-status').textContent='최고 관리자 Google 로그인 또는 데이터 연결 설정을 확인해 주세요.';}catch(e){$('login-status').textContent=errorText(e);}}
