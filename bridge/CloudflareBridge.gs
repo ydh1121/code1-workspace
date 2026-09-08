@@ -1,5 +1,5 @@
 /* Add this one file to the EXISTING CODE1 Apps Script project.
- * Install AccessControl.gs and QuestionPolicy.gs too.
+ * Install AccessControl.gs, QuestionPolicy.gs and MediaOrganizer.gs too.
  * BRIDGE_SECRET: same 32+ character secret as Cloudflare, never committed.
  */
 function doPost(e) {
@@ -37,7 +37,12 @@ function doPost(e) {
         if(typeof questionPolicySave_!=='function')throw new Error('BRIDGE_UPDATE_REQUIRED');
         return questionPolicySave_(p.actor,payload);
       }
-      return accessDispatch_(p.actor,p.action,payload);
+      var result=accessDispatch_(p.actor,p.action,payload);
+      // Keep the existing upload transaction authoritative. Organization is a
+      // fail-soft post-step so a Drive move/rename problem never turns a
+      // successful upload into a duplicate retry.
+      if(p.action==='upload'&&result&&result.upload_id&&typeof mediaOrganizeUploaded_==='function')mediaOrganizeUploaded_(p.actor,result.upload_id);
+      return result;
     });
     return bridgeJson_({ok:true,data:data});
   }catch(error){
