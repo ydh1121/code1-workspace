@@ -1,5 +1,5 @@
 /* Add this one file to the EXISTING CODE1 Apps Script project.
- * Install AccessControl.gs, QuestionPolicy.gs and MediaOrganizer.gs too.
+ * Install AccessControl.gs, QuestionPolicy.gs, MediaOrganizer.gs and MediaLifecycle.gs too.
  * BRIDGE_SECRET: same 32+ character secret as Cloudflare, never committed.
  */
 function doPost(e) {
@@ -16,6 +16,20 @@ function doPost(e) {
     var p=JSON.parse(envelope.body);
     if(!Number.isFinite(p.timestamp)||Math.abs(Date.now()-p.timestamp)>90000||!/^[a-f0-9]{32}$/.test(p.nonce||''))throw new Error('FORBIDDEN');
     if(p.protocol!==2||typeof accessDispatch_!=='function')throw new Error('BRIDGE_UPDATE_REQUIRED');
+
+    // Large original uploads and Drive lifecycle operations must not hold the
+    // shared sheet lock while Google Drive receives chunks or moves files.
+    if(['mediaUpload.begin','mediaUpload.chunk','mediaUpload.finish','deleteMedia','mediaOrganizer.status'].indexOf(p.action)>=0){
+      withLock_(function(){if(cache_().get('bridge:'+p.nonce))throw new Error('FORBIDDEN');cache_().put('bridge:'+p.nonce,'1',180);staging_();});
+      var direct;
+      if(p.action==='mediaUpload.begin'){if(typeof mediaUploadBegin_!=='function')throw new Error('MEDIA_LIFECYCLE_UPDATE_REQUIRED');direct=mediaUploadBegin_(p.actor,p.payload||{});}
+      if(p.action==='mediaUpload.chunk'){if(typeof mediaUploadChunk_!=='function')throw new Error('MEDIA_LIFECYCLE_UPDATE_REQUIRED');direct=mediaUploadChunk_(p.actor,p.payload||{});}
+      if(p.action==='mediaUpload.finish'){if(typeof mediaUploadFinish_!=='function')throw new Error('MEDIA_LIFECYCLE_UPDATE_REQUIRED');direct=mediaUploadFinish_(p.actor,p.payload||{});}
+      if(p.action==='deleteMedia'){if(typeof mediaDelete_!=='function')throw new Error('MEDIA_LIFECYCLE_UPDATE_REQUIRED');direct=mediaDelete_(p.actor,p.payload||{});}
+      if(p.action==='mediaOrganizer.status'){if(typeof mediaOrganizerStatus_!=='function')throw new Error('MEDIA_LIFECYCLE_UPDATE_REQUIRED');direct=mediaOrganizerStatus_(p.actor);}
+      return bridgeJson_({ok:true,data:direct});
+    }
+
     var data=withLock_(function(){
       if(cache_().get('bridge:'+p.nonce))throw new Error('FORBIDDEN');cache_().put('bridge:'+p.nonce,'1',180);
       staging_();var payload=p.payload||{};
@@ -39,10 +53,14 @@ function doPost(e) {
       }
       return accessDispatch_(p.actor,p.action,payload);
     });
-    // Keep Drive folder creation/move/rename outside the shared data lock.
-    // The organizer is fail-soft: a successful upload stays successful even
-    // when organization cannot be completed, and the failure is logged.
-    if(p.action==='upload'&&data&&data.upload_id&&typeof mediaOrganizeUploaded_==='function')mediaOrganizeUploaded_(p.actor,data.upload_id);
+
+    if(p.action==='getSubmission'&&data&&Array.isArray(data.media))data.media=data.media.filter(function(m){return String(m.status||'')!=='DELETED';});
+
+    // Existing Media.gs stays authoritative for the small-file upload itself.
+    // Organization is a fail-soft post-step, but never silently skipped.
+    if(p.action==='upload'&&data&&data.upload_id&&(p.payload||{}).kind==='FARM'){
+      data.organization=typeof mediaOrganizeUploaded_==='function'?mediaOrganizeUploaded_(p.actor,data.upload_id):{organized:false,error:'MEDIA_ORGANIZER_NOT_INSTALLED'};
+    }
     return bridgeJson_({ok:true,data:data});
   }catch(error){
     var message=String(error.message||'REQUEST_FAILED');
