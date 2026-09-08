@@ -112,7 +112,7 @@
 
   const oldFileLabel=fileInput.closest('label');
   const submit=form.querySelector('button[type="submit"]'),link=document.getElementById('link-drive'),status=document.getElementById('media-status');
-  const uploadCard=el('section','media-form-card media-upload-card');uploadCard.innerHTML='<div class="media-form-title"><span class="media-step">4</span><div><h3>원본 파일 올리기</h3><p>JPG·PNG·WebP·PDF·MP4, 직접 업로드는 파일당 8MB 이하입니다.</p></div></div><label id="media-dropzone" class="media-dropzone" for="media-file"><div id="media-file-preview" class="media-file-preview"><span class="media-drop-icon">＋</span><strong>파일을 선택하거나 여기로 끌어오세요</strong><small>업로드 전에 파일명과 미리보기를 확인할 수 있습니다.</small></div></label><div class="media-upload-actions"></div>';
+  const uploadCard=el('section','media-form-card media-upload-card');uploadCard.innerHTML='<div class="media-form-title"><span class="media-step">4</span><div><h3>원본 파일 올리기</h3><p>휴대폰·디지털카메라 고화질 원본도 압축하지 않습니다. 8MB 초과·HEIC·RAW는 자동 분할 업로드합니다.</p></div></div><label id="media-dropzone" class="media-dropzone" for="media-file"><div id="media-file-preview" class="media-file-preview"><span class="media-drop-icon">＋</span><strong>파일을 선택하거나 여기로 끌어오세요</strong><small>업로드 전에 파일명과 미리보기를 확인할 수 있습니다.</small></div></label><div class="media-upload-actions"></div>';
   form.append(uploadCard);
   const drop=uploadCard.querySelector('#media-dropzone'),preview=uploadCard.querySelector('#media-file-preview'),actions=uploadCard.querySelector('.media-upload-actions');
   drop.append(fileInput);fileInput.classList.add('media-file-native');if(oldFileLabel&&oldFileLabel!==drop)oldFileLabel.remove();
@@ -125,7 +125,7 @@
     if(/^image\//.test(file.type)&&URL.createObjectURL){try{previewUrl=URL.createObjectURL(file);const img=el('img');img.src=previewUrl;img.alt='업로드 전 미리보기';preview.append(img);}catch{preview.append(el('span','media-file-kind','IMAGE'));}}
     else preview.append(el('span','media-file-kind',/^video\//.test(file.type)?'VIDEO':/pdf/i.test(file.type)?'PDF':'FILE'));
     const info=el('div','media-file-info');info.append(el('strong',null,file.name),el('small',null,`${(file.size/1024/1024).toFixed(2)} MB · ${file.type||'형식 미확인'}`));preview.append(info);drop.classList.add('has-file');
-    if(file.size>8*1024*1024){drop.classList.add('file-warning');info.append(el('b',null,'직접 업로드 한도 8MB를 넘었습니다. Drive 원본 연결을 사용해 주세요.'));}else drop.classList.remove('file-warning');
+    if(file.size>8*1024*1024){drop.classList.add('file-warning');info.append(el('b',null,'8MB 직접 전송 한도를 넘겨 고화질 원본 분할 업로드로 자동 전환합니다.'));}else drop.classList.remove('file-warning');
   }
   fileInput.addEventListener('change',()=>showFile(fileInput.files?.[0]));
   for(const eventName of ['dragenter','dragover'])drop.addEventListener(eventName,e=>{e.preventDefault();drop.classList.add('dragging');});
