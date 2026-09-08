@@ -1,5 +1,5 @@
 /* Add this one file to the EXISTING CODE1 Apps Script project.
- * Install AccessControl.gs, QuestionPolicy.gs, MediaOrganizer.gs and MediaLifecycle.gs too.
+ * Install AccessControl.gs, QuestionPolicy.gs, MediaOrganizer.gs, MediaLifecycle.gs and PerformanceRead.gs too.
  * BRIDGE_SECRET: same 32+ character secret as Cloudflare, never committed.
  */
 function bridgeReplayGuard_(p){
@@ -10,7 +10,7 @@ function bridgeReplayGuard_(p){
   });
 }
 function bridgeReadAction_(action){
-  return ['account.self','account.list','bootstrap','getSubmission','media','deckAssets','questionPolicy.effective','questionPolicy.list'].indexOf(action)>=0;
+  return ['account.self','account.list','bootstrap','getSubmission','media','mediaBatch','deckAssets','questionPolicy.effective','questionPolicy.list'].indexOf(action)>=0;
 }
 function doPost(e) {
   try {
@@ -54,6 +54,9 @@ function doPost(e) {
       }else if(p.action==='questionPolicy.list'){
         if(typeof questionPolicyList_!=='function')throw new Error('BRIDGE_UPDATE_REQUIRED');
         readData=questionPolicyList_(p.actor);
+      }else if(p.action==='mediaBatch'){
+        if(typeof performanceMediaBatch_!=='function')throw new Error('PERFORMANCE_READ_UPDATE_REQUIRED');
+        readData=performanceMediaBatch_(p.actor,payload);
       }else{
         readData=accessDispatch_(p.actor,p.action,payload);
       }
