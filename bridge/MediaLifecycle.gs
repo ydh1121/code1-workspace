@@ -95,7 +95,18 @@ function mediaDelete_(principal,p) {
   mediaLifecycleLog_({at:now,actor_id:a.account_id,upload_id:id,drive_file_id:q.drive_file_id||'',farm_id:q.farm_id||'',farm_name:q.farm_name||'',media_type:q.media_group||'',category:'',shot_code:q.shot_code||'',shot_label:q.shot_label||'',original_file_name:q.file_name||'',stored_file_name:'',folder_path:'',status:'TRASHED',detail:'Drive 휴지통 이동 · 이전 상태 '+String(q.status||'')+' · '+reason,version:MEDIA_LIFECYCLE_VERSION_});
   try{accessLog_(a.account_id,'media.delete',id,reason);}catch(_){}return {id:id,deleted:true};
 }
+function mediaOrganizerOrganizedIds_() {
+  var out={};try{var s=db_().getSheetByName('24_WEB_미디어정리_이력');if(!s||s.getLastRow()<2)return out;var h=s.getRange(1,1,1,s.getLastColumn()).getValues()[0],u=h.indexOf('upload_id'),st=h.indexOf('status'),rows=s.getRange(2,1,s.getLastRow()-1,h.length).getValues();rows.forEach(function(r){if(u>=0&&st>=0&&String(r[st])==='ORGANIZED')out[String(r[u])]=true;});}catch(_){}return out;
+}
+function mediaOrganizerPending_(a) {
+  var organized=mediaOrganizerOrganizedIds_(),p=accessPermissions_(a);return latestMedia_().filter(function(m){if(String(m.media_group||'').toUpperCase()==='DECK'||String(m.shot_code||'').toUpperCase()==='DECK'||String(m.status||'')==='DELETED'||organized[String(m.upload_id||'')])return false;if(!p.allFarms&&p.farmIds.indexOf(String(m.farm_id||''))<0)return false;return !!m.drive_file_id;});
+}
 function mediaOrganizerStatus_(principal) {
-  var a=accessAccount_(principal);accessPage_(a,'farm',false);var installed=typeof mediaOrganizeUploaded_==='function',rows=0;try{var s=db_().getSheetByName('24_WEB_미디어정리_이력');rows=s?Math.max(0,s.getLastRow()-1):0;}catch(_){}
-  return {installed:installed,version:installed&&typeof MEDIA_ORGANIZER_VERSION_!=='undefined'?MEDIA_ORGANIZER_VERSION_:0,historyRows:rows,maxOriginalBytes:MEDIA_UPLOAD_MAX_BYTES_,chunkBytes:MEDIA_UPLOAD_MAX_CHUNK_BYTES_};
+  var a=accessAccount_(principal);accessPage_(a,'farm',false);var installed=typeof mediaOrganizeUploaded_==='function',rows=0,pending=[];try{var s=db_().getSheetByName('24_WEB_미디어정리_이력');rows=s?Math.max(0,s.getLastRow()-1):0;}catch(_){}if(installed)try{pending=mediaOrganizerPending_(a);}catch(_){}
+  return {installed:installed,version:installed&&typeof MEDIA_ORGANIZER_VERSION_!=='undefined'?MEDIA_ORGANIZER_VERSION_:0,historyRows:rows,unorganizedCount:pending.length,maxOriginalBytes:MEDIA_UPLOAD_MAX_BYTES_,chunkBytes:MEDIA_UPLOAD_MAX_CHUNK_BYTES_};
+}
+function mediaOrganizerRepair_(principal,p) {
+  if(typeof mediaOrganizeUploaded_!=='function')throw new Error('MEDIA_ORGANIZER_NOT_INSTALLED');var a=accessAccount_(principal);if(!accessAdmin_(a))throw new Error('FORBIDDEN');var limit=Math.max(1,Math.min(50,Number((p||{}).limit)||20)),pending=mediaOrganizerPending_(a).slice(0,limit),results=[];
+  pending.forEach(function(m){var r=mediaOrganizeUploaded_(principal,m.upload_id);results.push({uploadId:m.upload_id,organized:!!r.organized,error:r.error||'',folderPath:r.folderPath||'',storedFileName:r.storedFileName||''});});
+  try{accessLog_(a.account_id,'media.organizer.repair','',String(results.length)+'건 정리 시도');}catch(_){}return {processed:results.length,remaining:Math.max(0,mediaOrganizerPending_(a).length),results:results};
 }
