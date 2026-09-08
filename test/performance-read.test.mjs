@@ -16,7 +16,8 @@ test('read-only bridge actions do not hold the long mutation lock',async()=>{
   assert.match(source,/mediaBatch/);
   assert.match(source,/performanceMediaBatch_/);
   assert.match(source,/performanceBootstrap_/);
-  assert.match(source,/performanceDeckAssets_/);
+  assert.match(source,/performanceGetSubmission_/);
+  assert.match(source,/performanceDeckBootstrap_/);
   assert.match(source,/var data=withLock_\(function\(\)/);
 });
 
@@ -27,20 +28,32 @@ test('bootstrap uses one Cloudflare to Apps Script bridge request',async()=>{
   assert.doesNotMatch(source,/questionPolicy\.effective/);
 });
 
-test('temporary read helper caches deck and catalog but rechecks account access',async()=>{
+test('temporary bootstrap excludes deck and reuses policy data for admins',async()=>{
   const source=await read('bridge/PerformanceRead.gs');
-  assert.match(source,/PERFORMANCE_DECK_CACHE_SECONDS_ = 300/);
-  assert.match(source,/PERFORMANCE_CATALOG_CACHE_SECONDS_ = 120/);
-  assert.match(source,/performanceDeckLoad_/);
-  assert.match(source,/performanceCatalogLoad_/);
-  assert.match(source,/questionPolicyEffective_\(principal\)/);
-  assert.match(source,/accessAccount_\(principal\)/);
+  assert.match(source,/PERFORMANCE_READ_VERSION_ = 4/);
+  assert.match(source,/deck:null/);
+  assert.match(source,/questionPolicyPrefetched:policy\.prefetched/);
+  assert.match(source,/performancePolicyBundle_/);
+  assert.doesNotMatch(source,/PERFORMANCE_DECK_CACHE_SECONDS_/);
+  assert.doesNotMatch(source,/performanceCacheWriteLarge_/);
 });
 
-test('deck mutation invalidates temporary deck cache',async()=>{
-  const source=await read('bridge/CloudflareBridge.gs');
-  assert.match(source,/p\.action==='saveDeck'/);
-  assert.match(source,/performanceDeckCacheInvalidate_/);
+test('deck is loaded only through dedicated lazy bootstrap',async()=>{
+  const bridge=await read('bridge/CloudflareBridge.gs');
+  const rpc=await read('functions/api/rpc.js');
+  const app=await read('public/assets/app.js');
+  assert.match(bridge,/p\.action==='deckBootstrap'/);
+  assert.match(rpc,/'deckBootstrap'/);
+  assert.match(app,/rpc\('deckBootstrap'\)/);
+  assert.doesNotMatch(app,/if\(allowedPage\('deck'\)\)try\{S\.assets=.*rpc\('deckAssets'\)/);
+});
+
+test('question policy page can reuse bootstrap data without another read',async()=>{
+  const source=await read('public/assets/farm-model.js');
+  assert.match(source,/questionPolicyPrefetched===true/);
+  assert.match(source,/policy\.loaded=data\.questionPolicyPrefetched===true/);
+  assert.match(source,/else\{buildSelectors\(\);renderPolicies\(\);\}/);
+  assert.match(source,/rebuildPolicyIndex/);
 });
 
 test('farm media requests are batched and cached in browser session',async()=>{
