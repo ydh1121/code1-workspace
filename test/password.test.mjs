@@ -18,16 +18,16 @@ test('new cookies require immutable account id and version; old email-only sessi
   const old=await sign({kind:'session',email:'owner@example.test',exp:Date.now()+5000},env.SESSION_SECRET);
   const r=await rpc({request:request('/api/rpc',{action:'bootstrap'},'__Host-code1='+old),env});assert.equal(r.status,401);
 });
-test('password login sends proof only through signed bridge and returns sanitized identity with HttpOnly cookie',async()=>{
+test('password login uses one signed authentication bridge round trip and returns sanitized identity with HttpOnly cookie',async()=>{
   const credential=await passwordHash('test-password-1234',env),original=globalThis.fetch;const calls=[];
-  globalThis.fetch=async(url,init)=>{const p=JSON.parse(JSON.parse(init.body).body);calls.push(p);const data=p.action==='auth.begin'?{credential,ticket:'ticket'}:user;return new Response(JSON.stringify({ok:true,data}));};
+  globalThis.fetch=async(url,init)=>{const p=JSON.parse(JSON.parse(init.body).body);calls.push(p);return new Response(JSON.stringify({ok:true,data:{credential,user}}));};
   try{
-    const r=await login({request:request('/api/auth/password',{username:'farmer',password:'test-password-1234'}),env});assert.equal(r.status,200);assert.match(r.headers.get('Set-Cookie'),/HttpOnly/);const response=await r.text();assert.equal(response.includes(credential.hash),false);assert.equal(response.includes('password'),false);assert.deepEqual(calls.map(c=>c.action),['auth.begin','auth.finish']);assert.equal(calls[1].payload.verified,true);assert.match(calls[0].payload.ipKey,/^[a-f0-9]{64}$/);assert.equal(JSON.stringify(calls).includes('test-password-1234'),false);
+    const r=await login({request:request('/api/auth/password',{username:'farmer',password:'test-password-1234'}),env});assert.equal(r.status,200);assert.match(r.headers.get('Set-Cookie'),/HttpOnly/);const response=await r.text();assert.equal(response.includes(credential.hash),false);assert.equal(response.includes('password'),false);assert.deepEqual(calls.map(c=>c.action),['auth.fast']);assert.match(calls[0].payload.ipKey,/^[a-f0-9]{64}$/);assert.equal(JSON.stringify(calls).includes('test-password-1234'),false);
   }finally{globalThis.fetch=original;}
 });
 test('browser RPC cannot request credential lookups, login tickets, account changes or forged roles',async()=>{
   const cookie=(await accountCookie(user,env)).split(';')[0],original=globalThis.fetch;let called=false;globalThis.fetch=async()=>{called=true;throw Error('unexpected');};
-  try{for(const action of ['account.credential','auth.begin','auth.finish','account.save','account.password','settings']){const r=await rpc({request:request('/api/rpc',{action,payload:{role:'SUPER_ADMIN'}},cookie),env});assert.equal(r.status,400);}assert.equal(called,false);}finally{globalThis.fetch=original;}
+  try{for(const action of ['account.credential','auth.begin','auth.finish','auth.fast','auth.audit','account.save','account.password','settings']){const r=await rpc({request:request('/api/rpc',{action,payload:{role:'SUPER_ADMIN'}},cookie),env});assert.equal(r.status,400);}assert.equal(called,false);}finally{globalThis.fetch=original;}
 });
 test('account API rejects cross-origin mutation and farmer account creation before hashing',async()=>{
   const cookie=(await accountCookie(user,env)).split(';')[0];assert.equal((await accounts({request:request('/api/accounts',{action:'save'},cookie,'https://evil.test'),env})).status,403);
