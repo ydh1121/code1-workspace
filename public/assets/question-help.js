@@ -25,11 +25,13 @@
   // media deletion must not freeze navigation while the durable write finishes.
   const upstreamFetch=window.fetch.bind(window);
   const rpcPath='/api/rpc';
+  const passwordPath='/api/auth/password';
   const entries=new Map();
   const prefetching=new Map();
   const perf=[];
   let outstandingWrites=0;
   let prefetchGeneration=0;
+  let pendingLoginBootstrap=null;
 
   const clone=value=>value==null?value:structuredClone(value);
   const uid=()=>crypto.randomUUID().replace(/-/g,'');
@@ -60,6 +62,7 @@
     id=String(id||'');if(!entries.has(id))entries.set(id,{id,serverRevision:null,data:null,pending:null,saving:null,error:null});return entries.get(id);
   }
   function captureBootstrap(data){
+    if(!data)return;
     const generation=++prefetchGeneration;
     (data?.submissions||[]).forEach(s=>{if(!s?.id)return;const e=entryFor(s.id);e.serverRevision=Number(s.revision)||0;});
     // Warm farm pages after the blocking bootstrap has finished. Reads are limited to
@@ -162,9 +165,28 @@
   });
 
   window.fetch=async function(input,init){
+    const url=requestUrl(input),method=String(init?.method||'GET').toUpperCase();
+
+    // Fast password auth can include the full farm bootstrap from the same Apps Script
+    // execution. Keep it in memory and satisfy app.js's immediate bootstrap RPC locally.
+    if(url.endsWith(passwordPath)&&method==='POST'){
+      const started=performance.now(),response=await upstreamFetch(input,init);
+      try{
+        const body=await response.clone().json();
+        if(response.ok&&body?.bootstrap){pendingLoginBootstrap=clone(body.bootstrap);captureBootstrap(pendingLoginBootstrap);}
+      }catch(_){ }
+      notePerf('password-login',started,pendingLoginBootstrap?'auth+bootstrap':'network');
+      return response;
+    }
+
     const meta=parseRpc(input,init);
     if(!meta)return upstreamFetch(input,init);
     const action=meta.action,payload=meta.payload||{},started=performance.now();
+
+    if(action==='bootstrap'&&pendingLoginBootstrap){
+      const data=pendingLoginBootstrap;pendingLoginBootstrap=null;
+      notePerf(action,started,'auth-prefetch');return synthetic({data:clone(data)});
+    }
 
     // Drafts are write-behind. The durable Apps Script write starts immediately,
     // but navigation and editing are no longer blocked on that round trip.
