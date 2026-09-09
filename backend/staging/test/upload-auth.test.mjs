@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {issueUploadAuthorization,verifyUploadAuthorization} from '../src/upload-auth.mjs';
+const env={CODE1_UPLOAD_TOKEN_SECRET:'x'.repeat(64)};
+test('upload token is short-lived and scoped to exact object',async()=>{const now=1000,a=await issueUploadAuthorization(env,{accountId:'OWNER',farmId:'GF-1',submissionId:'SUB-1',mediaId:'M-1',fileName:'a.jpg',mimeType:'image/jpeg',fileSize:123},now);const p=await verifyUploadAuthorization(env,a.token,now+1);assert.equal(p.objectKey,a.objectKey);assert.equal(p.maxBytes,123);assert.equal(await verifyUploadAuthorization(env,a.token,now+11*60*1000),null);});

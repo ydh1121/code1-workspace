@@ -1,0 +1,9 @@
+# Isolated CODE1 STAGING only. Never populate or commit real values.
+CODE1_STAGING_PROJECT_REF=
+CODE1_SUPABASE_URL=
+CODE1_SUPABASE_SERVICE_ROLE_KEY=
+CODE1_UPLOAD_TOKEN_SECRET=
+# CODE1_MEDIA_BUCKET is a Cloudflare R2 binding, not a text secret.
+# Existing auth compatibility secrets remain server-only:
+SESSION_SECRET=
+PASSWORD_PEPPER=
