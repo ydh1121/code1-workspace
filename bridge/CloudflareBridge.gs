@@ -12,6 +12,39 @@ function bridgeReplayGuard_(p){
 function bridgeReadAction_(action){
   return ['account.self','account.list','bootstrap','getSubmission','media','mediaBatch','deckAssets','deckBootstrap','questionPolicy.effective','questionPolicy.list'].indexOf(action)>=0;
 }
+function bridgeAuthThrottlePair_(ipKey,username){
+  if(!/^[a-f0-9]{64}$/.test(ipKey||''))throw new Error('FORBIDDEN');
+  username=String(username||'').trim().toLowerCase();
+  if(!/^[a-z0-9][a-z0-9._-]{2,31}$/.test(username))throw new Error('LOGIN_INVALID');
+  var now=Date.now(),rows=accessRows_('21_WEB_LOGIN_GUARD');
+  function bump(key,limit){
+    var row=rows.filter(function(r){return String(r.key||'')===key;})[0];
+    if(!row){
+      var expired=rows.filter(function(r){return Number(r.window_start)<now-900000;})[0];
+      row={_row:expired?expired._row:undefined,key:key,window_start:now,attempts:0};
+      if(expired)rows=rows.filter(function(r){return r._row!==expired._row;});
+      rows.push(row);
+    }
+    if(now-Number(row.window_start)>=900000){row.window_start=now;row.attempts=0;}
+    if(Number(row.attempts)>=limit)throw new Error('LOGIN_THROTTLED');
+    row.attempts=Number(row.attempts)+1;accessWrite_('21_WEB_LOGIN_GUARD',row);
+  }
+  bump('ip:'+ipKey,40);bump('user:'+sha_(username),8);
+  return username;
+}
+function bridgeAuthFast_(p){
+  p=p||{};var username=bridgeAuthThrottlePair_(p.ipKey,p.username);
+  var a=accessRows_('19_WEB_ACCOUNTS').filter(function(x){return String(x.username||'').toLowerCase()===username;})[0];
+  if(!a||a.status!=='active'||['SUPER_ADMIN','ADMIN','FARMER'].indexOf(a.role)<0)return {credential:null,user:null};
+  if(a.role==='SUPER_ADMIN'&&a.account_id!=='OWNER')throw new Error('FORBIDDEN');
+  var credential=a.password_hash?{salt:a.password_salt,hash:a.password_hash,iterations:Number(a.password_iterations),scheme:a.password_scheme}:null;
+  return {credential:credential,user:accessPublic_(a)};
+}
+function bridgeAuthAudit_(p){
+  p=p||{};var id=String(p.accountId||'').slice(0,120),ok=p.success===true;
+  try{accessLog_(ok?id:'',ok?'login.success':'login.failure',id,ok?'아이디 로그인':'');}catch(_){}
+  return {logged:true};
+}
 function doPost(e) {
   try {
     var secret = PropertiesService.getScriptProperties().getProperty('BRIDGE_SECRET');
@@ -78,6 +111,8 @@ function doPost(e) {
     var data=withLock_(function(){
       staging_();
       if(p.action==='identity')return accessGoogle_(p.email);
+      if(p.action==='auth.fast')return bridgeAuthFast_(payload);
+      if(p.action==='auth.audit')return bridgeAuthAudit_(payload);
       if(p.action==='auth.begin')return accessAuthBegin_(payload);
       if(p.action==='auth.finish')return accessAuthFinish_(payload);
       if(p.action==='questionPolicy.save'){
