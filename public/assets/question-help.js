@@ -123,9 +123,7 @@
     const e=entries.get(id);if(!e)return;
     if(e.pending||e.saving)await flushDraft(e);
     if(e.error)throw e.error;
-    if(Number.isInteger(e.serverRevision)){
-      if(action==='saveSubmission'||action==='review')payload.baseRevision=e.serverRevision;
-    }
+    if(Number.isInteger(e.serverRevision)&&(action==='saveSubmission'||action==='review'))payload.baseRevision=e.serverRevision;
   }
   async function serverSubmission(id){
     id=String(id||'');if(!id)return null;
@@ -152,12 +150,9 @@
   function markMediaDeleted(id){
     entries.forEach(e=>{if(!Array.isArray(e.data?.media))return;const m=e.data.media.find(x=>String(x?.upload_id||'')===String(id));if(m)m.status='DELETED';});
   }
-  function rollbackMediaDeleted(id){
-    entries.forEach(e=>{if(!Array.isArray(e.data?.media))return;const m=e.data.media.find(x=>String(x?.upload_id||'')===String(id));if(m&&m.status==='DELETED')m.status='PENDING';});
-  }
   function queueMediaDelete(payload){
     const id=String(payload?.id||'');markMediaDeleted(id);outstandingWrites++;
-    upstreamRpc('deleteMedia',clone(payload)).catch(error=>{rollbackMediaDeleted(id);showBackgroundError('사진 삭제를 저장하지 못했습니다. 새로고침 후 다시 확인해 주세요. '+(error.message||error));}).finally(()=>{outstandingWrites--;});
+    upstreamRpc('deleteMedia',clone(payload)).catch(error=>showBackgroundError('사진 삭제를 저장하지 못했습니다. 새로고침 후 다시 확인해 주세요. '+(error.message||error))).finally(()=>{outstandingWrites--;});
     return {id,deleted:true,pending:true};
   }
 
@@ -193,11 +188,10 @@
 
     // Actions that depend on a durable submission wait only for that dependency,
     // not ordinary farm-to-farm navigation.
-    if(['upload','linkDrive','mediaUpload.begin','review'].includes(action)||(action==='saveSubmission'&&payload.status!=='DRAFT')){
-      await flushBefore(action,payload);
-    }
+    if(['upload','linkDrive','mediaUpload.begin','review'].includes(action)||(action==='saveSubmission'&&payload.status!=='DRAFT'))await flushBefore(action,payload);
 
-    const response=await upstreamFetch(input,meta===parseRpc(input,init)?{...init,body:JSON.stringify({action,payload})}:init);
+    const nextInit={...init,body:JSON.stringify({action,payload})};
+    const response=await upstreamFetch(input,nextInit);
     try{
       const body=await response.clone().json();
       if(response.ok&&!body?.error){
