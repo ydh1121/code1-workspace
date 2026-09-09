@@ -33,7 +33,10 @@ function bridgeAuthThrottlePair_(ipKey,username){
   return username;
 }
 function bridgeAuthFast_(p){
-  p=p||{};var username=bridgeAuthThrottlePair_(p.ipKey,p.username);
+  p=p||{};
+  // Only the two throttle counters need serialization. Account/bootstrap reads do
+  // not hold the shared mutation lock, otherwise a slow farm save can delay login.
+  var username=withLock_(function(){staging_();return bridgeAuthThrottlePair_(p.ipKey,p.username);});
   var a=accessRows_('19_WEB_ACCOUNTS').filter(function(x){return String(x.username||'').toLowerCase()===username;})[0];
   if(!a||a.status!=='active'||['SUPER_ADMIN','ADMIN','FARMER'].indexOf(a.role)<0)return {credential:null,user:null,bootstrap:null};
   if(a.role==='SUPER_ADMIN'&&a.account_id!=='OWNER')throw new Error('FORBIDDEN');
@@ -70,6 +73,8 @@ function doPost(e) {
     // Serialize only replay protection. Long read/Drive operations run without
     // the shared write lock so unrelated reads do not queue behind each other.
     bridgeReplayGuard_(p);
+
+    if(p.action==='auth.fast')return bridgeJson_({ok:true,data:bridgeAuthFast_(payload)});
 
     if(['mediaUpload.begin','mediaUpload.chunk','mediaUpload.finish','deleteMedia','mediaOrganizer.status','mediaOrganizer.repair'].indexOf(p.action)>=0){
       var direct;
@@ -117,7 +122,6 @@ function doPost(e) {
     var data=withLock_(function(){
       staging_();
       if(p.action==='identity')return accessGoogle_(p.email);
-      if(p.action==='auth.fast')return bridgeAuthFast_(payload);
       if(p.action==='auth.audit')return bridgeAuthAudit_(payload);
       if(p.action==='auth.begin')return accessAuthBegin_(payload);
       if(p.action==='auth.finish')return accessAuthFinish_(payload);
