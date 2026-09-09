@@ -35,10 +35,16 @@ function bridgeAuthThrottlePair_(ipKey,username){
 function bridgeAuthFast_(p){
   p=p||{};var username=bridgeAuthThrottlePair_(p.ipKey,p.username);
   var a=accessRows_('19_WEB_ACCOUNTS').filter(function(x){return String(x.username||'').toLowerCase()===username;})[0];
-  if(!a||a.status!=='active'||['SUPER_ADMIN','ADMIN','FARMER'].indexOf(a.role)<0)return {credential:null,user:null};
+  if(!a||a.status!=='active'||['SUPER_ADMIN','ADMIN','FARMER'].indexOf(a.role)<0)return {credential:null,user:null,bootstrap:null};
   if(a.role==='SUPER_ADMIN'&&a.account_id!=='OWNER')throw new Error('FORBIDDEN');
   var credential=a.password_hash?{salt:a.password_salt,hash:a.password_hash,iterations:Number(a.password_iterations),scheme:a.password_scheme}:null;
-  return {credential:credential,user:accessPublic_(a)};
+  var user=accessPublic_(a),bootstrap=null;
+  // Password verification still happens only at Cloudflare. The bootstrap bundle may
+  // travel to the trusted edge with the credential, but is never returned to the
+  // browser unless the password proof succeeds. This removes a second Apps Script
+  // execution after successful login when PerformanceRead v5 is installed.
+  if(typeof performanceBootstrapAccount_==='function')bootstrap=performanceBootstrapAccount_(a);
+  return {credential:credential,user:user,bootstrap:bootstrap};
 }
 function bridgeAuthAudit_(p){
   p=p||{};var id=String(p.accountId||'').slice(0,120),ok=p.success===true;
@@ -122,8 +128,8 @@ function doPost(e) {
       return accessDispatch_(p.actor,p.action,payload);
     });
 
-    // v4 no longer keeps an eager deck read cache. Keep this call compatible
-    // with older PerformanceRead installations without making it mandatory.
+    // PerformanceRead v4+ no longer keeps an eager deck read cache. Keep this call
+    // compatible with older installations without making the cache mandatory.
     if(p.action==='saveDeck'&&typeof performanceDeckCacheInvalidate_==='function')performanceDeckCacheInvalidate_();
 
     // Existing Media.gs remains authoritative for the small-file upload itself.
