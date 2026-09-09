@@ -15,14 +15,16 @@ export async function onRequestPost(context) {
       legacy=true;attempt=await bridge(env,null,'auth.begin',{username,ipKey});
     }
     const verified=await passwordMatches(p.password,attempt?.credential,env);
-    let user=null;
+    let user=null,bootstrap=null;
     if(legacy){user=await bridge(env,null,'auth.finish',{ticket:attempt.ticket,verified});}
-    else if(verified){user=attempt?.user||null;}
+    else if(verified){user=attempt?.user||null;bootstrap=attempt?.bootstrap||null;}
     if(!verified||!user?.id||!Number.isInteger(user.version)){
       if(!legacy)context.waitUntil?.(bridge(env,null,'auth.audit',{accountId:user?.id||'',success:false}).catch(()=>{}));
       throw Error('LOGIN_INVALID');
     }
-    const response=json({user});response.headers.set('Set-Cookie',await accountCookie(user,env));
+    // bootstrap is trusted edge data assembled in the same Apps Script execution.
+    // The client may reuse it for the immediate post-login bootstrap request.
+    const response=json({user,bootstrap});response.headers.set('Set-Cookie',await accountCookie(user,env));
     if(!legacy)context.waitUntil?.(bridge(env,null,'auth.audit',{accountId:user.id,success:true}).catch(()=>{}));
     return response;
   } catch(e){return failure(e);}
