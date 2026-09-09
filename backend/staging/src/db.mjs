@@ -33,6 +33,7 @@ export function createDb(env, fetchImpl = fetch) {
     select(table, query='') { return request(`/rest/v1/${table}${query ? '?' + query : ''}`); },
     insert(table, rows, prefer='return=representation') { return request(`/rest/v1/${table}`,{method:'POST',body:rows,headers:{Prefer:prefer}}); },
     update(table, query, patch, prefer='return=representation') { return request(`/rest/v1/${table}?${query}`,{method:'PATCH',body:patch,headers:{Prefer:prefer}}); },
+    delete(table, query, prefer='return=representation') { return request(`/rest/v1/${table}?${query}`,{method:'DELETE',headers:{Prefer:prefer}}); },
     rpc(name, body) { return request(`/rest/v1/rpc/${name}`,{method:'POST',body}); },
     eq(column, value) { return `${encodeURIComponent(column)}=eq.${q(value)}`; },
     inList(column, values) { return `${encodeURIComponent(column)}=in.(${values.map(v=>q(v)).join(',')})`; }
