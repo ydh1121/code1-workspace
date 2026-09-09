@@ -3,11 +3,11 @@
  * This file is intentionally temporary infrastructure and can be replaced when
  * the workspace moves to the future production admin server.
  */
-var PERFORMANCE_READ_VERSION_ = 4;
+var PERFORMANCE_READ_VERSION_ = 5;
 var PERFORMANCE_MEDIA_BATCH_MAX_ = 32;
 
-function performanceDeckCacheInvalidate_(){/* v4: no eager deck cache */}
-function performanceCatalogCacheInvalidate_(){/* v4: no catalog cache */}
+function performanceDeckCacheInvalidate_(){/* v5: no eager deck cache */}
+function performanceCatalogCacheInvalidate_(){/* v5: no catalog cache */}
 
 function performanceFarmChoices_(summaries){
   var map={};
@@ -32,8 +32,8 @@ function performancePolicyBundle_(a,permissions,farms){
   }catch(_){ }
   return out;
 }
-function performanceBootstrap_(principal){
-  var started=Date.now(),a=accessAccount_(principal),permissions=accessPermissions_(a),u={email:a.email||'account:'+a.account_id,role:'OWNER'};
+function performanceBootstrapAccount_(a){
+  var started=Date.now(),permissions=accessPermissions_(a),u={email:a.email||'account:'+a.account_id,role:'OWNER'};
   var list=[],catalog=[],farms=[];
   if(permissions.farm!=='none'){
     list=listSubmissions_(u).filter(function(c){return permissions.allFarms||permissions.farmIds.indexOf(c.farmId)>=0;});
@@ -51,6 +51,9 @@ function performanceBootstrap_(principal){
     questionPolicyReady:policy.ready,questionPolicyPrefetched:policy.prefetched,
     performance:{version:PERFORMANCE_READ_VERSION_,bootstrapMs:Date.now()-started}
   };
+}
+function performanceBootstrap_(principal){
+  return performanceBootstrapAccount_(accessAccount_(principal));
 }
 function performanceGetSubmission_(principal,p){
   p=p||{};var a=accessAccount_(principal),u={email:a.email||'account:'+a.account_id,role:'OWNER'};
