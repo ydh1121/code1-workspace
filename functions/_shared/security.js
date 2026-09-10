@@ -1,4 +1,7 @@
 const enc = new TextEncoder();
+const RUNTIME_APPS_SCRIPT='APPS_SCRIPT';
+const RUNTIME_SUPABASE_STAGING='SUPABASE_STAGING';
+const runtimeMode = env => String(env?.CODE1_RUNTIME_BACKEND || RUNTIME_APPS_SCRIPT).trim().toUpperCase();
 export const encode = value => btoa(String.fromCharCode(...enc.encode(JSON.stringify(value)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 export function decode(value) { return JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)))); }
 export async function hmac(text, secret) {
@@ -12,7 +15,19 @@ export async function verify(token, secret) { try { const [body, sig, extra] = t
 export const cookie = (name, value, age = 28800) => `${name}=${value}; Path=/; Max-Age=${age}; HttpOnly; Secure; SameSite=Lax`;
 export const readCookie = (request, name) => (request.headers.get('Cookie') || '').split(';').map(x => x.trim()).find(x => x.startsWith(name + '='))?.slice(name.length + 1) || '';
 export const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' } });
-export function configured(env) { return !!(env.APP_ORIGIN && env.BRIDGE_URL && env.BRIDGE_SECRET?.length >= 32 && env.SESSION_SECRET?.length >= 32); }
+export function configured(env={}) {
+  if (!env.APP_ORIGIN || !env.SESSION_SECRET || env.SESSION_SECRET.length < 32) return false;
+  const mode=runtimeMode(env);
+  if(mode===RUNTIME_SUPABASE_STAGING)return !!(env.CODE1_LOGIN_IP_SECRET&&env.CODE1_LOGIN_IP_SECRET.length>=32);
+  if(mode===RUNTIME_APPS_SCRIPT)return !!(env.BRIDGE_URL&&env.BRIDGE_SECRET&&env.BRIDGE_SECRET.length>=32);
+  return false;
+}
+export function loginIpSecret(env={}) {
+  const mode=runtimeMode(env);
+  const secret=mode===RUNTIME_SUPABASE_STAGING?env.CODE1_LOGIN_IP_SECRET:mode===RUNTIME_APPS_SCRIPT?env.BRIDGE_SECRET:'';
+  if(!secret||secret.length<32)throw Error('SETUP_REQUIRED');
+  return secret;
+}
 export function origin(env) { const u = new URL(env.APP_ORIGIN); if (u.protocol !== 'https:' || u.origin !== env.APP_ORIGIN) throw Error('SETUP_REQUIRED'); return u.origin; }
 export async function session(request, env) { const s = await verify(readCookie(request, '__Host-code1'), env.SESSION_SECRET); if (!s || s.kind !== 'session' || typeof s.accountId !== 'string' || !Number.isInteger(s.version)) throw Error('UNAUTHENTICATED'); return s; }
 export async function accountCookie(account, env, method='password') {

@@ -98,14 +98,11 @@ function resolveWranglerCli(repoRoot){
   const packageRoot=resolve(repoRoot,'node_modules','wrangler');
   const packageJsonPath=join(packageRoot,'package.json');
   if(!existsSync(packageJsonPath)) fail('LOCAL_WRANGLER_NOT_FOUND run npm ci in the CODE1 repo; this runner never installs packages');
-
   let pkg;
   try{pkg=JSON.parse(readFileSync(packageJsonPath,'utf8'));}
   catch{fail('LOCAL_WRANGLER_PACKAGE_INVALID');}
-
   const binRelative=typeof pkg.bin==='string' ? pkg.bin : pkg.bin?.wrangler;
   if(typeof binRelative!=='string'||!binRelative.trim()) fail('LOCAL_WRANGLER_BIN_NOT_FOUND');
-
   const cli=resolve(packageRoot,binRelative);
   const packagePrefix=packageRoot.endsWith(sep)?packageRoot:`${packageRoot}${sep}`;
   if(!cli.startsWith(packagePrefix)||!existsSync(cli)) fail('LOCAL_WRANGLER_BIN_INVALID');
@@ -116,14 +113,36 @@ assertArgs();
 const bucketRaw=arg('--bucket');
 const pagesProject=safeName(arg('--pages-project')||DEFAULT_PAGES_PROJECT,'PAGES_PROJECT');
 const bucketName=bucketRaw?safeName(bucketRaw,'BUCKET_NAME'):'';
-
 const scriptDir=resolve(fileURLToPath(new URL('.',import.meta.url)));
 const repoRoot=resolve(scriptDir,'../../..');
 const branch=command('git',['rev-parse','--abbrev-ref','HEAD'],repoRoot);
 if(branch!==EXPECTED_BRANCH) fail(`BRANCH_MISMATCH expected=${EXPECTED_BRANCH} actual=${branch}`);
-
 const wranglerCli=resolveWranglerCli(repoRoot);
 function wrangler(args,cwd=repoRoot,options={}){return command(process.execPath,[wranglerCli,...args],cwd,options);}
+
+function inspectPagesConfig(label,envName=''){
+  const temp=mkdtempSync(join(tmpdir(),`code1-cf-${label.toLowerCase()}-`));
+  try{
+    const args=['pages','download','config',pagesProject,'--force'];
+    if(envName)args.push('--env',envName);
+    const result=wrangler(args,temp,{allowFailure:true});
+    if(result.startsWith('COMMAND_FAILED')){
+      printSection(`PAGES_${label}_CONFIG_DOWNLOAD`,result);
+      return;
+    }
+    const configName=readdirSync(temp).find(n=>/^wrangler\.toml$/i.test(n));
+    if(!configName){
+      printSection(`PAGES_${label}_SAFE_CONFIG_SHAPE`,'DOWNLOAD_SUCCEEDED_BUT_WRANGLER_TOML_NOT_FOUND');
+      printSection(`PAGES_${label}_R2_BINDINGS`,'DOWNLOAD_SUCCEEDED_BUT_WRANGLER_TOML_NOT_FOUND');
+      return;
+    }
+    const configText=readFileSync(join(temp,configName),'utf8');
+    printSection(`PAGES_${label}_SAFE_CONFIG_SHAPE`,extractTomlSafeShape(configText));
+    printSection(`PAGES_${label}_R2_BINDINGS`,extractTomlR2(configText));
+  }finally{
+    rmSync(temp,{recursive:true,force:true});
+  }
+}
 
 console.log('CODE1 Cloudflare/R2 READ-ONLY audit');
 console.log(`branch=${branch}`);
@@ -136,22 +155,9 @@ printSection('WRANGLER_VERSION',wrangler(['--version']));
 printSection('WHOAMI_SAFE',safeWhoami(wrangler(['whoami','--json'])));
 printSection('PAGES_PROJECT_LIST',wrangler(['pages','project','list','--json']));
 printSection('R2_BUCKET_LIST',wrangler(['r2','bucket','list']));
-
-const temp=mkdtempSync(join(tmpdir(),'code1-cf-readonly-'));
-try{
-  wrangler(['pages','download','config',pagesProject,'--force'],temp);
-  const configName=readdirSync(temp).find(n=>/^wrangler\.toml$/i.test(n));
-  if(!configName){
-    printSection('PAGES_SAFE_CONFIG_SHAPE','DOWNLOAD_SUCCEEDED_BUT_WRANGLER_TOML_NOT_FOUND');
-    printSection('PAGES_R2_BINDINGS','DOWNLOAD_SUCCEEDED_BUT_WRANGLER_TOML_NOT_FOUND');
-  }else{
-    const configText=readFileSync(join(temp,configName),'utf8');
-    printSection('PAGES_SAFE_CONFIG_SHAPE',extractTomlSafeShape(configText));
-    printSection('PAGES_R2_BINDINGS',extractTomlR2(configText));
-  }
-}finally{
-  rmSync(temp,{recursive:true,force:true});
-}
+inspectPagesConfig('DEFAULT');
+inspectPagesConfig('PREVIEW','preview');
+inspectPagesConfig('PRODUCTION','production');
 
 if(bucketName){
   printSection('R2_BUCKET_INFO',wrangler(['r2','bucket','info',bucketName,'--json']));
@@ -165,6 +171,5 @@ if(bucketName){
   console.log('\nR2_RESOURCE_IDENTITY_AUDIT=BUCKET_SELECTION_REQUIRED');
   console.log('Re-run with: node backend/staging/scripts/audit-cloudflare-r2-readonly.mjs --bucket <EXACT_CODE1_BUCKET_NAME>');
 }
-
 console.log('OBJECT_INVENTORY=NOT_MUTATED');
 console.log('REMOTE_MUTATION=NONE');
