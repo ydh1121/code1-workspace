@@ -27,6 +27,21 @@ jobs:
           find backend/staging/src backend/staging/scripts backend/staging/test functions -type f \( -name '*.mjs' -o -name '*.js' \) -print0 \
             | xargs -0 -n1 node --check
 
+      - name: Syntax check Windows private import wrapper
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'backend/staging/scripts/run-private-import.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+
       - name: Run staging unit and contract tests
         run: node --test backend/staging/test/*.test.mjs
 
