@@ -1,7 +1,7 @@
 # CODE1 CODING CURRENT
 
 Updated: 2026-09-11
-Status: PHASE 0 VERIFIED / SUPABASE STAGING FIRST_IMPORT PASS / R2 PRIVATE BUCKET CREATED+VERIFIED / R2 MEDIA SCHEMA 0010 APPLIED / MEDIA UPLOAD CONTRACT HARDENED / PAGES PREVIEW BINDING NOT YET CONFIGURED
+Status: PHASE 0 VERIFIED / SUPABASE STAGING FIRST_IMPORT PASS / R2 PRIVATE BUCKET CREATED+VERIFIED / R2 MEDIA SCHEMA 0010 APPLIED / MEDIA UPLOAD CONTRACT HARDENED / PAGES PREVIEW R2 CONFIG DEPLOYED / REMOTE BINDING+RUNTIME READBACK WAITING
 Branch: `coding/runtime-backend-staging`
 Base main: `a71a71eae73706862308e194110f4fcc2d25db01`
 Live cutover: NOT APPROVED
@@ -45,10 +45,10 @@ The operator created exactly one CODE1 STAGING-only bucket:
 - custom domains: none
 - lock rules: none
 - lifecycle: default abort of incomplete multipart uploads after 7 days
-- Pages R2 binding at post-create audit: none
-- CORS list command: exit 1 on the empty bucket; no CORS policy is being added because the current architecture uses a server-side Pages Function binding, not direct browser/presigned cross-origin R2 access. The enhanced read-only runner will capture the CLI detail on the next audit.
+- pre-binding Pages R2 binding: none
+- CORS: Cloudflare API returned code 10059 / configuration does not exist. No CORS policy is being added because the current architecture uses a server-side Pages Function binding rather than direct browser/presigned cross-origin R2 access.
 
-The bucket is private and no legacy media/object was uploaded during the provisioning audit.
+The bucket remains private. No legacy media/object was uploaded during provisioning or binding configuration.
 
 ## Media upload contract hardening
 
@@ -81,29 +81,60 @@ Applied to CODE1 STAGING through Supabase migration `r2_media_upload_state` (mig
 
 Security Advisor after 0010: WARN 0; existing `rls_enabled_no_policy` INFO count remains 20. Performance Advisor: unindexed foreign keys 22, unused indexes 11. No workload-free index cleanup is authorized.
 
-## Cloudflare Pages deployment boundary
+## Pages Preview binding deployment
 
-A prior GitHub check audit proved normal commits on this branch trigger Cloudflare Pages preview deployment. Therefore staging hardening commits now use `[CF-Pages-Skip]` until an intentional preview integration test is ready.
+The pre-binding operator audit showed the downloaded Pages config shape contained only the Pages project root fields plus an empty `[env.production]`; no R2 binding existed. This removed the earlier configuration-shape ambiguity.
 
-Do not immediately make the repository's 3-line `wrangler.toml` the Pages source of truth. Cloudflare documents that existing dashboard configuration should first be downloaded and reconciled. The read-only audit runner was enhanced in commit `9dd49cb99e3a334945de14cad57855112cfcd8bd` to print a sanitized `PAGES_SAFE_CONFIG_SHAPE` with values redacted, plus detailed allowed-command failures, without printing the Cloudflare account ID/email.
+Repository commit `0920bfa49afa3a55355b91fc7fe98890d2f59916` then changed only `wrangler.toml` to add:
+
+```toml
+[env.production]
+
+[[env.preview.r2_buckets]]
+binding = "CODE1_MEDIA_BUCKET"
+bucket_name = "code1-staging-media"
+```
+
+The binding is deliberately under `env.preview`, not top-level or `env.production`. Cloudflare Pages supports only `preview` and `production` environment overrides; Preview configuration applies to Preview deployments project-wide rather than one branch only. Production remains without an R2 binding in this repository config.
+
+The commit intentionally omitted `[CF-Pages-Skip]`. GitHub Actions run `34515272730` completed SUCCESS and Cloudflare Pages check completed SUCCESS, producing an immutable Preview deployment and the stable branch Preview URL. No production deployment was requested or performed.
+
+This deployment success proves the config parsed and deployed, but does not by itself prove the remote Pages project now exposes the expected binding to runtime. Remote config readback and HTTP runtime probing remain required before claiming `PAGES_PREVIEW_R2_BINDING_PASS`.
+
+## Read-only verification tooling
+
+`backend/staging/scripts/audit-cloudflare-r2-readonly.mjs` remains the Cloudflare resource/config readback tool. Commit `794a535a3b9e67d6d9f3dfbdd9fb013659a5f22f` hardened diagnostic redaction so account paths, emails, bearer tokens and token/secret/key-looking values are not echoed by allowed-command errors. CI `34515383539` SUCCESS; `[CF-Pages-Skip]` prevented another Preview deployment.
+
+`backend/staging/scripts/verify-pages-preview-readonly.mjs` was added in commit `8efe534bda3c86f8c48ede4a98af0cde7b98519e`. It rejects the production hostname and performs only:
+
+- GET `/`;
+- GET `/api/session`;
+- one unauthenticated `bootstrap` POST to `/api/rpc`, which is rejected during session validation before action dispatch;
+- GET `/api/staging/media-get` without a token.
+
+The media probe distinguishes the remaining runtime gate without object writes: `404` means Preview is still on Apps Script runtime, `503 R2_BINDING_REQUIRED` means Supabase staging runtime is active but R2 binding is missing, and `403 FORBIDDEN` means the staging media route sees the R2 binding and correctly denies an invalid/missing media token.
+
+## LAST_ATTEMPTED_BUT_UNVERIFIED
+
+- Pages Preview config containing `env.preview.r2_buckets` deployed successfully at `0920bfa49afa3a55355b91fc7fe98890d2f59916`.
+- Remote Pages config has not yet been independently downloaded after that deployment, so `CODE1_MEDIA_BUCKET` binding is `DEPLOYED_CONFIG / READBACK_WAITING`, not VERIFIED.
+- Preview `CODE1_RUNTIME_BACKEND=SUPABASE_STAGING` and Preview `APP_ORIGIN` compatibility have not yet been proven by external HTTP read-only probes.
+- Actual R2 PUT/multipart/HEAD/private GET and DB linkage remain NOT RUN.
 
 ## Cross-track sync
 
-`MSG-20260911-0009` is APPLIED. New implementation evidence `MSG-20260911-0010` was published to Planning after the R2 bucket/schema/upload-hardening checkpoint. Current CODING sync is inbound 0 / outbound 1; only `MSG-0010` remains PENDING for Planning.
+`MSG-20260911-0009` is APPLIED. Implementation evidence `MSG-20260911-0010` remains PENDING for Planning. Current CODING sync at the last Bus read is inbound 0 / outbound 1.
 
-## Remaining gate
+## Next atomic action
 
-Pages Preview still has no verified `CODE1_MEDIA_BUCKET` binding. No actual R2 object integration test or browser PASS has been run yet.
+On the operator PC after pulling the current branch:
 
-Next atomic action:
-
-1. operator pulls the latest coding branch;
-2. run `node backend/staging/scripts/audit-cloudflare-r2-readonly.mjs --bucket code1-staging-media`;
-3. inspect `PAGES_SAFE_CONFIG_SHAPE` and detailed CORS output without exposing secret values;
-4. preserve all existing Preview settings and add `CODE1_MEDIA_BUCKET -> code1-staging-media` to Preview only, not Production;
-5. intentionally deploy exactly one Preview containing the hardened media runtime;
-6. run actual R2 PUT/multipart -> HEAD size/MIME -> Supabase linkage -> private authenticated GET and denial/retry tests;
-7. do not migrate the four deleted Drive sources and do not cut over live without separate approval.
+1. rerun `node backend/staging/scripts/audit-cloudflare-r2-readonly.mjs --bucket code1-staging-media` and confirm the downloaded Pages config contains the exact Preview R2 binding while Production remains unbound;
+2. run `node backend/staging/scripts/verify-pages-preview-readonly.mjs --base-url https://coding-runtime-backend-stagi.code1-workspace.pages.dev`;
+3. classify the Preview result before any object write: PASS only if session configuration is present, unauthenticated RPC returns 401, and the media probe returns 403;
+4. if runtime probe returns 404, configure the isolated Preview runtime/env gate before R2 integration; if 503, repair only the Preview R2 binding; if RPC returns 403, repair Preview APP_ORIGIN before integration;
+5. only after read-only PASS run actual R2 single/multipart PUT -> HEAD size/MIME -> Supabase linkage -> private authenticated GET plus unauthorized/expired/wrong-scope/deleted/retry tests;
+6. do not migrate the four deleted Drive sources and do not cut over live without separate approval.
 
 ## Other open items
 
