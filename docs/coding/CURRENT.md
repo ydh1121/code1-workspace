@@ -1,7 +1,7 @@
 # CODE1 CODING CURRENT
 
 Updated: 2026-09-10
-Status: PHASE 0 VERIFIED / PHASE 1 CONTRACT DRAFTED / PHASE 2 ISOLATED IMPLEMENTATION ACTIVE / PRE-APPLY STATIC GATE PASS
+Status: PHASE 0 VERIFIED / PHASE 1 CONTRACT FIXED / PHASE 2 ISOLATED IMPLEMENTATION ACTIVE / SUPABASE STAGING SCHEMA+SECURITY GATE PASS / DATA IMPORT BLOCKED BY CONNECTOR WRITE CONTEXT
 Branch: `coding/runtime-backend-staging`
 Base main: `a71a71eae73706862308e194110f4fcc2d25db01`
 Live cutover: NOT APPROVED
@@ -10,59 +10,112 @@ PLANNING_DELTA_SEQ_SEEN = 20260910-001
 
 ## Verified authority
 
-The coding track consumed `10_CODE1 Coding Handoff — Planning Delta 20260910-001 v0.1` and verified its referenced `02_CODE1 CROSS-TRACK PLANNING DELTA — CURRENT v1.0` sequence before continuing the existing isolated branch. Planning and UI/UX canonical documents were not edited.
+The coding track consumed `10_CODE1 Coding Handoff — Planning Delta 20260910-001 v0.1` and verified `02_CODE1 CROSS-TRACK PLANNING DELTA — CURRENT v1.0` before continuing this existing branch. Planning and UI/UX canonical documents were not edited.
 
-The existing `coding/runtime-backend-staging` work was not discarded or restarted. Runtime migration work continued from the existing branch state.
+## Current runtime boundary
 
-## Verified runtime and migration facts
-
-- Canonical temporary Sheet has 25 tabs (00–24) and retains `STAGING_ONLY`, `REVIEW_REQUIRED`, and `PRIVATE_DRIVE` settings.
-- Two active workspace accounts exist: OWNER/SUPER_ADMIN and one ADMIN. Credential material exists in the source Sheet but must never be copied into docs/logs.
-- Current frontend calls `/api/rpc`; Cloudflare server then calls the signed Apps Script bridge. The Apps Script/Sheet/Drive hot path remains the structural latency source.
-- Git main remains the verified base SHA above for this isolated workstream; main/live/Public Frontend were not modified by the Planning Delta work.
+- Current live Internal Workspace still runs through Cloudflare -> signed Apps Script bridge -> Google Sheet/Drive.
+- Main/live/Public Frontend/formal Admin are unchanged by this workstream.
 - Current live Cloudflare deployment revision remains `LIVE_DEPLOYMENT_UNVERIFIED` from this execution environment.
-- No CODE1 Supabase project has been created or connected by this workstream. Existing non-CODE1 projects are excluded and untouched.
-- Existing R2 bucket identity/binding remains outside the verified/approved boundary.
-- Native Google Sheets API dry-run normalization preserves stable IDs, explicit blank answer revisions, append-only runtime histories, and excludes DECK media from farm runtime cutover.
+- Existing Apps Script/Sheet/Drive runtime remains rollback evidence and is not deleted or dual-written.
 
-## Planning Delta implementation now present in the isolated branch
+## Dedicated CODE1 Supabase STAGING
 
-- Housing-environment data is modeled separately and accepts nullable codes `1..4`; category 1 is not hard-coded as the permanent schema.
-- Imported housing-environment source values remain `UNCONFIRMED` until evidence-backed verification.
-- Fact Inbox has an internal data contract, ordered verification state machine, evidence gate, append-only events, and no staging path for external disclosure.
-- Executive Brief has a read-only `PUBLISHED` snapshot model/API; runtime reads do not expose source Drive document IDs.
-- Planning capabilities are separated from legacy role names. Existing SUPER_ADMIN/ADMIN roles receive no new planning capability implicitly.
-- Planning source artifacts, including any future GreatFarm PDF registration, are restricted to private planning object keys and cannot be marked for public delivery.
+Verified project:
 
-## Pre-apply schema hardening
+- project ref: `bsintmkyhptizrjoizfb`
+- region: Seoul / `ap-northeast-2`
+- status at apply: `ACTIVE_HEALTHY`
+- logical role: CODE1 STAGING only
 
-Migration order is now:
+Applied migrations:
 
-1. `0001_runtime.sql`
-2. `0002_mutations.sql`
-3. `0003_planning_delta_20260910.sql`
-4. `0004_preapply_security_hardening.sql`
+1. `0001_runtime.sql` -> `code1_0001_runtime` / `20260910101211`
+2. `0002_mutations.sql` -> `code1_0002_mutations` / `20260910101239`
+3. `0003_planning_delta_20260910.sql` -> `code1_0003_planning_delta_20260910` / `20260910101312`
+4. `0004_preapply_security_hardening.sql` -> `code1_0004_preapply_security_hardening` / `20260910101342`
+5. `0005_service_role_grants.sql` -> `code1_0005_service_role_grants` / `20260910112427`
+6. `0006_postapply_security_hardening.sql` -> `code1_0006_postapply_security_hardening` / `20260910112904`
 
-`0004` closes pre-apply findings for immutable submission-to-farm identity, evidence-required planning verification, Fact Inbox staging non-disclosure, FARM housing-environment identity consistency, and direct browser-role EXECUTE access to service-boundary mutation RPCs.
+No HOOOO project/ref was reused or modified.
 
-See `docs/coding/SCHEMA_PRE_APPLY_AUDIT_20260910.md`.
+## Post-apply security gate
+
+Verified after `0006`:
+
+- 20 runtime/planning tables have RLS enabled.
+- anon/authenticated have no table SELECT access.
+- service_role has the required table CRUD grants.
+- `submission_answers_current` is service-role readable and browser-role unreadable.
+- CODE1 mutation RPCs and helper are not executable by anon/authenticated; required service-role EXECUTE remains.
+- Supabase-generated `public.rls_auto_enable()` event trigger remains available for automatic RLS behavior but direct API-role EXECUTE was revoked.
+- CODE1 function search paths are fixed.
+- Supabase Security Advisor has no remaining WARN finding from the CODE1 schema. Remaining `rls_enabled_no_policy` notices are intentional INFO under the server-only authorization boundary.
+
+See `docs/coding/SUPABASE_STAGING_APPLY_GATE_20260910.md`.
+
+## Authoritative migration source snapshot
+
+Native Google Sheet/API source remains canonical for migration. Current normalized counts immediately before import:
+
+- farms: 12
+- workspace accounts: 2
+- active questions: 231
+- submissions: 2
+- answer revisions: 5
+- commit sentinels represented by submission revision state: 3
+- farm runtime media: 4, all currently `DELETED`
+- DECK media excluded: 2
+- media history events: 5
+- access logs: 29
+- login guard rows: 3
+- question policies/history: 0 / 0
+- housing-environment records: 12, all migration state `UNCONFIRMED`
+- planning capabilities/brief versions/planning artifacts: 0 / 0 / 0
+
+Explicit blank answer revisions are preserved. `M_4934...` has both ORGANIZED and later TRASHED source history and both events must remain. Housing-environment category 1 is not hard-coded; `미확인`/blank remain NULL code.
+
+## Isolated import implementation
+
+The branch now includes:
+
+- `backend/staging/src/import-runner.mjs`
+- `backend/staging/scripts/import-source-to-staging.mjs`
+- `backend/staging/test/import-runner.test.mjs`
+
+The runner maps legacy actor email/username to stable account IDs, reconstructs deleted-media timestamps from append-only history, preserves explicit blank answers, uses idempotent upserts, deduplicates imported event/log rows by source row, updates migration registry, and verifies post-import counts.
+
+Write execution requires both `CODE1_IMPORT_TARGET=STAGING` and exact `CODE1_IMPORT_CONFIRM_REF == CODE1_STAGING_PROJECT_REF`. Secrets and source credential material are never committed.
+
+## Current data-import blocker
+
+The GPT Supabase connection can directly inspect the CODE1 project and can apply managed schema migrations, but its general SQL session currently identifies as `supabase_read_only_user` under the invited Developer context.
+
+The first DML import attempt failed with `cannot execute INSERT in a read-only transaction`. It wrote zero rows. A follow-up count verified the target runtime tables remain empty.
+
+Do not bypass this by placing account credential hashes into schema migrations. A writable CODE1-owner/service-role import context is required for real source data transfer.
+
+## Planning Delta contract retained
+
+- Housing-environment code accepts nullable 1..4; migration does not auto-verify source values.
+- Fact Inbox requires ordered verification/evidence before VERIFIED/APPROVED_CURRENT and cannot disclose externally in staging.
+- Executive Brief runtime model reads only a PUBLISHED snapshot.
+- Planning capabilities are separate and are not auto-granted to SUPER_ADMIN/ADMIN.
+- GreatFarm/confidential planning source artifacts are private-only and cannot enter a public-delivery path.
 
 ## Automated verification
 
-GitHub Actions run `34456909154` on code-bearing HEAD `f0505d24ea4eef9aa1823d3cc89adc40819b7f7b` completed successfully.
-
-- `.mjs` syntax checks: PASS
-- staging unit/contract tests: 27 PASS / 0 FAIL / 0 SKIP / 0 CANCEL
-- schema pre-apply contract checks: included in the 27 PASS
-
-This is not a PostgreSQL/Supabase migration PASS and not a live integration or performance PASS.
+GitHub Actions run `34472709381` on branch HEAD `930257c19f9559bcc3d8bf057cdf092cabf06e97` completed successfully after the import-runner tests were added. This validates branch syntax/unit/contract logic only; it is not a data-import, R2, live-browser, or performance PASS.
 
 ## Performance gate
 
-No latency multiplier claim is accepted. Authenticated baseline/cutover p50/p95 is still pending and must be measured on equivalent actions before any live switch.
+No speed multiplier or latency target is accepted as PASS without measured equivalent actions. Authenticated baseline/new p50/p95 remains pending until the new backend can be integrated in an isolated runtime.
 
-## Current boundary and next action
+## Next atomic action
 
-Do not create or connect Production. Do not modify current Public Frontend. Do not implement consumer UI for housing-environment categories 2–4. Do not implement Premium Membership.
-
-The next external-resource action is a dedicated CODE1 Supabase STAGING project selection/creation followed by verified application of migrations `0001`–`0004`. That external action remains approval-gated. Until approval, only isolated code/schema/document verification may continue.
+1. Establish writable CODE1 STAGING import context without exposing service-role secrets in Git/browser/docs.
+2. Run the prepared source import against `bsintmkyhptizrjoizfb` only.
+3. Verify counts/stable IDs/revisions/deletion history/permissions and zero implicit planning capabilities.
+4. Re-run security/performance advisor and imported-data query checks.
+5. Then verify the exact existing CODE1 R2 bucket/binding and perform private-media migration/integration tests in isolation.
+6. Keep live/Public Frontend/Production untouched until separate cutover approval.
