@@ -48,11 +48,14 @@ export async function createFactInboxItem(env,principal,payload={},fetchImpl=fet
 export async function transitionFactInboxItem(env,principal,payload={},fetchImpl=fetch){
   const db=createDb(env,fetchImpl),actor=await loadActor(db,principal),id=clean(payload.id,160),toStatus=clean(payload.status,40);
   if(!validId(id)||!FACT_STATUSES.includes(toStatus)||!requestId(payload.requestId))throw Error('INVALID_FACT');
-  const current=(await db.select('fact_inbox',`fact_id=eq.${esc(id)}&select=fact_id,status`))?.[0];if(!current)throw Error('NOT_FOUND');
+  const current=(await db.select('fact_inbox',`fact_id=eq.${esc(id)}&select=fact_id,status,evidence_ref`))?.[0];if(!current)throw Error('NOT_FOUND');
   assertFactTransition(current.status,toStatus);
+  const evidenceRef=payload.evidenceRef??null;
+  if(toStatus==='DOCUMENT_RECEIVED'&&evidenceRef===null&&current.evidence_ref==null)throw Error('EVIDENCE_REQUIRED');
+  if(['VERIFIED','APPROVED_CURRENT'].includes(toStatus)&&current.evidence_ref==null)throw Error('EVIDENCE_REQUIRED');
   await requirePlanningCapability(db,actor,requiredFactCapability(toStatus));
   const confidence=payload.confidence===undefined||payload.confidence===null?null:Number(payload.confidence);if(confidence!==null&&(!Number.isFinite(confidence)||confidence<0||confidence>1))throw Error('INVALID_FACT_CONFIDENCE');
-  const result=await db.rpc('code1_transition_fact',{p_actor_id:actor.row.account_id,p_fact_id:id,p_to_status:toStatus,p_note:clean(payload.note,2000)||null,p_confidence:confidence,p_request_id:payload.requestId});
+  const result=await db.rpc('code1_transition_fact',{p_actor_id:actor.row.account_id,p_fact_id:id,p_to_status:toStatus,p_note:clean(payload.note,2000)||null,p_confidence:confidence,p_evidence_ref:evidenceRef,p_request_id:payload.requestId});
   return result?.[0]||{fact_id:id,status:toStatus};
 }
 
