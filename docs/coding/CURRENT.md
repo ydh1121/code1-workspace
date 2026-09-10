@@ -7,7 +7,7 @@ Base main: `a71a71eae73706862308e194110f4fcc2d25db01`
 Live cutover: NOT APPROVED
 Production: PROHIBITED
 PLANNING_DELTA_SEQ_SEEN = 20260911-003
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260911-0009
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260911-0010
 
 ## Planning Delta 20260911-003 boundary
 
@@ -86,6 +86,10 @@ Security Advisor after 0010: WARN 0; existing `rls_enabled_no_policy` INFO count
 A prior GitHub check audit proved normal commits on this branch trigger Cloudflare Pages preview deployment. Therefore staging hardening commits now use `[CF-Pages-Skip]` until an intentional preview integration test is ready.
 
 Do not immediately make the repository's 3-line `wrangler.toml` the Pages source of truth. Cloudflare documents that existing dashboard configuration should first be downloaded and reconciled. The read-only audit runner was enhanced in commit `9dd49cb99e3a334945de14cad57855112cfcd8bd` to print a sanitized `PAGES_SAFE_CONFIG_SHAPE` with values redacted, plus detailed allowed-command failures, without printing the Cloudflare account ID/email.
+
+## Cross-track sync
+
+`MSG-20260911-0009` is APPLIED. New implementation evidence `MSG-20260911-0010` was published to Planning after the R2 bucket/schema/upload-hardening checkpoint. Current CODING sync is inbound 0 / outbound 1; only `MSG-0010` remains PENDING for Planning.
 
 ## Remaining gate
 
