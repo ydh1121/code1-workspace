@@ -49,21 +49,6 @@ function printSection(name,value){
   console.log(`\n===== ${name} =====`);
   console.log(value||'(empty)');
 }
-function extractTomlR2(text){
-  const lines=String(text).split(/\r?\n/),out=[];
-  let inR2=false;
-  for(const raw of lines){
-    const line=raw.trim();
-    if(/^\[\[.*\]\]$/.test(line)){
-      inR2=/r2_buckets/.test(line);
-      if(inR2) out.push(line);
-      continue;
-    }
-    if(/^\[.*\]$/.test(line)){ inR2=false; continue; }
-    if(inR2&&/^(binding|bucket_name|preview_bucket_name|jurisdiction)\s*=/.test(line)) out.push(line);
-  }
-  return out.length?out.join('\n'):'PAGES_R2_BINDINGS = NONE_FOUND';
-}
 function safeWhoami(raw){
   try{
     const data=JSON.parse(raw);
@@ -94,6 +79,71 @@ function extractTomlSafeShape(text){
   }
   return out.length?out.join('\n'):'NO_CONFIG_KEYS_FOUND';
 }
+function collectR2ByEnvironment(text){
+  const groups={top:[],preview:[],production:[]};
+  let target='';
+  let current=null;
+  const flush=()=>{if(current&&target)groups[target].push(current);current=null;};
+  for(const raw of String(text).split(/\r?\n/)){
+    const line=raw.trim();
+    const header=line.match(/^\[\[([^\]]+)\]\]$/);
+    if(header){
+      flush();
+      if(header[1]==='r2_buckets')target='top';
+      else if(header[1]==='env.preview.r2_buckets')target='preview';
+      else if(header[1]==='env.production.r2_buckets')target='production';
+      else target='';
+      if(target)current={};
+      continue;
+    }
+    if(/^\[.*\]$/.test(line)){flush();target='';continue;}
+    if(!current)continue;
+    const m=line.match(/^(binding|bucket_name|preview_bucket_name|jurisdiction)\s*=\s*"([^"]*)"\s*$/);
+    if(m)current[m[1]]=m[2];
+  }
+  flush();
+  return groups;
+}
+function formatR2(entries){
+  if(!entries.length)return 'NONE_FOUND';
+  return entries.map((entry,index)=>[
+    `binding[${index+1}] = ${entry.binding||'<missing>'}`,
+    `bucket_name[${index+1}] = ${entry.bucket_name||'<missing>'}`,
+    entry.jurisdiction?`jurisdiction[${index+1}] = ${entry.jurisdiction}`:null
+  ].filter(Boolean).join('\n')).join('\n');
+}
+function interpretDownloadedR2(text){
+  const groups=collectR2ByEnvironment(text);
+  // Wrangler pages download config fetches BOTH deployment_configs.preview and
+  // deployment_configs.production. Its canonicalizer uses Preview as top-level
+  // unless a named env.preview block is required, and writes Production under
+  // env.production. The command intentionally does not support env selection.
+  const preview=groups.preview.length?groups.preview:groups.top;
+  const production=groups.production;
+  return {preview,production};
+}
+function safeDeploymentExposure(raw,expectedEnvironment){
+  if(String(raw).startsWith('COMMAND_FAILED'))return raw;
+  try{
+    const parsed=JSON.parse(raw);
+    const rows=Array.isArray(parsed)?parsed:Array.isArray(parsed?.result)?parsed.result:[];
+    const matching=rows.filter(row=>!row?.environment||row.environment===expectedEnvironment);
+    const branches=[...new Set(matching.map(row=>row?.deployment_trigger?.metadata?.branch).filter(Boolean))].sort();
+    const sourceConfigs=matching.map(row=>row?.source?.config).filter(Boolean);
+    const source=sourceConfigs[0]||{};
+    return JSON.stringify({
+      environment:expectedEnvironment,
+      deploymentCount:matching.length,
+      observedBranches:branches,
+      productionBranch:source.production_branch??null,
+      previewDeploymentSetting:source.preview_deployment_setting??null,
+      previewBranchIncludes:Array.isArray(source.preview_branch_includes)?source.preview_branch_includes:null,
+      previewBranchExcludes:Array.isArray(source.preview_branch_excludes)?source.preview_branch_excludes:null
+    },null,2);
+  }catch{
+    return 'DEPLOYMENT_LIST_PARSE_FAILED';
+  }
+}
 function resolveWranglerCli(repoRoot){
   const packageRoot=resolve(repoRoot,'node_modules','wrangler');
   const packageJsonPath=join(packageRoot,'package.json');
@@ -120,25 +170,25 @@ if(branch!==EXPECTED_BRANCH) fail(`BRANCH_MISMATCH expected=${EXPECTED_BRANCH} a
 const wranglerCli=resolveWranglerCli(repoRoot);
 function wrangler(args,cwd=repoRoot,options={}){return command(process.execPath,[wranglerCli,...args],cwd,options);}
 
-function inspectPagesConfig(label,envName=''){
-  const temp=mkdtempSync(join(tmpdir(),`code1-cf-${label.toLowerCase()}-`));
+function inspectPagesConfig(){
+  const temp=mkdtempSync(join(tmpdir(),'code1-cf-pages-config-'));
   try{
-    const args=['pages','download','config',pagesProject,'--force'];
-    if(envName)args.push('--env',envName);
-    const result=wrangler(args,temp,{allowFailure:true});
+    const result=wrangler(['pages','download','config',pagesProject,'--force'],temp,{allowFailure:true});
     if(result.startsWith('COMMAND_FAILED')){
-      printSection(`PAGES_${label}_CONFIG_DOWNLOAD`,result);
+      printSection('PAGES_REMOTE_CONFIG_DOWNLOAD',result);
       return;
     }
     const configName=readdirSync(temp).find(n=>/^wrangler\.toml$/i.test(n));
     if(!configName){
-      printSection(`PAGES_${label}_SAFE_CONFIG_SHAPE`,'DOWNLOAD_SUCCEEDED_BUT_WRANGLER_TOML_NOT_FOUND');
-      printSection(`PAGES_${label}_R2_BINDINGS`,'DOWNLOAD_SUCCEEDED_BUT_WRANGLER_TOML_NOT_FOUND');
+      printSection('PAGES_REMOTE_CANONICAL_SAFE_CONFIG','DOWNLOAD_SUCCEEDED_BUT_WRANGLER_TOML_NOT_FOUND');
       return;
     }
     const configText=readFileSync(join(temp,configName),'utf8');
-    printSection(`PAGES_${label}_SAFE_CONFIG_SHAPE`,extractTomlSafeShape(configText));
-    printSection(`PAGES_${label}_R2_BINDINGS`,extractTomlR2(configText));
+    const interpreted=interpretDownloadedR2(configText);
+    printSection('PAGES_REMOTE_CANONICAL_SAFE_CONFIG',extractTomlSafeShape(configText));
+    printSection('PAGES_PREVIEW_R2_BINDINGS_INTERPRETED',formatR2(interpreted.preview));
+    printSection('PAGES_PRODUCTION_R2_BINDINGS_INTERPRETED',formatR2(interpreted.production));
+    printSection('PAGES_DOWNLOAD_CONFIG_SEMANTICS','Preview is top-level unless env.preview is emitted; Production is env.production. pages download config fetches both environments and does not support selecting one with --env.');
   }finally{
     rmSync(temp,{recursive:true,force:true});
   }
@@ -155,9 +205,9 @@ printSection('WRANGLER_VERSION',wrangler(['--version']));
 printSection('WHOAMI_SAFE',safeWhoami(wrangler(['whoami','--json'])));
 printSection('PAGES_PROJECT_LIST',wrangler(['pages','project','list','--json']));
 printSection('R2_BUCKET_LIST',wrangler(['r2','bucket','list']));
-inspectPagesConfig('DEFAULT');
-inspectPagesConfig('PREVIEW','preview');
-inspectPagesConfig('PRODUCTION','production');
+inspectPagesConfig();
+printSection('PAGES_PREVIEW_DEPLOYMENT_EXPOSURE',safeDeploymentExposure(wrangler(['pages','deployment','list','--project-name',pagesProject,'--environment','preview','--json'],repoRoot,{allowFailure:true}),'preview'));
+printSection('PAGES_PRODUCTION_DEPLOYMENT_EXPOSURE',safeDeploymentExposure(wrangler(['pages','deployment','list','--project-name',pagesProject,'--environment','production','--json'],repoRoot,{allowFailure:true}),'production'));
 
 if(bucketName){
   printSection('R2_BUCKET_INFO',wrangler(['r2','bucket','info',bucketName,'--json']));
