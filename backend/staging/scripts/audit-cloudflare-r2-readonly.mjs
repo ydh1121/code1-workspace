@@ -23,8 +23,18 @@ function safeName(value,label){
   if(!v||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(v)) fail(`INVALID_${label}`);
   return v;
 }
+function redactDiagnostic(value){
+  return String(value||'')
+    .replace(/\x1b\[[0-9;]*m/g,' ')
+    .replace(/\/accounts\/[A-Za-z0-9_-]+/gi,'/accounts/<redacted-account>')
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,'<redacted-email>')
+    .replace(/(Bearer\s+)[A-Za-z0-9._~+\/-]+/gi,'$1<redacted-token>')
+    .replace(/((?:token|secret|api[_-]?key|service[_-]?key)\s*[=:]\s*)[^\s,;]+/gi,'$1<redacted-value>')
+    .replace(/\s+/g,' ')
+    .trim();
+}
 function compactFailureText(error){
-  const raw=[error?.stdout,error?.stderr].filter(Boolean).join('\n').replace(/\x1b\[[0-9;]*m/g,' ').replace(/\s+/g,' ').trim();
+  const raw=redactDiagnostic([error?.stdout,error?.stderr].filter(Boolean).join('\n'));
   return raw ? ` detail=${raw.slice(0,500)}` : '';
 }
 function command(file,args,cwd,{allowFailure=false}={}){
