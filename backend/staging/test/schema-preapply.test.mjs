@@ -10,6 +10,8 @@ const read=name=>fs.readFileSync(path.join(schemaDir,name),'utf8');
 const runtime=read('0001_runtime.sql');
 const planning=read('0003_planning_delta_20260910.sql');
 const hardening=read('0004_preapply_security_hardening.sql');
+const authThrottle=read('0007_auth_throttle.sql');
+const authThrottleCompat=read('0008_auth_throttle_sha256_compat.sql');
 
 test('housing-environment schema remains extensible across codes 1-4',()=>{
   assert.match(planning,/housing_environment_code smallint check \(housing_environment_code between 1 and 4\)/);
@@ -42,4 +44,13 @@ test('base runtime remains RLS fail-closed with no browser policy declarations',
   assert.match(runtime,/alter table workspace_accounts enable row level security/);
   assert.match(runtime,/alter table audit_log enable row level security/);
   assert.doesNotMatch(runtime,/create\s+policy/i);
+});
+
+test('staging password throttle preserves legacy limits and SHA256 user-key namespace',()=>{
+  assert.match(authThrottle,/interval '15 minutes'/);
+  assert.match(authThrottle,/then 40 else 8/);
+  assert.match(authThrottleCompat,/extensions\.digest\(convert_to\(v_username,'UTF8'\),'sha256'\)/);
+  assert.doesNotMatch(authThrottleCompat,/md5\(/);
+  assert.match(authThrottleCompat,/revoke all on function public\.code1_auth_throttle\(text,text\) from anon/);
+  assert.match(authThrottleCompat,/grant execute on function public\.code1_auth_throttle\(text,text\) to service_role/);
 });
