@@ -1,12 +1,12 @@
 # CODE1 CODING BATON
 
-Updated: 2026-09-11 04:03 KST
+Updated: 2026-09-11 04:18 KST
 PLANNING_DELTA_SEQ_SEEN = 20260911-003
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260911-0013
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260911-0014
 
-LAST_VERIFIED_ACTION: Preview-only R2 binding `CODE1_MEDIA_BUCKET -> code1-staging-media` is now independently interpreted as VERIFIED from Wrangler's canonical Pages config download semantics. The same read-only HTTP probe proves the Preview runtime itself is still NOT_CONFIGURED for `SUPABASE_STAGING`. Staging auth was decoupled from live Apps Script `BRIDGE_SECRET`, and the Cloudflare audit runner was corrected to audit Preview exposure before any staging secret is provisioned.
+LAST_VERIFIED_ACTION: Preview-only R2 binding `CODE1_MEDIA_BUCKET -> code1-staging-media` is VERIFIED from Wrangler's canonical Pages config semantics. Preview runtime remains NOT_CONFIGURED for `SUPABASE_STAGING`. Staging auth is decoupled from live Apps Script `BRIDGE_SECRET`. The Pages deployment exposure parser is now corrected for Wrangler 4.129.0's flattened JSON output and CI-PASS.
 
-CURRENT_WORK: verify Cloudflare Pages Preview branch exposure controls before placing the Supabase service-role key or other staging-only secrets into the project-wide Preview environment.
+CURRENT_WORK: read the actual recent Preview deployment branch names before placing any Supabase service-role or other staging-only secret into the project-wide Pages Preview environment. Configured Preview include/exclude filters are not exposed by the safe Wrangler list commands and remain a separate fail-closed gap.
 
 ## Fixed boundaries
 
@@ -22,9 +22,7 @@ CURRENT_WORK: verify Cloudflare Pages Preview branch exposure controls before pl
 
 ## Durable database/import state
 
-FIRST_IMPORT is VERIFIED_COMPLETE and must not be rerun.
-
-Counts remain: accounts 2, farms 12, questions 231, submissions 2, answer versions 5, media 4, media events 5, audit 29, login guard 3, housing 12, migration registry 268.
+FIRST_IMPORT is VERIFIED_COMPLETE and must not be rerun. Counts remain: accounts 2, farms 12, questions 231, submissions 2, answer versions 5, media 4, media events 5, audit 29, login guard 3, housing 12, migration registry 268.
 
 All imported media remain 4/4 `GOOGLE_DRIVE_LEGACY`, `object_key=NULL`, `DELETED`. Private Drive originals and SHA-256 evidence remain in `CODE1_SOURCE_MEDIA_MANIFEST_20260911`.
 
@@ -32,17 +30,7 @@ Migration `r2_media_upload_state` / ledger `20260910181248` is applied and verif
 
 ## R2 state
 
-Bucket `code1-staging-media`:
-
-- APAC / Standard
-- latest audit: 0 objects / 0 B
-- r2.dev disabled
-- custom domain none
-- CORS config absent / code 10059
-- lock rules none
-- default multipart abort after 7 days
-
-No actual R2 object write has been run yet.
+Bucket `code1-staging-media`: APAC / Standard, latest audit 0 objects / 0 B, r2.dev disabled, custom domain none, CORS config absent / code 10059, lock rules none, default multipart abort after 7 days. No actual R2 object write has been run yet.
 
 ## Upload runtime state
 
@@ -56,7 +44,7 @@ External R2 integration/browser PASS: NOT YET RUN.
 
 Config deployment commit `0920bfa49afa3a55355b91fc7fe98890d2f59916`; GitHub Actions `34515272730` SUCCESS and Cloudflare Pages Preview deployment SUCCESS.
 
-Repo declaration:
+Repo declaration is Preview-only:
 
 ```toml
 [env.production]
@@ -66,56 +54,51 @@ binding = "CODE1_MEDIA_BUCKET"
 bucket_name = "code1-staging-media"
 ```
 
-Latest remote canonical download returned top-level `[[r2_buckets]] CODE1_MEDIA_BUCKET -> code1-staging-media` plus empty `[env.production]`.
-
-Wrangler source proves `pages download config` fetches both `deployment_configs.preview` and `.production`, uses Preview as top-level unless `env.preview` must be emitted, and writes Production under `env.production`. R2 is non-inheritable. Therefore:
-
-- Preview R2 binding: VERIFIED
-- Production R2 binding: NONE
-
-The earlier three-way `pages download config --env ...` audit was not a valid discriminator. Corrected runner commit: `79bf485d64d6c5518b6847418396cc630e05b766`, CI `34517842353` SUCCESS, Pages skipped.
+Remote canonical download returned top-level `[[r2_buckets]] CODE1_MEDIA_BUCKET -> code1-staging-media` plus empty `[env.production]`. Wrangler source proves Preview is canonicalized at top-level and Production under `env.production`; R2 is non-inheritable. Therefore Preview R2 binding is VERIFIED and Production R2 binding is NONE.
 
 ## Preview runtime state
 
-Read-only branch Preview probe:
-
-- root 200
-- session `configured=false`, `authenticated=false`
-- unauth RPC 400
-- media route 404
-- object write NONE
-
-Conclusion: R2 binding exists but `CODE1_RUNTIME_BACKEND=SUPABASE_STAGING` and required Preview vars/secrets are not configured yet.
+Read-only branch Preview probe: root 200, session `configured=false`, unauth RPC 400, media route 404, object write NONE. Conclusion: R2 binding exists but `CODE1_RUNTIME_BACKEND=SUPABASE_STAGING` and required Preview vars/secrets are not configured.
 
 ## Staging auth separation
 
 Commit `92f19361d7f028005024c5062f918078b6e70329`, CI `34517035790` SUCCESS.
 
-- staging login IP HMAC uses new `CODE1_LOGIN_IP_SECRET`
+- staging login IP HMAC uses `CODE1_LOGIN_IP_SECRET`
 - staging no longer requires Apps Script `BRIDGE_SECRET`
 - legacy Apps Script mode still requires and uses `BRIDGE_URL/BRIDGE_SECRET`
 
 Do not inject/reuse Production bridge secrets for staging.
 
+## Preview exposure parser
+
+The operator's prior exposure output showed `deploymentCount=25` but `observedBranches=[]` because the runner expected raw Cloudflare API rows. Wrangler 4.129.0 `pages deployment list --json` actually emits flattened objects with `Id`, `Environment`, `Branch`, `Source`, `Deployment`, `Status`, and `Build`.
+
+Parser fix commit: `7df5d597d9aed3aec67d1b0df5edaa04bbe3ade1`.
+CI: `34519391147` SUCCESS.
+Pages deployment: skipped via `[CF-Pages-Skip]`.
+
+The runner now:
+
+- reads `Branch` / `Environment` correctly;
+- keeps a raw API-like fallback defensively;
+- reports `unexpectedPreviewBranches` for any Preview branch other than `coding/runtime-backend-staging`;
+- reports `configuredBranchFilter = UNAVAILABLE_VIA_SAFE_WRANGLER_CLI` because safe Pages project/deployment list commands do not expose `preview_branch_includes/excludes`;
+- does not use Wrangler debug logging because the full project debug object may contain environment metadata.
+
 ## Current security gate
 
-Cloudflare Pages Preview vars/secrets apply to Preview deployments project-wide, not per branch. Repo still has stale/temporary branches. Before provisioning `CODE1_SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET`, `PASSWORD_PEPPER`, `CODE1_LOGIN_IP_SECRET`, `CODE1_UPLOAD_TOKEN_SECRET`, or `CODE1_MEDIA_TOKEN_SECRET`, read the Pages preview branch controls.
+Pages Preview vars/secrets are project-wide across Preview deployments. Repo still contains stale/temporary branches. Before provisioning `CODE1_SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET`, `PASSWORD_PEPPER`, `CODE1_LOGIN_IP_SECRET`, `CODE1_UPLOAD_TOKEN_SECRET`, or `CODE1_MEDIA_TOKEN_SECRET`:
 
-The updated runner now prints:
-
-- canonical remote Pages safe config
-- interpreted Preview R2 bindings
-- interpreted Production R2 bindings
-- `PAGES_PREVIEW_DEPLOYMENT_EXPOSURE`
-- `PAGES_PRODUCTION_DEPLOYMENT_EXPOSURE`
-
-Exposure output includes only safe source-control fields: observed branch names, production branch, preview deployment setting, preview branch includes/excludes.
+1. observe actual recent Preview deployment branches with the corrected runner;
+2. block immediately if any unexpected Preview branch is observed;
+3. even if only the coding branch is observed, resolve the configured Preview include/exclude filter through a safe authenticated read path or explicit dashboard inspection before service-role secret provisioning.
 
 ## Cross-track sync
 
 - MSG-0009: APPLIED
 - MSG-0011: APPLIED
-- MSG-0013: PENDING at last read
+- MSG-0014: PENDING at last read
 - current CODING inbound: 0
 
 ## NEXT_ATOMIC_ACTION
@@ -130,13 +113,13 @@ node backend/staging/scripts/audit-cloudflare-r2-readonly.mjs --bucket code1-sta
 
 Do not rerun the Preview HTTP verifier yet; runtime env has not changed.
 
-PASS requirements before any secret mutation:
+Expected interpretation:
 
-1. Preview interpreted R2 = `CODE1_MEDIA_BUCKET -> code1-staging-media`.
-2. Production interpreted R2 = `NONE_FOUND`.
-3. Preview deployment exposure is restricted enough that staging secrets will not be delivered to unintended stale/tmp branch deployments.
-4. Production branch context remains `main` and unchanged.
+1. Preview R2 = `CODE1_MEDIA_BUCKET -> code1-staging-media`.
+2. Production R2 = `NONE_FOUND`.
+3. `PAGES_PREVIEW_DEPLOYMENT_EXPOSURE.observedBranches` is now populated from Wrangler's flattened `Branch` field.
+4. `configuredBranchFilter` remains `UNAVAILABLE_VIA_SAFE_WRANGLER_CLI`; that is intentional, not a parser failure.
 
-After that, provision Preview-only Supabase/runtime vars and newly generated staging-only secrets, intentionally deploy one Preview, rerun read-only HTTP probes, then perform actual R2 PUT/multipart/HEAD/DB/private-GET/denial/retry integration tests.
+After exposure/filter gate resolution, provision Preview-only Supabase/runtime vars and newly generated staging-only secrets, intentionally deploy one Preview, rerun read-only HTTP probes, then perform actual R2 PUT/multipart/HEAD/DB/private-GET/denial/retry integration tests.
 
 ROLLBACK: Apps Script/Sheet/Drive remains live. R2 contains no migrated legacy objects and Production has no R2 binding.
