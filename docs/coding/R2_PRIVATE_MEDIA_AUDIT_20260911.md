@@ -10,7 +10,7 @@ Live / Public Frontend / main / Production: unchanged
 
 The completed Supabase FIRST_IMPORT was preserved. A fresh read of CODE1 STAGING reconfirmed the durable post-import counts already recorded in the post-import handoff, including 4 `media_assets` rows and migration registry 268. No import, schema, or index mutation was repeated during this audit.
 
-Cross-track state was re-read before the account-level R2 evidence was folded back into CODING durable state. `MSG-20260911-0003` and `MSG-20260911-0006` remain CODING -> PLANNING implementation-evidence messages, while `MSG-20260911-0005` remains NEEDS_REVIEW because the requested Apps Script same-ID Drive move was blocked by file-specific connector authorization.
+Cross-track state was re-read before the account-level R2 evidence was folded back into CODING durable state. `MSG-20260911-0003` and `MSG-20260911-0007` remain CODING -> PLANNING implementation-evidence messages, while `MSG-20260911-0005` remains NEEDS_REVIEW because the requested Apps Script same-ID Drive move was blocked by file-specific connector authorization.
 
 ## 2. Actual legacy media state
 
@@ -35,7 +35,7 @@ The operator ran the branch's fail-closed local Cloudflare inventory runner with
 
 Verified current Cloudflare state:
 
-- authenticated account id: `7c52434598072e9bce77aa00bafa1ed3`;
+- exact authenticated account identity was observed in the operator output and is intentionally not committed to this repository;
 - Pages project `code1-workspace` exists with domain `code1-workspace.pages.dev`;
 - `wrangler r2 bucket list` returned no bucket rows for the current account;
 - downloaded Pages project configuration contained no R2 binding;
