@@ -41,16 +41,19 @@ Write-Host "Branch : $branch"
 Write-Host "Project: $ExpectedRef"
 Write-Host "Source : $source"
 Write-Host ''
+Write-Host 'Copy the CODE1 STAGING service_role key in Supabase before running this command.'
+Write-Host 'The script reads it from the Windows clipboard and clears the clipboard immediately.'
 
-$secureKey = Read-Host 'Paste CODE1 STAGING service_role key (input is hidden)' -AsSecureString
-$bstr = [IntPtr]::Zero
+$plainKey = $null
 try {
-  $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureKey)
-  $plainKey = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+  $plainKey = [string](Get-Clipboard -Raw)
+  if ($null -ne $plainKey) { $plainKey = $plainKey.Trim() }
   if ([string]::IsNullOrWhiteSpace($plainKey) -or $plainKey.Length -lt 32) {
-    throw 'Service-role key is missing or invalid.'
+    throw 'Clipboard does not contain a valid CODE1 STAGING service_role key.'
   }
+
   $env:CODE1_SUPABASE_SERVICE_ROLE_KEY = $plainKey
+  Set-Clipboard -Value ''
   $plainKey = $null
 
   Write-Host ''
@@ -82,8 +85,6 @@ try {
 }
 finally {
   Remove-Item Env:CODE1_SUPABASE_SERVICE_ROLE_KEY -ErrorAction SilentlyContinue
-  if ($bstr -ne [IntPtr]::Zero) {
-    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-  }
-  $secureKey = $null
+  Set-Clipboard -Value '' -ErrorAction SilentlyContinue
+  $plainKey = $null
 }
