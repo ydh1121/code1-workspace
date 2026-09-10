@@ -32,7 +32,7 @@ test('stable submission identity cannot move between farms',()=>{
 
 test('service-boundary mutation RPCs are not executable by browser roles',()=>{
   for(const fn of ['code1_save_submission','code1_review_submission','code1_review_media','code1_save_question_policies','code1_transition_fact']){
-    assert.match(hardening,new RegExp(`revoke all on function ${fn.replace(/[.*+?^${}()|[\\]\\]/g,'\\$&')}\\(`));
+    assert.ok(hardening.includes(`revoke all on function ${fn}(`),`missing browser-role revoke for ${fn}`);
   }
   assert.match(hardening,/from public, anon, authenticated/);
   assert.match(hardening,/to service_role/);
