@@ -1,6 +1,6 @@
 # CODE1 Supabase STAGING Apply Gate — 2026-09-10
 
-Status: SCHEMA_APPLIED / SECURITY_GATE_PASS / CI_GATE_PASS / SOURCE_SNAPSHOT_VERIFIED / DATA_IMPORT_PENDING_SERVICE_ROLE_CONTEXT
+Status: SCHEMA_APPLIED / SECURITY_GATE_PASS / CI_GATE_PASS / SOURCE_SNAPSHOT_VERIFIED / SECURE_OPERATOR_RUNNER_READY / DATA_IMPORT_WAITING_OPERATOR_SERVICE_ROLE_INPUT
 Track: CODING
 Branch: `coding/runtime-backend-staging`
 Logical environment: CODE1 STAGING only
@@ -57,6 +57,12 @@ Private snapshot integrity metadata:
 
 - SHA-256: `bde8f0671fd59bc125573129db7d4391bf0987380effcb50e91e43019eeb8f5b`
 - byte size: `200458`
+- private Drive folder: `[PRIVATE] CODE1 STAGING MIGRATION`
+- private Drive folder ID: `1YMiqei4FbYe01V8RdN6x93Vjse4KPftw`
+- private Drive source file: `CODE1_PRIVATE_SOURCE_SNAPSHOT_20260910.json`
+- private Drive file ID: `16iBk4-qDfIG1HlLlAzUsaUtOW4DQWJVm`
+
+The snapshot was first placed under the CODE1 coding folder and then moved out to the newly created My Drive root private migration folder because the coding folder may later be shared with collaborators. The snapshot must not be re-shared or copied into Git/chat-visible configuration.
 
 Verified normalized source counts:
 
@@ -98,9 +104,12 @@ The isolated branch contains:
 - `backend/staging/scripts/import-source-to-staging.mjs`
 - `backend/staging/src/import-preflight.mjs`
 - `backend/staging/scripts/preflight-import-to-staging.mjs`
+- `backend/staging/scripts/run-verified-private-import.mjs`
+- `backend/staging/scripts/run-private-import.ps1`
 - `backend/staging/test/import-runner.test.mjs`
 - `backend/staging/test/import-preflight.test.mjs`
 - `backend/staging/test/import-idempotency.test.mjs`
+- `docs/coding/PRIVATE_STAGING_IMPORT_RUNBOOK_20260911.md`
 
 Apply requires:
 
@@ -111,7 +120,16 @@ Apply requires:
 
 Preflight reads all durable import surfaces before any write. First import requires an all-zero target. A non-empty retry is refused unless `CODE1_IMPORT_ALLOW_NONEMPTY=IDEMPOTENT_RETRY` is explicitly set. Preflight output does not expose the service-role secret.
 
-The import runner performs normalization, stable actor mapping, explicit-blank preservation, deleted-media timestamp reconstruction, idempotent upserts, migration-registry updates, and post-write count verification.
+`run-verified-private-import.mjs` additionally pins the exact project ref, private source SHA-256/byte size and normalized source shape before any network write. It refuses unknown flags and post-write count mismatches.
+
+`run-private-import.ps1` is the Windows operator entrypoint. It:
+
+- requires the exact isolated Git branch;
+- accepts the service-role key with hidden `Read-Host -AsSecureString` input rather than a command-line argument;
+- exposes the plaintext only to the current process environment for the Node call;
+- runs the same preflight immediately before apply;
+- requires the operator to type the exact CODE1 STAGING project ref before the write;
+- clears the service-role environment variable and zeroes the BSTR in `finally`.
 
 ### Retry idempotency correction
 
@@ -126,41 +144,48 @@ This was fixed before any source data was imported:
 
 ## Automated verification
 
-Latest code-bearing verification run: GitHub Actions `34494835092` on HEAD `d8888ada09e7e9b85e99fdb606d6a8a929ccbc71` — SUCCESS.
+Latest verified implementation/documentation HEAD before this handoff refresh: `2b631deb54fe0fc16e8eb960c6ce93e7beeca7ea`.
 
-- syntax check: PASS
+GitHub Actions run `34498679315` — SUCCESS:
+
+- JavaScript/Node syntax check: PASS
+- Windows PowerShell private-import wrapper parser gate: PASS
 - staging unit/contract tests: 41/41 PASS
 - retry idempotency regression: PASS
-- root regression baseline gate: PASS; no new root regression beyond the five known pre-existing failures
+- root regression suite: 35 PASS / 5 FAIL, all five exactly matching the known pre-existing baseline
+- root baseline comparison gate: PASS / zero new root regression
 - build: PASS
 
 The five known root baseline failures remain the deck-edit fixture, media-organizer filename assertion, two media-upload UX fixture assertions, and `test/migration.test.mjs`. The coding/backend track does not modify Public/UIUX/legacy media sources merely to force those unrelated baseline tests green.
 
-`npm ci` previously reported 4 dependency vulnerabilities (3 high, 1 critical). They remain a separate dependency-hardening item; no forced breaking dependency upgrade is performed inside this runtime migration step.
+`npm ci` reports 4 dependency vulnerabilities (3 high, 1 critical). They remain a separate dependency-hardening item; no forced breaking dependency upgrade is performed inside this runtime migration step.
 
 ## Cross-track boundary
 
-Planning Delta `20260910-002` has been read and coding Message Bus activation `MSG-20260910-0004` ACKED. Delta 002 explicitly leaves current coding priority unchanged and does not authorize Public Frontend/live/main/Production implementation. Future Public commerce schema/API extensibility requirements are recorded only as awareness.
+Planning Delta `20260910-002` has been read. The Planning -> Coding Bus activation message `MSG-20260910-0004` was read and ACKED earlier and is to be marked APPLIED only after the current handoff is actually written and the final Bus synchronization is performed.
 
-## Current import blocker
+Delta 002 explicitly leaves current coding priority unchanged and does not authorize Public Frontend/live/main/Production implementation. Future Public commerce schema/API extensibility requirements are recorded only as awareness. No code-derived value in this import work is promoted to Planning policy.
 
-The remaining blocker is execution context, not source normalization, schema, security, or CI:
+## OPEN / WAITING
+
+The remaining blocker is operator secret input, not source normalization, schema, security, CI, or import tooling:
 
 - connected Supabase SQL is read-only;
 - connected tools do not expose the CODE1 service-role secret;
 - GitHub connector does not provide repository-secret administration;
-- the private source snapshot must not be committed to Git or embedded in a browser bundle.
+- actual STAGING source import has not run;
+- post-import Security/Performance checks and R2 migration therefore have not started.
 
 Do not work around this by committing service-role secrets, account credential hashes, private source rows, or writable import credentials to Git/migrations/browser code/chat-visible configuration.
 
 ## Next atomic action
 
-1. Establish a writable CODE1 STAGING service-role execution context outside Git/browser/docs/chat.
-2. Use the verified private source snapshot identified by the manifest hash.
-3. Run `backend/staging/scripts/preflight-import-to-staging.mjs` and require `FIRST_IMPORT` with an all-zero target.
-4. Run the prepared source import against `bsintmkyhptizrjoizfb` only.
-5. Verify exact counts, stable IDs, revisions, deleted-media history, append-only retry identity, actor mapping, permissions, and planning capability count 0.
-6. Re-run Security/Performance Advisors and measured imported-data query checks.
-7. Only after DB data gate PASS, verify the exact existing CODE1 R2 bucket/binding and proceed to isolated private-media migration/integration tests.
+1. On the operator Windows machine, update and check out `coding/runtime-backend-staging`.
+2. Download `CODE1_PRIVATE_SOURCE_SNAPSHOT_20260910.json` from the private Drive migration folder to a local non-repository path.
+3. Run `backend/staging/scripts/run-private-import.ps1 -PreflightOnly`; enter the CODE1 STAGING service-role key only at the hidden prompt.
+4. Require `ok: true`, target ref `bsintmkyhptizrjoizfb`, all-zero destination and preflight mode `FIRST_IMPORT`.
+5. Then run the same wrapper without `-PreflightOnly`, type the exact project ref when prompted, and let it perform import plus post-write count verification.
+6. Return only the sanitized command output; never return the service-role key.
+7. After the import is verified, re-run exact count/security/performance checks and only then enter the R2/private-media phase.
 
 Live/Public Frontend remains unchanged. Production remains prohibited.
