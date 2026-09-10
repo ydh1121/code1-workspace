@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
+import {pathToFileURL} from 'node:url';
 import {createDb} from '../src/db.mjs';
 import {runImportPreflight} from '../src/import-preflight.mjs';
 import {prepareSourceImport,applyPreparedImport,readImportedCounts} from '../src/import-runner.mjs';
@@ -154,7 +155,7 @@ async function main(){
   console.log(JSON.stringify({...base,mode:retry?'IDEMPOTENT_RETRY_APPLIED':'FIRST_IMPORT_APPLIED',preflight,written,actual},null,2));
 }
 
-if(import.meta.url===new URL(process.argv[1], 'file:').href){
+if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
   main().catch(error=>{
     const out={ok:false,error:String(error?.message||error||'CODE1_PRIVATE_IMPORT_FAILED')};
     if(error?.digest)out.digest=error.digest;
