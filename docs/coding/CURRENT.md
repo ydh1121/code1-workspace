@@ -6,8 +6,12 @@ Branch: `coding/runtime-backend-staging`
 Base main: `a71a71eae73706862308e194110f4fcc2d25db01`
 Live cutover: NOT APPROVED
 Production: PROHIBITED
-PLANNING_DELTA_SEQ_SEEN = 20260910-002
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260911-0007
+PLANNING_DELTA_SEQ_SEEN = 20260911-003
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260911-0009
+
+## Planning Delta 20260911-003 boundary
+
+`MSG-20260911-0009` / Planning Delta `20260911-003` was read at the required infra boundary. It does not change the current coding priority. Planning accepted `code1-staging-media` + server-only `CODE1_MEDIA_BUCKET` as an isolated STAGING technical candidate while preserving the existing restrictions: no public endpoint, no other-project resource reuse, no live/main/Production impact, and no automatic legacy Drive-media migration. The prior Apps Script root-hygiene request is reconciled as `ROOT_EXCEPTION / MOVE_BLOCKED_BY_FILE_AUTHORIZATION`; no copy or replacement Apps Script may be created.
 
 ## Durable database state
 
@@ -99,7 +103,7 @@ Next atomic action:
 
 ## Other open items
 
-- Drive root hygiene `MSG-20260911-0005`: `NEEDS_REVIEW`; safe same-file-ID target was identified but connector write authorization blocked the move. No copy was made.
+- Drive root hygiene `MSG-20260911-0005`: `ACKED / ROOT_EXCEPTION`; safe same-file-ID target was identified but connector write authorization blocked the move. No copy was made.
 - npm audit report: 3 high + 1 critical; separate hardening track, no `npm audit fix --force` during this gate.
 - stale `01_농가_Master` rows 501-512 cleanup: separate explicit decision.
 - same-action p50/p95: `NO_BASELINE` until runnable R2-backed staging path exists.
