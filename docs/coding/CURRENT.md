@@ -1,7 +1,7 @@
 # CODE1 CODING CURRENT
 
 Updated: 2026-09-11
-Status: PHASE 0 VERIFIED / SUPABASE STAGING SCHEMA+SECURITY+SOURCE IMPORT PASS / POST-IMPORT DB GATE PASS / R2 ACCOUNT INVENTORY VERIFIED EMPTY / R2 STAGING PROVISIONING REQUIRED
+Status: PHASE 0 VERIFIED / SUPABASE STAGING FIRST_IMPORT PASS / R2 PRIVATE BUCKET CREATED+VERIFIED / R2 MEDIA SCHEMA 0010 APPLIED / MEDIA UPLOAD CONTRACT HARDENED / PAGES PREVIEW BINDING NOT YET CONFIGURED
 Branch: `coding/runtime-backend-staging`
 Base main: `a71a71eae73706862308e194110f4fcc2d25db01`
 Live cutover: NOT APPROVED
@@ -9,95 +9,98 @@ Production: PROHIBITED
 PLANNING_DELTA_SEQ_SEEN = 20260910-002
 CROSS_TRACK_BUS_LAST_SEEN = MSG-20260911-0007
 
-## Current verified state
+## Durable database state
 
-CODE1 Supabase STAGING project `bsintmkyhptizrjoizfb` has received the verified private source snapshot through the Windows operator import path. A fresh read at the start of the R2 phase reconfirmed the durable post-import counts without rerunning the import:
+CODE1 Supabase STAGING project `bsintmkyhptizrjoizfb` remains the only database target. `FIRST_IMPORT` is complete and must not be rerun. Durable imported counts remain:
 
-- workspace accounts: 2
-- farms: 12
-- question catalog: 231
-- intake submissions: 2
-- submission answer versions: 5
-- media assets: 4
-- media events: 5
-- audit log: 29
-- login guard: 3
-- housing environment records: 12
-- question policies/history: 0 / 0
-- planning capabilities/brief versions/source artifacts: 0 / 0 / 0
-- migration registry: 268
+- workspace accounts 2
+- farms 12
+- question catalog 231
+- intake submissions 2
+- submission answer versions 5
+- media assets 4
+- media events 5
+- audit log 29
+- login guard 3
+- housing environment records 12
+- migration registry 268
+- question policies/history 0/0
+- planning capabilities/brief versions/source artifacts 0/0/0
 
-No partial import mismatch was observed. `FIRST_IMPORT` remains complete and must not be rerun.
+The 4 imported media rows remain `GOOGLE_DRIVE_LEGACY`, `object_key = NULL`, and `DELETED`. They were not copied to R2 and their private Drive rollback sources remain intact under the private source-media manifest.
 
-## Security / performance post-import verification
+## R2 resource gate
 
-Supabase Security Advisor after import reports WARN 0. The only security finding remains `rls_enabled_no_policy` INFO on 20 tables, intentional for the current server-only authorization boundary.
+The operator created exactly one CODE1 STAGING-only bucket:
 
-Supabase Performance Advisor remains INFO only:
+- bucket: `code1-staging-media`
+- location: APAC
+- storage class: Standard
+- object count / size at post-create audit: 0 / 0 B
+- `r2.dev`: disabled
+- custom domains: none
+- lock rules: none
+- lifecycle: default abort of incomplete multipart uploads after 7 days
+- Pages R2 binding at post-create audit: none
+- CORS list command: exit 1 on the empty bucket; no CORS policy is being added because the current architecture uses a server-side Pages Function binding, not direct browser/presigned cross-origin R2 access. The enhanced read-only runner will capture the CLI detail on the next audit.
 
-- unindexed foreign keys: 23
-- unused indexes: 11
+The bucket is private and no legacy media/object was uploaded during the provisioning audit.
 
-No index change is authorized solely to silence these INFO notices. Query/index tuning remains gated on actual imported-workload measurements.
+## Media upload contract hardening
 
-## R2 / private-media account inventory
+Commit `a2c65735c5606789c7dfe423a3988229e96b0505` added an isolated staging media-upload runtime without changing the legacy live runtime. GitHub Actions run `34512718904` succeeded, including staging unit/contract tests, root regression comparison, and build. The commit used `[CF-Pages-Skip]`; GitHub check evidence showed only the GitHub Actions check and no Cloudflare Pages preview deployment for that commit.
 
-The isolated code already defines a logical R2 binding `CODE1_MEDIA_BUCKET`, deterministic private object keys, short-lived upload/read tokens, R2 PUT/GET handlers, farm-access checks before read authorization, and soft-delete semantics.
+The staging upload path now provides:
 
-The operator ran the fail-closed local Cloudflare inventory runner with Wrangler `4.129.0`. Current authenticated account evidence is now available:
+- `mediaUpload.begin -> mediaUpload.chunk -> mediaUpload.finish` dispatch coverage;
+- 6 MiB multipart chunk size, safely above R2's 5 MiB non-final-part minimum and below the existing 12 MB JSON RPC body cap after base64 expansion;
+- begin retry reuse keyed by actor + request ID for `R2_PRIVATE` rows;
+- monotonic chunk offset/received-byte tracking and part SHA-256/ETag metadata for retry verification;
+- finish retry recovery when the R2 object already exists after multipart completion;
+- status-idempotent finalization so repeated finish does not append another `UPLOADED` event;
+- small-upload R2 object compensation delete when atomic DB registration fails;
+- exact object HEAD size check and MIME mismatch fail-closed behavior before final DB transition.
 
-- the exact authenticated Cloudflare account identity was observed in the operator output and is intentionally not committed to this repository;
-- Pages project `code1-workspace` exists and resolves to `code1-workspace.pages.dev`;
-- account-level `wrangler r2 bucket list` returned no bucket rows;
-- downloaded Pages configuration contained no R2 binding;
-- current repository `wrangler.toml` also contains no `r2_buckets` binding;
-- no R2 bucket, binding, object, public URL, custom domain, CORS, lifecycle rule, or lock rule was created or changed during the inventory.
+The existing browser already supplies `requestId` for small uploads and uses `begin.chunkBytes` for high-resolution uploads, so no Public Frontend/client contract rewrite was required.
 
-Result: the prior ambiguity is resolved as `R2_ACCOUNT_INVENTORY_EMPTY`. There is no existing CODE1 R2 resource to select and no other-project R2 bucket to reuse. The next R2 step is deliberate creation of a new CODE1 STAGING-only private bucket, then immediate read-only verification before adding a Pages binding or writing objects.
+## Supabase migration 0010
 
-Proposed exact bucket identity for that staging-only resource: `code1-staging-media`.
+Repository schema file: `backend/staging/schema/0010_r2_media_upload_state.sql`.
 
-Cloudflare R2 buckets are private by default. Keep the default private state; do not enable r2.dev or a custom public domain for this media path. Binding name remains `CODE1_MEDIA_BUCKET`.
+Applied to CODE1 STAGING through Supabase migration `r2_media_upload_state` (migration ledger version `20260910181248`). Independent readback verified:
 
-The four imported legacy farm-media rows are all `GOOGLE_DRIVE_LEGACY`, `object_key = NULL`, and currently `DELETED`. Their Drive originals still exist privately, and MIME/byte size match the DB metadata for all four. SHA-256 values were calculated from the actual source bytes and stored only in private Drive manifest `CODE1_SOURCE_MEDIA_MANIFEST_20260911` inside `[PRIVATE] CODE1 STAGING MIGRATION`. These deleted sources are held as `HOLD_DELETED_RETENTION`; they are not migration candidates merely because a new R2 bucket is created.
+- 4 new media state columns present: `r2_multipart_upload_id`, `upload_chunk_bytes`, `upload_received_bytes`, `upload_parts`;
+- partial unique idempotency index `media_assets_r2_actor_request_uniq` present;
+- `code1_finalize_media_upload(text,text,text)` EXECUTE: service_role true / anon false / authenticated false;
+- `code1_register_media_upload(text,text,jsonb)` EXECUTE: service_role true / anon false / authenticated false;
+- media row count still 4, all 4 still DELETED, R2_PRIVATE row count still 0.
 
-The code audit also found a cutover compatibility blocker: the current internal-web high-resolution client calls `mediaUpload.begin -> mediaUpload.chunk -> mediaUpload.finish`, while the staging dispatcher does not implement `mediaUpload.chunk`. Retry-idempotency gaps also remain for repeated begin/finalization, and the <=8 MiB path needs orphan-object compensation/reconciliation if DB metadata commit fails after R2 write.
+Security Advisor after 0010: WARN 0; existing `rls_enabled_no_policy` INFO count remains 20. Performance Advisor: unindexed foreign keys 22, unused indexes 11. No workload-free index cleanup is authorized.
 
-Detailed evidence is in `docs/coding/R2_PRIVATE_MEDIA_AUDIT_20260911.md`.
+## Cloudflare Pages deployment boundary
 
-## R2 contract-test state
+A prior GitHub check audit proved normal commits on this branch trigger Cloudflare Pages preview deployment. Therefore staging hardening commits now use `[CF-Pages-Skip]` until an intentional preview integration test is ready.
 
-Additional isolated contract tests cover media PUT/GET fail-closed behavior, token denial, exact content-length/MIME enforcement, exact private object-key write to a mock binding, missing-object response, and private read headers. These tests do not constitute actual R2 integration or browser PASS.
+Do not immediately make the repository's 3-line `wrangler.toml` the Pages source of truth. Cloudflare documents that existing dashboard configuration should first be downloaded and reconciled. The read-only audit runner was enhanced in commit `9dd49cb99e3a334945de14cad57855112cfcd8bd` to print a sanitized `PAGES_SAFE_CONFIG_SHAPE` with values redacted, plus detailed allowed-command failures, without printing the Cloudflare account ID/email.
 
-## Source boundary retained
+## Remaining gate
 
-The verified private source snapshot remains outside Git in Drive folder `[PRIVATE] CODE1 STAGING MIGRATION`. The source Sheet itself was not silently changed.
+Pages Preview still has no verified `CODE1_MEDIA_BUCKET` binding. No actual R2 object integration test or browser PASS has been run yet.
 
-`01_농가_Master` rows 501-512 remain a stale sparse duplicate `GF-ORIGIN-01..12` block. The verified migration snapshot used rows 2-13 only. Source cleanup remains a separate explicit decision.
+Next atomic action:
 
-Legacy DECK media rows 2 remain excluded from the farm runtime import. Housing environment blank/`미확인` values remain NULL / UNCONFIRMED; code 1 was not auto-filled. Existing admin roles were not auto-granted Planning capabilities.
+1. operator pulls the latest coding branch;
+2. run `node backend/staging/scripts/audit-cloudflare-r2-readonly.mjs --bucket code1-staging-media`;
+3. inspect `PAGES_SAFE_CONFIG_SHAPE` and detailed CORS output without exposing secret values;
+4. preserve all existing Preview settings and add `CODE1_MEDIA_BUCKET -> code1-staging-media` to Preview only, not Production;
+5. intentionally deploy exactly one Preview containing the hardened media runtime;
+6. run actual R2 PUT/multipart -> HEAD size/MIME -> Supabase linkage -> private authenticated GET and denial/retry tests;
+7. do not migrate the four deleted Drive sources and do not cut over live without separate approval.
 
-## Runtime / environment boundary
+## Other open items
 
-Current live Internal Workspace remains the existing Cloudflare -> Apps Script -> Google Sheet/Drive runtime. No live cutover or dual-write has been enabled.
-
-No Public Frontend, formal Admin, main, CODE1 Production, HOOOO Supabase/Cloudflare/Git, INDX, or IndiaDesk environment was changed.
-
-## OPEN / WAITING
-
-- CODE1 STAGING R2 bucket: `NOT_YET_CREATED`; proposed exact name `code1-staging-media`
-- Pages binding `CODE1_MEDIA_BUCKET`: NOT_YET_CONFIGURED
-- `mediaUpload.chunk` staging compatibility: OPEN
-- media begin/finish retry idempotency: OPEN
-- small-upload orphan-object compensation/reconciliation: OPEN
-- actual R2 PUT/HEAD/private GET/security integration: WAITING bucket creation + read-only bucket verification + binding
-- actual same-action performance baseline/new p50/p95 measurement: WAITING runnable Supabase/R2-backed staging path; current statement `NO_BASELINE`
-- stale source duplicate rows 501-512 cleanup: OPEN_SEPARATE_DECISION
-- npm dependency findings 3 high + 1 critical: OPEN_SEPARATE_HARDENING
-- Drive root hygiene `MSG-20260911-0005`: NEEDS_REVIEW / connector write authorization blocked; no move occurred
-- live cutover: NOT APPROVED
-- Production creation/deploy: PROHIBITED
-
-## Next atomic action
-
-Create exactly one new R2 bucket for CODE1 STAGING, proposed name `code1-staging-media`, in the verified authenticated Cloudflare account. Do not enable public access and do not upload objects yet. Immediately rerun the read-only audit with `--bucket code1-staging-media` and verify bucket identity/private state, r2.dev/custom-domain state, CORS, lifecycle, lock rules, and empty object state. Only after that bucket gate passes should the branch add `[[r2_buckets]] binding = "CODE1_MEDIA_BUCKET"` and the exact bucket name, then close the `mediaUpload.chunk` compatibility and retry/compensation gaps before any staging object write. Do not migrate the four deleted legacy Drive sources and do not perform live cutover without separate approval.
+- Drive root hygiene `MSG-20260911-0005`: `NEEDS_REVIEW`; safe same-file-ID target was identified but connector write authorization blocked the move. No copy was made.
+- npm audit report: 3 high + 1 critical; separate hardening track, no `npm audit fix --force` during this gate.
+- stale `01_농가_Master` rows 501-512 cleanup: separate explicit decision.
+- same-action p50/p95: `NO_BASELINE` until runnable R2-backed staging path exists.
+- live/Public Frontend/main/Production/HOOOO/INDX/IndiaDesk: unchanged.
