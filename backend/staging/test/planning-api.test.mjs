@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {getPublishedExecutiveBrief,createFactInboxItem} from '../src/planning-api.mjs';
+import {getPublishedExecutiveBrief,createFactInboxItem,transitionFactInboxItem} from '../src/planning-api.mjs';
 
 const ref='abcdefghijklmnopqrst';
 const env={CODE1_STAGING_PROJECT_REF:ref,CODE1_SUPABASE_URL:`https://${ref}.supabase.co`,CODE1_SUPABASE_SERVICE_ROLE_KEY:'s'.repeat(48)};
@@ -46,4 +46,28 @@ test('Fact Inbox creation is internal, starts RECEIVED, and cannot mark public d
   const result=await createFactInboxItem(env,principal,{domain:'SUPPLY',subjectType:'FARM',subjectId:'GF-1',statement:'사용자 보고 값',sourceType:'USER_REPORT',externalDisclosureAllowed:true,requestId:'a'.repeat(32)},fetchImpl);
   assert.equal(result.status,'RECEIVED');
   assert.equal(insertedFact.external_disclosure_allowed,false);
+});
+
+test('Fact Inbox DOCUMENT_RECEIVED requires evidence before verification path can continue',async()=>{
+  const fetchImpl=mockFetch((u)=>{
+    if(u.pathname.endsWith('/workspace_accounts'))return response([owner]);
+    if(u.pathname.endsWith('/fact_inbox'))return response([{fact_id:'FACT_1',status:'EVIDENCE_REQUESTED',evidence_ref:null}]);
+    throw Error(`unexpected ${u.pathname}`);
+  });
+  await assert.rejects(()=>transitionFactInboxItem(env,principal,{id:'FACT_1',status:'DOCUMENT_RECEIVED',requestId:'b'.repeat(32)},fetchImpl),/EVIDENCE_REQUIRED/);
+});
+
+test('Fact Inbox transition forwards evidence through the hardened RPC envelope',async()=>{
+  let rpcBody;
+  const evidence={artifactId:'GF-CONFIDENTIAL',kind:'DRIVE_DOCUMENT'};
+  const fetchImpl=mockFetch((u,init)=>{
+    if(u.pathname.endsWith('/workspace_accounts'))return response([owner]);
+    if(u.pathname.endsWith('/fact_inbox'))return response([{fact_id:'FACT_1',status:'EVIDENCE_REQUESTED',evidence_ref:null}]);
+    if(u.pathname.endsWith('/account_capabilities'))return response([{capability:'FACT_VERIFY'}]);
+    if(u.pathname.endsWith('/rpc/code1_transition_fact')){rpcBody=JSON.parse(init.body);return response([{fact_id:'FACT_1',status:'DOCUMENT_RECEIVED'}]);}
+    throw Error(`unexpected ${init.method||'GET'} ${u.pathname}`);
+  });
+  const result=await transitionFactInboxItem(env,principal,{id:'FACT_1',status:'DOCUMENT_RECEIVED',evidenceRef:evidence,requestId:'c'.repeat(32)},fetchImpl);
+  assert.equal(result.status,'DOCUMENT_RECEIVED');
+  assert.deepEqual(rpcBody.p_evidence_ref,evidence);
 });
