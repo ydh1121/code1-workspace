@@ -1,129 +1,142 @@
 # CODE1 CODING BATON
 
-Updated: 2026-09-11
+Updated: 2026-09-11 04:03 KST
 PLANNING_DELTA_SEQ_SEEN = 20260911-003
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260911-0010
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260911-0013
 
-LAST_VERIFIED_ACTION: CODE1 Supabase STAGING FIRST_IMPORT remains complete. Private R2 bucket `code1-staging-media` is created/empty/private, media schema migration `r2_media_upload_state` is applied and read back, and upload runtime hardening is CI-PASS. The pre-binding Pages SAFE audit showed only root config plus empty `[env.production]`. Preview-only R2 config was then committed at `0920bfa49afa3a55355b91fc7fe98890d2f59916`; GitHub Actions run `34515272730` and Cloudflare Pages Preview deployment both completed SUCCESS. Production was not deployed.
+LAST_VERIFIED_ACTION: Preview-only R2 binding `CODE1_MEDIA_BUCKET -> code1-staging-media` is now independently interpreted as VERIFIED from Wrangler's canonical Pages config download semantics. The same read-only HTTP probe proves the Preview runtime itself is still NOT_CONFIGURED for `SUPABASE_STAGING`. Staging auth was decoupled from live Apps Script `BRIDGE_SECRET`, and the Cloudflare audit runner was corrected to audit Preview exposure before any staging secret is provisioned.
 
-CURRENT_WORK: independently read back the deployed Preview binding and probe the stable branch Preview without authentication or object writes. Do not claim R2 integration PASS until remote config + runtime probes pass.
+CURRENT_WORK: verify Cloudflare Pages Preview branch exposure controls before placing the Supabase service-role key or other staging-only secrets into the project-wide Preview environment.
 
-PLANNING_DELTA_003:
-- `code1-staging-media` + `CODE1_MEDIA_BUCKET` accepted as `ISOLATED_STAGING_TECHNICAL_CANDIDATE`
-- no public R2 endpoint, no other-project resource reuse, no live/main/Production impact
-- no automatic migration of the four legacy Drive media rows
-- Apps Script root-hygiene reconciled as `ROOT_EXCEPTION / MOVE_BLOCKED_BY_FILE_AUTHORIZATION`
+## Fixed boundaries
 
-VERIFIED_CODE_STATE:
 - branch: `coding/runtime-backend-staging`
 - base main: `a71a71eae73706862308e194110f4fcc2d25db01`
-- R2 upload hardening: `a2c65735c5606789c7dfe423a3988229e96b0505`
-- R2 hardening CI: `34512718904` / SUCCESS
-- Preview R2 config deployment commit: `0920bfa49afa3a55355b91fc7fe98890d2f59916`
-- Preview deployment CI: `34515272730` / SUCCESS
-- Cloudflare Pages check at `0920bfa...`: SUCCESS / Preview deployed
-- audit diagnostic redaction: `794a535a3b9e67d6d9f3dfbdd9fb013659a5f22f` / CI `34515383539` SUCCESS / Pages skipped
-- read-only Preview HTTP verifier: `8efe534bda3c86f8c48ede4a98af0cde7b98519e` / CI SUCCESS / Pages skipped
-
-POST_IMPORT_DB_GATE:
-- Supabase target: CODE1 STAGING `bsintmkyhptizrjoizfb` only
-- FIRST_IMPORT: VERIFIED_COMPLETE / do not rerun
-- accounts 2; farms 12; questions 231; submissions 2; answer versions 5
-- media assets 4; media events 5; audit log 29; login guard 3; housing 12
-- migration registry 268
-- question policies/history 0/0; planning capabilities/brief/artifacts 0/0/0
-
-R2_BUCKET_GATE:
-- `code1-staging-media`: CREATED / APAC / Standard
-- post-create inventory: 0 objects / 0 B
-- r2.dev: disabled
-- custom domains: none
-- lock rules: none
-- lifecycle: default abort incomplete multipart uploads after 7 days
-- CORS: configuration does not exist / API code 10059; not required for current server-side binding architecture
-- deleted Drive legacy source migration: NOT PERFORMED
-
-R2_MEDIA_SCHEMA_0010:
-- repository file: `backend/staging/schema/0010_r2_media_upload_state.sql`
-- applied migration: `r2_media_upload_state`
-- ledger version: `20260910181248`
-- four R2 upload-state columns + partial unique actor/request index present
-- finalization/registration RPCs: service_role execute true; anon/authenticated false
-- post-apply media: total 4 / DELETED 4 / R2_PRIVATE 0
-
-R2_UPLOAD_RUNTIME:
-- module: `backend/staging/src/media-upload-runtime.mjs`
-- dispatch: FARM upload + `mediaUpload.begin/chunk/finish`
-- multipart chunk: 6 MiB
-- begin retry: actor + request ID idempotency
-- chunk retry: offset + per-part SHA-256/ETag verification
-- finish retry: object-exists recovery + atomic final status/event
-- small PUT DB failure: R2 object compensation delete
-- finalization: R2 HEAD exact size and MIME mismatch fail closed
-
-PAGES_PREVIEW_CONFIG:
-- repo `wrangler.toml` now contains no top-level R2 binding and no Production R2 binding
-- exact declaration is `[[env.preview.r2_buckets]] binding = "CODE1_MEDIA_BUCKET" bucket_name = "code1-staging-media"`
-- Pages environment overrides are Preview/Production; this Preview binding applies to Preview deployments project-wide, not only one branch
-- intentional Cloudflare Pages Preview deployment at `0920bfa...`: SUCCESS
-- remote binding readback after deployment: WAITING
-- Production deployment: NONE
-- object write caused by config deployment: NONE
-
-READ_ONLY_VERIFICATION:
-- Cloudflare inventory/config runner: `backend/staging/scripts/audit-cloudflare-r2-readonly.mjs`
-- runner now redacts account-path IDs/emails/bearer/token-secret-key-looking values from allowed-command diagnostics
-- Preview HTTP verifier: `backend/staging/scripts/verify-pages-preview-readonly.mjs`
-- production hostname is rejected by verifier
-- session probe must be configured=true/authenticated=false before login
-- unauthenticated bootstrap POST must return 401 UNAUTHENTICATED; 403 means Preview APP_ORIGIN mismatch
-- `/api/staging/media-get` without token: 404 = runtime still Apps Script; 503 = R2 binding missing; 403 = staging media path sees binding and token denial works
-- all of the above are no-object-write probes
-
-LAST_ATTEMPTED_BUT_UNVERIFIED:
-- `CODE1_MEDIA_BUCKET` Preview config is deployed but not independently read back from the remote Pages config yet
-- `CODE1_RUNTIME_BACKEND=SUPABASE_STAGING` on Preview is not yet proven
-- Preview APP_ORIGIN compatibility is not yet proven
-- actual external R2 PUT/multipart/HEAD/private GET and browser integration: NOT RUN
-
-SECURITY_PERFORMANCE:
-- Security Advisor after 0010: WARN 0; existing `rls_enabled_no_policy` INFO 20
-- Performance Advisor: unindexed FKs 22; unused indexes 11
-- no workload-free index tuning
-
-SOURCE_MEDIA_MANIFEST:
-- private Drive manifest `CODE1_SOURCE_MEDIA_MANIFEST_20260911`
-- 4/4 legacy farm media originals exist privately and match DB MIME/size; SHA-256 stored only in private manifest
-- 4/4 DB status DELETED, object_key NULL, source GOOGLE_DRIVE_LEGACY
-- eligibility `HOLD_DELETED_RETENTION`
-- do not copy/delete them because R2 exists
-
-CROSS_TRACK_SYNC:
-- `MSG-20260911-0003`: APPLIED
-- `MSG-20260911-0005`: ACKED / ROOT_EXCEPTION
-- `MSG-20260911-0006`: SUPERSEDED
-- `MSG-20260911-0007`: APPLIED
-- `MSG-20260911-0009`: APPLIED
-- `MSG-20260911-0010`: PENDING
-- last verified sync: inbound 0 / outbound 1
-
-OPEN_WAITING:
-- remote Preview R2 binding readback: WAITING_OPERATOR_READONLY
-- Preview runtime mode / APP_ORIGIN probe: WAITING_OPERATOR_READONLY
-- actual R2 integration/security test: WAITING_READONLY_PREVIEW_PASS
-- same-action p50/p95: NO_BASELINE
-- npm 3 high + 1 critical: OPEN_SEPARATE_HARDENING
-- stale source duplicate rows 501-512: OPEN_SEPARATE_DECISION
+- CODE1 Supabase target: STAGING ref `bsintmkyhptizrjoizfb` only
 - live cutover: NOT APPROVED
 - CODE1 Production: PROHIBITED
+- no main/history rewrite/force push
+- no public R2 endpoint
+- no HOOOO/INDX/IndiaDesk mutation
+- no legacy Drive-media auto migration/deletion
 
-NEXT_ATOMIC_ACTION:
-1. pull current `coding/runtime-backend-staging`;
-2. run `node backend/staging/scripts/audit-cloudflare-r2-readonly.mjs --bucket code1-staging-media`;
-3. verify downloaded Pages config shows exact `env.preview` R2 binding and no Production binding;
-4. run `node backend/staging/scripts/verify-pages-preview-readonly.mjs --base-url https://coding-runtime-backend-stagi.code1-workspace.pages.dev`;
-5. require configured session surface + 401 unauth RPC + 403 media binding probe before any object write;
-6. only after that run real single/multipart R2 integration and authenticated private GET/denial/retry tests;
-7. update CURRENT/BATON/Message Bus with independent evidence; no live/main/Production cutover.
+## Durable database/import state
 
-ROLLBACK: existing Apps Script/Sheet/Drive remains the live runtime. The new R2 bucket contains no migrated legacy media and the current Preview work introduces no Production dependency.
+FIRST_IMPORT is VERIFIED_COMPLETE and must not be rerun.
+
+Counts remain: accounts 2, farms 12, questions 231, submissions 2, answer versions 5, media 4, media events 5, audit 29, login guard 3, housing 12, migration registry 268.
+
+All imported media remain 4/4 `GOOGLE_DRIVE_LEGACY`, `object_key=NULL`, `DELETED`. Private Drive originals and SHA-256 evidence remain in `CODE1_SOURCE_MEDIA_MANIFEST_20260911`.
+
+Migration `r2_media_upload_state` / ledger `20260910181248` is applied and verified. Security Advisor WARN 0. Performance INFO remains 22 unindexed FKs / 11 unused indexes.
+
+## R2 state
+
+Bucket `code1-staging-media`:
+
+- APAC / Standard
+- latest audit: 0 objects / 0 B
+- r2.dev disabled
+- custom domain none
+- CORS config absent / code 10059
+- lock rules none
+- default multipart abort after 7 days
+
+No actual R2 object write has been run yet.
+
+## Upload runtime state
+
+Hardening commit `a2c65735c5606789c7dfe423a3988229e96b0505`, CI `34512718904` SUCCESS.
+
+Implemented: 6 MiB multipart, begin request idempotency, chunk retry verification, finish retry/object-exists recovery, atomic finalization, small-PUT orphan compensation, exact HEAD size/MIME verification.
+
+External R2 integration/browser PASS: NOT YET RUN.
+
+## Pages binding state
+
+Config deployment commit `0920bfa49afa3a55355b91fc7fe98890d2f59916`; GitHub Actions `34515272730` SUCCESS and Cloudflare Pages Preview deployment SUCCESS.
+
+Repo declaration:
+
+```toml
+[env.production]
+
+[[env.preview.r2_buckets]]
+binding = "CODE1_MEDIA_BUCKET"
+bucket_name = "code1-staging-media"
+```
+
+Latest remote canonical download returned top-level `[[r2_buckets]] CODE1_MEDIA_BUCKET -> code1-staging-media` plus empty `[env.production]`.
+
+Wrangler source proves `pages download config` fetches both `deployment_configs.preview` and `.production`, uses Preview as top-level unless `env.preview` must be emitted, and writes Production under `env.production`. R2 is non-inheritable. Therefore:
+
+- Preview R2 binding: VERIFIED
+- Production R2 binding: NONE
+
+The earlier three-way `pages download config --env ...` audit was not a valid discriminator. Corrected runner commit: `79bf485d64d6c5518b6847418396cc630e05b766`, CI `34517842353` SUCCESS, Pages skipped.
+
+## Preview runtime state
+
+Read-only branch Preview probe:
+
+- root 200
+- session `configured=false`, `authenticated=false`
+- unauth RPC 400
+- media route 404
+- object write NONE
+
+Conclusion: R2 binding exists but `CODE1_RUNTIME_BACKEND=SUPABASE_STAGING` and required Preview vars/secrets are not configured yet.
+
+## Staging auth separation
+
+Commit `92f19361d7f028005024c5062f918078b6e70329`, CI `34517035790` SUCCESS.
+
+- staging login IP HMAC uses new `CODE1_LOGIN_IP_SECRET`
+- staging no longer requires Apps Script `BRIDGE_SECRET`
+- legacy Apps Script mode still requires and uses `BRIDGE_URL/BRIDGE_SECRET`
+
+Do not inject/reuse Production bridge secrets for staging.
+
+## Current security gate
+
+Cloudflare Pages Preview vars/secrets apply to Preview deployments project-wide, not per branch. Repo still has stale/temporary branches. Before provisioning `CODE1_SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET`, `PASSWORD_PEPPER`, `CODE1_LOGIN_IP_SECRET`, `CODE1_UPLOAD_TOKEN_SECRET`, or `CODE1_MEDIA_TOKEN_SECRET`, read the Pages preview branch controls.
+
+The updated runner now prints:
+
+- canonical remote Pages safe config
+- interpreted Preview R2 bindings
+- interpreted Production R2 bindings
+- `PAGES_PREVIEW_DEPLOYMENT_EXPOSURE`
+- `PAGES_PRODUCTION_DEPLOYMENT_EXPOSURE`
+
+Exposure output includes only safe source-control fields: observed branch names, production branch, preview deployment setting, preview branch includes/excludes.
+
+## Cross-track sync
+
+- MSG-0009: APPLIED
+- MSG-0011: APPLIED
+- MSG-0013: PENDING at last read
+- current CODING inbound: 0
+
+## NEXT_ATOMIC_ACTION
+
+Operator PC:
+
+```powershell
+cd C:\Users\Administrator\Desktop\code1
+git pull --ff-only origin coding/runtime-backend-staging
+node backend/staging/scripts/audit-cloudflare-r2-readonly.mjs --bucket code1-staging-media
+```
+
+Do not rerun the Preview HTTP verifier yet; runtime env has not changed.
+
+PASS requirements before any secret mutation:
+
+1. Preview interpreted R2 = `CODE1_MEDIA_BUCKET -> code1-staging-media`.
+2. Production interpreted R2 = `NONE_FOUND`.
+3. Preview deployment exposure is restricted enough that staging secrets will not be delivered to unintended stale/tmp branch deployments.
+4. Production branch context remains `main` and unchanged.
+
+After that, provision Preview-only Supabase/runtime vars and newly generated staging-only secrets, intentionally deploy one Preview, rerun read-only HTTP probes, then perform actual R2 PUT/multipart/HEAD/DB/private-GET/denial/retry integration tests.
+
+ROLLBACK: Apps Script/Sheet/Drive remains live. R2 contains no migrated legacy objects and Production has no R2 binding.
