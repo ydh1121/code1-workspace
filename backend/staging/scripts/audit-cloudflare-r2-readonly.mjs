@@ -23,11 +23,15 @@ function safeName(value,label){
   if(!v||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(v)) fail(`INVALID_${label}`);
   return v;
 }
+function compactFailureText(error){
+  const raw=[error?.stdout,error?.stderr].filter(Boolean).join('\n').replace(/\x1b\[[0-9;]*m/g,' ').replace(/\s+/g,' ').trim();
+  return raw ? ` detail=${raw.slice(0,500)}` : '';
+}
 function command(file,args,cwd,{allowFailure=false}={}){
   try{
     return execFileSync(file,args,{cwd,encoding:'utf8',stdio:['ignore','pipe','pipe'],windowsHide:true,maxBuffer:8*1024*1024}).trim();
   }catch(error){
-    if(allowFailure) return `COMMAND_FAILED exit=${error.status??'unknown'}`;
+    if(allowFailure) return `COMMAND_FAILED exit=${error.status??'unknown'}${compactFailureText(error)}`;
     fail(`COMMAND_FAILED ${args.join(' ')} exit=${error.status??'unknown'}`);
   }
 }
@@ -50,17 +54,44 @@ function extractTomlR2(text){
   }
   return out.length?out.join('\n'):'PAGES_R2_BINDINGS = NONE_FOUND';
 }
+function safeWhoami(raw){
+  try{
+    const data=JSON.parse(raw);
+    return JSON.stringify({loggedIn:!!data.loggedIn,authType:data.authType||null,accountCount:Array.isArray(data.accounts)?data.accounts.length:0,tokenPermissionCount:Array.isArray(data.tokenPermissions)?data.tokenPermissions.length:0},null,2);
+  }catch{return 'WHOAMI_PARSE_FAILED';}
+}
+function extractTomlSafeShape(text){
+  const out=[];
+  let section='ROOT';
+  const safeRootValues=new Set(['name','pages_build_output_dir','compatibility_date','compatibility_flags']);
+  for(const raw of String(text).split(/\r?\n/)){
+    const line=raw.trim();
+    if(!line||line.startsWith('#'))continue;
+    if(/^\[\[.*\]\]$/.test(line)||/^\[.*\]$/.test(line)){
+      section=line;
+      out.push(line);
+      continue;
+    }
+    const m=line.match(/^([A-Za-z0-9_.-]+)\s*=\s*(.*)$/);
+    if(!m)continue;
+    const [,key,value]=m;
+    if(section==='ROOT'&&safeRootValues.has(key)){out.push(`${key} = ${value}`);continue;}
+    if(/(?:^|\.)vars\]?$/i.test(section)||/secret/i.test(section)){out.push(`${key} = <redacted-present>`);continue;}
+    if(/r2_buckets/i.test(section)&&['binding','bucket_name','preview_bucket_name','jurisdiction'].includes(key)){out.push(`${key} = ${value}`);continue;}
+    if(key==='binding'){out.push(`${key} = ${value}`);continue;}
+    if(/(?:^|_)(id|token|key|secret)$/i.test(key)||/(database_id|namespace_id|account_id)/i.test(key)){out.push(`${key} = <redacted-present>`);continue;}
+    out.push(`${key} = <present>`);
+  }
+  return out.length?out.join('\n'):'NO_CONFIG_KEYS_FOUND';
+}
 function resolveWranglerCli(repoRoot){
   const packageRoot=resolve(repoRoot,'node_modules','wrangler');
   const packageJsonPath=join(packageRoot,'package.json');
   if(!existsSync(packageJsonPath)) fail('LOCAL_WRANGLER_NOT_FOUND run npm ci in the CODE1 repo; this runner never installs packages');
 
   let pkg;
-  try{
-    pkg=JSON.parse(readFileSync(packageJsonPath,'utf8'));
-  }catch{
-    fail('LOCAL_WRANGLER_PACKAGE_INVALID');
-  }
+  try{pkg=JSON.parse(readFileSync(packageJsonPath,'utf8'));}
+  catch{fail('LOCAL_WRANGLER_PACKAGE_INVALID');}
 
   const binRelative=typeof pkg.bin==='string' ? pkg.bin : pkg.bin?.wrangler;
   if(typeof binRelative!=='string'||!binRelative.trim()) fail('LOCAL_WRANGLER_BIN_NOT_FOUND');
@@ -82,9 +113,7 @@ const branch=command('git',['rev-parse','--abbrev-ref','HEAD'],repoRoot);
 if(branch!==EXPECTED_BRANCH) fail(`BRANCH_MISMATCH expected=${EXPECTED_BRANCH} actual=${branch}`);
 
 const wranglerCli=resolveWranglerCli(repoRoot);
-function wrangler(args,cwd=repoRoot,options={}){
-  return command(process.execPath,[wranglerCli,...args],cwd,options);
-}
+function wrangler(args,cwd=repoRoot,options={}){return command(process.execPath,[wranglerCli,...args],cwd,options);}
 
 console.log('CODE1 Cloudflare/R2 READ-ONLY audit');
 console.log(`branch=${branch}`);
@@ -94,7 +123,7 @@ console.log('REMOTE_MUTATION=DISALLOWED');
 console.log('This runner never calls create/delete/set/enable/disable/deploy/auth-token commands.');
 
 printSection('WRANGLER_VERSION',wrangler(['--version']));
-printSection('WHOAMI_SAFE',wrangler(['whoami','--json']));
+printSection('WHOAMI_SAFE',safeWhoami(wrangler(['whoami','--json'])));
 printSection('PAGES_PROJECT_LIST',wrangler(['pages','project','list','--json']));
 printSection('R2_BUCKET_LIST',wrangler(['r2','bucket','list']));
 
@@ -102,8 +131,14 @@ const temp=mkdtempSync(join(tmpdir(),'code1-cf-readonly-'));
 try{
   wrangler(['pages','download','config',pagesProject,'--force'],temp);
   const configName=readdirSync(temp).find(n=>/^wrangler\.toml$/i.test(n));
-  if(!configName) printSection('PAGES_R2_BINDINGS','DOWNLOAD_SUCCEEDED_BUT_WRANGLER_TOML_NOT_FOUND');
-  else printSection('PAGES_R2_BINDINGS',extractTomlR2(readFileSync(join(temp,configName),'utf8')));
+  if(!configName){
+    printSection('PAGES_SAFE_CONFIG_SHAPE','DOWNLOAD_SUCCEEDED_BUT_WRANGLER_TOML_NOT_FOUND');
+    printSection('PAGES_R2_BINDINGS','DOWNLOAD_SUCCEEDED_BUT_WRANGLER_TOML_NOT_FOUND');
+  }else{
+    const configText=readFileSync(join(temp,configName),'utf8');
+    printSection('PAGES_SAFE_CONFIG_SHAPE',extractTomlSafeShape(configText));
+    printSection('PAGES_R2_BINDINGS',extractTomlR2(configText));
+  }
 }finally{
   rmSync(temp,{recursive:true,force:true});
 }
