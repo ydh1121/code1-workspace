@@ -6,7 +6,7 @@ export const NON_BLOCKING_POLICY_MODES = new Set(['OPTIONAL','HIDE','NOT_APPLICA
 export const HIDDEN_POLICY_MODES = new Set(['HIDE','NOT_APPLICABLE','PERMANENT_EXCLUDE']);
 
 export function publicAccount(row, farmIds = []) {
-  if (!row || !ROLES.has(row.role) || row.status !== 'active') throw Error('UNAUTHENTICATED');
+  if (!row || !ROLES.has(row.role) || !['active','disabled'].includes(row.status)) throw Error('UNAUTHENTICATED');
   if (row.role === 'SUPER_ADMIN' && row.account_id !== 'OWNER') throw Error('FORBIDDEN');
   const admin = row.role === 'SUPER_ADMIN' || row.role === 'ADMIN';
   const raw = parsePermissions(row.permissions_json);
