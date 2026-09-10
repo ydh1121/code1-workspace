@@ -12,7 +12,7 @@ permissions:
 jobs:
   isolated-node-checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout isolated branch
         uses: actions/checkout@v4
@@ -29,3 +29,12 @@ jobs:
 
       - name: Run staging unit and contract tests
         run: node --test backend/staging/test/*.test.mjs
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Run existing workspace regression tests
+        run: npm test
+
+      - name: Build existing workspace
+        run: npm run build
