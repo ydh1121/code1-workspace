@@ -1,9 +1,8 @@
 # CODE1 R2 / PRIVATE MEDIA STAGING READ-ONLY AUDIT — 2026-09-11
 
-Status: `R2_RESOURCE_IDENTITY_BLOCKED / CONTRACT_AUDIT_ADVANCED / NO_EXTERNAL_R2_MUTATION`
+Status: `R2_ACCOUNT_INVENTORY_EMPTY / PROVISIONING_REQUIRED / NO_EXTERNAL_R2_MUTATION`
 Track: CODING
 Branch: `coding/runtime-backend-staging`
-Audited origin baseline: `9066c104a1fbc34f2b597ba9f6df0781d00203ee`
 Supabase target: CODE1 STAGING `bsintmkyhptizrjoizfb` only
 Live / Public Frontend / main / Production: unchanged
 
@@ -11,7 +10,7 @@ Live / Public Frontend / main / Production: unchanged
 
 The completed Supabase FIRST_IMPORT was preserved. A fresh read of CODE1 STAGING reconfirmed the durable post-import counts already recorded in the post-import handoff, including 4 `media_assets` rows and migration registry 268. No import, schema, or index mutation was repeated during this audit.
 
-Cross-track state was also re-read before R2 work: `MSG-20260911-0003` is the current CODING -> PLANNING pending implementation-evidence message and the older pre-import handoff state is superseded.
+Cross-track state was re-read before the account-level R2 evidence was folded back into CODING durable state. `MSG-20260911-0003` and `MSG-20260911-0006` remain CODING -> PLANNING implementation-evidence messages, while `MSG-20260911-0005` remains NEEDS_REVIEW because the requested Apps Script same-ID Drive move was blocked by file-specific connector authorization.
 
 ## 2. Actual legacy media state
 
@@ -26,17 +25,30 @@ The four imported farm-media metadata rows are not active migration candidates:
 
 Detailed file identifiers, filenames, rights/consent fields, deletion timestamps, and SHA-256 values are intentionally not committed to this repository. They are recorded in the private Drive artifact `CODE1_SOURCE_MEDIA_MANIFEST_20260911` inside `[PRIVATE] CODE1 STAGING MIGRATION`.
 
-Until a retention/purge policy or an explicit migration decision says otherwise, these rows are classified in that private manifest as `HOLD_DELETED_RETENTION`. This audit does not copy deleted originals into R2 and does not delete the Drive rollback source.
+Until a retention/purge policy or an explicit migration decision says otherwise, these rows remain classified as `HOLD_DELETED_RETENTION`. Creating a new R2 bucket does not make these deleted source files migration candidates. This audit does not copy deleted originals into R2 and does not delete the Drive rollback source.
 
-## 3. R2 resource identity audit
+## 3. R2 resource identity audit — resolved account inventory
 
-The repository establishes a logical binding contract named `CODE1_MEDIA_BUCKET`, but the current `wrangler.toml` contains no `r2_buckets` binding and no actual bucket name or resource identifier.
+The repository establishes a logical binding contract named `CODE1_MEDIA_BUCKET`, but the current `wrangler.toml` contains no `r2_buckets` binding and no actual bucket name.
 
-Drive project records describe the intended Cloudflare/Supabase/R2 architecture but do not provide sufficient current evidence of an exact CODE1-only R2 bucket identity or staging binding. This session also has no authenticated Cloudflare account inventory capability from which to independently verify bucket list, account identifier, public access, CORS, lifecycle, existing objects, or Pages/Worker binding state.
+The operator ran the branch's fail-closed local Cloudflare inventory runner with Wrangler `4.129.0`. The runner returned authenticated account-level evidence without invoking create/delete/set/enable/disable/deploy/object-write commands.
 
-Result: `R2_RESOURCE_IDENTITY_BLOCKED`.
+Verified current Cloudflare state:
 
-No bucket was created, reused, bound, made public, or written during this audit. In particular, no HOOOO or other-project R2 resource is eligible for reuse.
+- authenticated account id: `7c52434598072e9bce77aa00bafa1ed3`;
+- Pages project `code1-workspace` exists with domain `code1-workspace.pages.dev`;
+- `wrangler r2 bucket list` returned no bucket rows for the current account;
+- downloaded Pages project configuration contained no R2 binding;
+- repository `wrangler.toml` also contains no R2 binding;
+- no R2 object or bucket mutation occurred.
+
+Result: the prior `R2_RESOURCE_IDENTITY_BLOCKED` ambiguity is resolved as `R2_ACCOUNT_INVENTORY_EMPTY`.
+
+There is no current CODE1 R2 bucket to select and no other-project bucket available for reuse. The correct next resource action is therefore creation of a new CODE1 STAGING-only bucket, followed immediately by a second read-only verification pass before any binding or object write.
+
+Proposed exact new bucket name: `code1-staging-media`.
+
+R2 buckets are private by default. This path must retain private-by-default access; do not enable r2.dev or attach a public custom domain. The runtime binding name remains `CODE1_MEDIA_BUCKET` and stays server-side only.
 
 ## 4. Existing private-media contract verified in code
 
@@ -91,48 +103,43 @@ These tests are contract tests only. They are not evidence of actual R2 PUT/HEAD
 
 ## 7. Fail-closed local Cloudflare inventory runner
 
-To recover the missing account-level identity without exposing an API token in chat or Git, the branch now includes:
+Path:
 
 `backend/staging/scripts/audit-cloudflare-r2-readonly.mjs`
 
 The runner:
 
 - refuses to run outside `coding/runtime-backend-staging`;
-- uses only the already-installed local Wrangler binary and never installs packages;
+- uses the repository-local Wrangler installation and invokes its Node CLI entrypoint directly for Windows/Unix compatibility;
 - calls only read operations: Wrangler version, `whoami --json`, Pages project list, R2 bucket list, and a temporary Pages config download;
 - filters the downloaded Pages configuration to R2 binding/bucket fields only, then deletes the temporary local directory;
 - when an exact bucket name is supplied, additionally reads bucket info, r2.dev state, custom domains, CORS, lifecycle rules, and lock rules;
 - never calls `auth token`, create, delete, set, enable, disable, deploy, or any object-write command.
 
-First pass:
+Current first-pass result is account inventory empty. Therefore there is no valid existing bucket name for a second pass yet.
+
+After the new bucket is created, run:
 
 ```powershell
-node backend/staging/scripts/audit-cloudflare-r2-readonly.mjs
+node backend/staging/scripts/audit-cloudflare-r2-readonly.mjs --bucket code1-staging-media
 ```
 
-If and only if the output identifies an exact CODE1-only candidate, second pass:
-
-```powershell
-node backend/staging/scripts/audit-cloudflare-r2-readonly.mjs --bucket <EXACT_CODE1_BUCKET_NAME>
-```
-
-The runner is an inventory collector only. It does not convert `R2_RESOURCE_IDENTITY_BLOCKED` to PASS by itself; the returned account/project/bucket/binding evidence still has to be checked for CODE1 identity and cross-project contamination before any binding change.
+The returned bucket identity/private/public/CORS/lifecycle/lock evidence must be checked before adding the Pages binding or writing an object.
 
 ## 8. Remaining gate
 
-Before any actual R2 binding change or object migration, obtain current account-level evidence for the exact CODE1 STAGING resource:
+Before any actual R2 object write or Pages deployment:
 
-- Cloudflare account/resource identifier;
-- exact CODE1 R2 bucket name;
-- private/public state and custom-domain/public-development-URL state;
-- CORS;
-- lifecycle/retention configuration;
-- existing-object state;
-- exact Pages/Worker staging binding name and environment;
-- proof that the resource is not HOOOO or another project.
+1. create exactly one CODE1 STAGING-only bucket, proposed name `code1-staging-media`;
+2. keep the bucket private and do not enable r2.dev/custom public domain;
+3. rerun the read-only bucket-detail audit;
+4. verify exact account/bucket identity, public state, CORS, lifecycle, lock rules, and empty object state;
+5. only then add the `CODE1_MEDIA_BUCKET` Pages/Worker binding in the isolated staging branch/environment;
+6. close `mediaUpload.chunk` compatibility, begin/finish idempotency, and small-upload compensation/reconciliation before integration PASS;
+7. run actual staging R2 PUT -> HEAD exact size/MIME -> DB linkage -> private authenticated GET -> unauthorized/expired/wrong-scope/deleted denial tests.
 
-Only after resource identity is verified should the isolated staging implementation close `mediaUpload.chunk` compatibility and retry/compensation gaps, then run actual R2 PUT/HEAD/private GET/unauthorized-denial/DB-linkage tests.
+The four deleted legacy Drive sources stay outside this initial R2 object path unless a separate retention/migration decision explicitly changes their status.
 
 ## 9. Performance state
 
-No same-action Drive/R2 latency baseline was established in this audit. `NO_BASELINE` remains the correct performance statement. No speed multiplier or index optimization is inferred.
+No same-action Drive/R2 latency baseline has been established. `NO_BASELINE` remains the correct performance statement. No speed multiplier or index optimization is inferred.
