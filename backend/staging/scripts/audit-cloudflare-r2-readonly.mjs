@@ -127,18 +127,25 @@ function safeDeploymentExposure(raw,expectedEnvironment){
   try{
     const parsed=JSON.parse(raw);
     const rows=Array.isArray(parsed)?parsed:Array.isArray(parsed?.result)?parsed.result:[];
-    const matching=rows.filter(row=>!row?.environment||row.environment===expectedEnvironment);
-    const branches=[...new Set(matching.map(row=>row?.deployment_trigger?.metadata?.branch).filter(Boolean))].sort();
-    const sourceConfigs=matching.map(row=>row?.source?.config).filter(Boolean);
-    const source=sourceConfigs[0]||{};
+    // Wrangler 4.129.0 pages deployment list --json emits flattened display
+    // objects: {Id, Environment, Branch, Source, Deployment, Status, Build}.
+    // Keep compatibility with raw API-like rows as a defensive fallback.
+    const normalized=rows.map(row=>({
+      environment:String(row?.Environment??row?.environment??'').trim().toLowerCase(),
+      branch:String(row?.Branch??row?.branch??row?.deployment_trigger?.metadata?.branch??'').trim()
+    }));
+    const matching=normalized.filter(row=>!row.environment||row.environment===expectedEnvironment);
+    const branches=[...new Set(matching.map(row=>row.branch).filter(Boolean))].sort();
+    const unexpected=expectedEnvironment==='preview'?branches.filter(branch=>branch!==EXPECTED_BRANCH):[];
     return JSON.stringify({
       environment:expectedEnvironment,
       deploymentCount:matching.length,
       observedBranches:branches,
-      productionBranch:source.production_branch??null,
-      previewDeploymentSetting:source.preview_deployment_setting??null,
-      previewBranchIncludes:Array.isArray(source.preview_branch_includes)?source.preview_branch_includes:null,
-      previewBranchExcludes:Array.isArray(source.preview_branch_excludes)?source.preview_branch_excludes:null
+      unexpectedPreviewBranches:unexpected,
+      configuredBranchFilter:'UNAVAILABLE_VIA_SAFE_WRANGLER_CLI',
+      exposureGate:expectedEnvironment==='preview'
+        ? (unexpected.length?'BLOCKED_OTHER_PREVIEW_BRANCHES_OBSERVED':'UNRESOLVED_CONFIGURED_BRANCH_FILTER_NOT_READABLE')
+        : 'OBSERVED_PRODUCTION_CONTEXT_ONLY'
     },null,2);
   }catch{
     return 'DEPLOYMENT_LIST_PARSE_FAILED';
@@ -208,6 +215,7 @@ printSection('R2_BUCKET_LIST',wrangler(['r2','bucket','list']));
 inspectPagesConfig();
 printSection('PAGES_PREVIEW_DEPLOYMENT_EXPOSURE',safeDeploymentExposure(wrangler(['pages','deployment','list','--project-name',pagesProject,'--environment','preview','--json'],repoRoot,{allowFailure:true}),'preview'));
 printSection('PAGES_PRODUCTION_DEPLOYMENT_EXPOSURE',safeDeploymentExposure(wrangler(['pages','deployment','list','--project-name',pagesProject,'--environment','production','--json'],repoRoot,{allowFailure:true}),'production'));
+printSection('PAGES_BRANCH_FILTER_READBACK','UNAVAILABLE_VIA_SAFE_WRANGLER_CLI: project/deployment list commands do not expose preview_branch_includes/excludes. Do not use Wrangler debug logs because they may contain project environment metadata.');
 
 if(bucketName){
   printSection('R2_BUCKET_INFO',wrangler(['r2','bucket','info',bucketName,'--json']));
