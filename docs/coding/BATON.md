@@ -2,20 +2,18 @@
 
 Updated: 2026-09-11
 PLANNING_DELTA_SEQ_SEEN = 20260910-002
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260911-0003
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260911-0006
 
-LAST_VERIFIED_ACTION: CODE1 Supabase STAGING FIRST_IMPORT remains complete and was re-read without mutation. Durable counts still match the post-import evidence. R2/private-media READ-ONLY audit then verified the current code/data contract, created a private source-media manifest, added isolated R2 PUT/GET contract tests, and added a fail-closed local Cloudflare inventory runner without changing Cloudflare/live/Production.
+LAST_VERIFIED_ACTION: CODE1 Supabase STAGING FIRST_IMPORT remains complete and durable counts still match the verified post-import state. The operator successfully ran the fail-closed Cloudflare/R2 read-only inventory using Wrangler `4.129.0`. The verified Cloudflare account contains Pages project `code1-workspace`, but account-level R2 bucket inventory is empty and Pages has no R2 binding. No Cloudflare bucket/binding/object mutation occurred.
 
-CURRENT_WORK: exact CODE1 STAGING R2 bucket/account/binding identity is required before any external R2 mutation. Current result is `R2_RESOURCE_IDENTITY_BLOCKED`. Continue isolated contract hardening only until that identity is verified.
+CURRENT_WORK: prior `R2_RESOURCE_IDENTITY_BLOCKED` ambiguity is resolved as `R2_ACCOUNT_INVENTORY_EMPTY`. There is no existing bucket to select or reuse. Next resource gate is creation of exactly one CODE1 STAGING-only private R2 bucket, proposed exact name `code1-staging-media`, followed immediately by read-only bucket-detail verification before binding or object writes.
 
 VERIFIED_CODE_STATE:
 - branch: `coding/runtime-backend-staging`
 - base main: `a71a71eae73706862308e194110f4fcc2d25db01`
-- audited origin recovery HEAD: `9066c104a1fbc34f2b597ba9f6df0781d00203ee`
-- latest origin at session bootstrap matched that recovery HEAD
-- post-import recovery CI: `34503734927` / SUCCESS
-- R2 contract-test/documentation/read-only-runner CI through `f3b7e3974f32a86ad4ad41adb8b4fd579b8e4f7c`: run `34507547370` / SUCCESS
-- local operator working tree on the user's PC was not observable from this session and remains `UNVERIFIED_LOCAL`
+- R2 read-only runner Windows compatibility fix: `5f180aaa3c2e6653e771fbd519de1e87e546747c`
+- local operator pulled that commit and successfully executed the inventory runner
+- local operator working tree after the reported commands is assumed only for those shown commands; unreported local edits remain `UNVERIFIED_LOCAL`
 
 POST_IMPORT_DB_GATE:
 - project ref: `bsintmkyhptizrjoizfb`
@@ -37,13 +35,18 @@ POST_IMPORT_DB_GATE:
 - planning capabilities/brief versions/artifacts 0/0/0
 - migration registry 268
 
-R2_READ_ONLY_AUDIT:
-- repository logical binding contract: `CODE1_MEDIA_BUCKET`
-- current `wrangler.toml`: no actual `r2_buckets` binding/bucket identity
-- Drive architecture docs: target R2 architecture only; no current exact CODE1-only bucket identity
-- authenticated Cloudflare account inventory: not available inside this chat session
-- result: `R2_RESOURCE_IDENTITY_BLOCKED`
-- external R2 mutation: none
+R2_ACCOUNT_INVENTORY:
+- authenticated Cloudflare account id: `7c52434598072e9bce77aa00bafa1ed3`
+- Pages project: `code1-workspace`
+- Pages domain: `code1-workspace.pages.dev`
+- account R2 bucket list: EMPTY / zero bucket rows returned
+- downloaded Pages R2 bindings: NONE_FOUND
+- repository `wrangler.toml` R2 bindings: NONE
+- result: `R2_ACCOUNT_INVENTORY_EMPTY`
+- proposed new staging-only bucket: `code1-staging-media`
+- runtime binding contract: `CODE1_MEDIA_BUCKET`
+- public R2 URL/custom domain: must remain disabled unless separately approved
+- external R2 mutation so far: NONE
 - other-project R2 reuse: prohibited
 
 SOURCE_MEDIA_MANIFEST:
@@ -62,7 +65,7 @@ R2_CONTRACT_BLOCKERS:
 2. repeated `mediaUpload.begin` does not yet resolve a logical retry to an existing upload identity;
 3. repeated `mediaUpload.finish` can append duplicate `UPLOADED` events;
 4. <=8 MiB compatibility upload can orphan an R2 object if DB metadata insert fails after object write;
-5. actual R2 PUT/HEAD/private GET/unauthorized-denial/browser tests are still WAITING exact R2 resource identity.
+5. actual R2 PUT/HEAD/private GET/unauthorized-denial/browser tests are WAITING new bucket creation, read-only verification, and binding.
 
 NEW_ISOLATED_TESTS:
 - media PUT missing-binding fail closed
@@ -79,10 +82,10 @@ These are mock-binding contract tests only, not actual R2 or browser PASS.
 READONLY_CLOUDFLARE_AUDIT_RUNNER:
 - path: `backend/staging/scripts/audit-cloudflare-r2-readonly.mjs`
 - exact-branch fail closed
-- uses installed local Wrangler only; no package install
+- uses repository-local Wrangler CLI entrypoint; Windows `.cmd` direct-execution bug fixed
 - no `auth token`, create/delete/set/enable/disable/deploy/object-write command
-- first pass lists current account/Pages/R2 resources and extracts only Pages R2 binding fields from a temporary downloaded config
-- second pass with `--bucket <EXACT_CODE1_BUCKET_NAME>` reads bucket info, r2.dev, custom domains, CORS, lifecycle, and lock state
+- first pass verified account/Pages/R2 inventory
+- post-create second pass with `--bucket code1-staging-media` reads bucket info, r2.dev, custom domains, CORS, lifecycle, and lock state
 - temporary downloaded config is removed after parsing
 
 SOURCE_BOUNDARY:
@@ -98,26 +101,31 @@ CROSS_TRACK_SYNC:
 - `MSG-20260911-0001` SUPERSEDED
 - `MSG-20260911-0002` SUPERSEDED
 - `MSG-20260911-0003` CODING -> PLANNING / IMPLEMENTATION_EVIDENCE / PENDING
-- do not duplicate the completed FIRST_IMPORT evidence message
-- publish a new message only for the new R2/backend evidence after final CI verification and message-id collision check
+- `MSG-20260911-0005` PLANNING -> CODING / DRIVE_ROOT_HYGIENE / NEEDS_REVIEW because Drive connector write authorization blocked; no move occurred
+- `MSG-20260911-0006` CODING -> PLANNING / R2 IMPLEMENTATION_EVIDENCE / PENDING
+- do not duplicate completed FIRST_IMPORT evidence
+- publish a new message only after the new bucket/detail verification or later backend implementation produces new evidence, with a fresh collision check
 
 OPEN_WAITING:
-- exact CODE1 R2 identity/binding audit: BLOCKED pending local read-only inventory output
+- new CODE1 STAGING R2 bucket: NOT_YET_CREATED / proposed `code1-staging-media`
+- `CODE1_MEDIA_BUCKET` Pages binding: NOT_YET_CONFIGURED
 - media chunk compatibility + retry/compensation hardening: OPEN
-- actual R2 integration: WAITING_R2_IDENTITY
+- actual R2 integration: WAITING_BUCKET_AND_BINDING
 - same-action performance p50/p95: `NO_BASELINE` / WAITING runnable R2-backed staging path
 - stale source duplicate cleanup: OPEN_SEPARATE_DECISION
 - npm 3 high + 1 critical: OPEN_SEPARATE_HARDENING
+- Drive root hygiene: NEEDS_REVIEW / manual same-ID move or file-specific write authorization required
 - live cutover: NOT APPROVED
 - CODE1 Production: PROHIBITED
 
 NEXT_ATOMIC_ACTION:
-1. on the operator PC after pulling this branch, run `node backend/staging/scripts/audit-cloudflare-r2-readonly.mjs` and inspect the non-secret resource list;
-2. if exactly one CODE1-only R2 candidate is established, rerun with `--bucket <EXACT_CODE1_BUCKET_NAME>`;
-3. verify bucket privacy/public URL, CORS, lifecycle, object state, Pages/Worker binding environment, and account/resource identity;
-4. only after identity PASS, implement `mediaUpload.chunk` compatibility plus begin/finish retry identity and small-upload compensation/reconciliation;
-5. run actual staging R2 PUT/HEAD/private GET/unauthorized denial/DB linkage tests;
-6. keep deleted Drive source files as rollback/retention evidence until a separate policy permits purge;
-7. do not touch live/Public Frontend/main/Production/other projects.
+1. create exactly one R2 bucket in the verified account, proposed exact name `code1-staging-media`; use default private state and do not upload objects;
+2. rerun `node backend/staging/scripts/audit-cloudflare-r2-readonly.mjs --bucket code1-staging-media`;
+3. verify exact account/bucket identity, private/public URL state, custom domains, CORS, lifecycle, lock rules, and empty object state;
+4. only after that bucket gate passes, add the isolated staging `[[r2_buckets]]` binding with `binding = "CODE1_MEDIA_BUCKET"` and `bucket_name = "code1-staging-media"`;
+5. close `mediaUpload.chunk`, begin/finish retry idempotency, and small-upload compensation/reconciliation before actual object integration;
+6. run actual staging R2 PUT -> HEAD exact size/MIME -> DB linkage -> private GET plus unauthorized/expired/wrong-scope/deleted denial tests;
+7. keep deleted Drive source files as rollback/retention evidence until a separate policy permits purge;
+8. do not touch live/Public Frontend/main/Production/other projects.
 
 ROLLBACK: live remains unchanged. Until an approved cutover, existing Apps Script/Sheet/Drive remains the live runtime and source evidence.
