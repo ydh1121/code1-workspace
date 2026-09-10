@@ -7,7 +7,7 @@ Base main: `a71a71eae73706862308e194110f4fcc2d25db01`
 Live cutover: NOT APPROVED
 Production: PROHIBITED
 PLANNING_DELTA_SEQ_SEEN = 20260910-002
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260911-0006
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260911-0007
 
 ## Current verified state
 
@@ -44,9 +44,9 @@ No index change is authorized solely to silence these INFO notices. Query/index 
 
 The isolated code already defines a logical R2 binding `CODE1_MEDIA_BUCKET`, deterministic private object keys, short-lived upload/read tokens, R2 PUT/GET handlers, farm-access checks before read authorization, and soft-delete semantics.
 
-The operator then ran the fail-closed local Cloudflare inventory runner with Wrangler `4.129.0`. Current authenticated account evidence is now available:
+The operator ran the fail-closed local Cloudflare inventory runner with Wrangler `4.129.0`. Current authenticated account evidence is now available:
 
-- Cloudflare account id: `7c52434598072e9bce77aa00bafa1ed3`;
+- the exact authenticated Cloudflare account identity was observed in the operator output and is intentionally not committed to this repository;
 - Pages project `code1-workspace` exists and resolves to `code1-workspace.pages.dev`;
 - account-level `wrangler r2 bucket list` returned no bucket rows;
 - downloaded Pages configuration contained no R2 binding;
@@ -100,4 +100,4 @@ No Public Frontend, formal Admin, main, CODE1 Production, HOOOO Supabase/Cloudfl
 
 ## Next atomic action
 
-Create exactly one new R2 bucket for CODE1 STAGING, proposed name `code1-staging-media`, in the verified Cloudflare account. Do not enable public access and do not upload objects yet. Immediately rerun the read-only audit with `--bucket code1-staging-media` and verify bucket identity/private state, r2.dev/custom-domain state, CORS, lifecycle, lock rules, and empty object state. Only after that bucket gate passes should the branch add `[[r2_buckets]] binding = "CODE1_MEDIA_BUCKET"` and the exact bucket name, then close the `mediaUpload.chunk` compatibility and retry/compensation gaps before any staging object write. Do not migrate the four deleted legacy Drive sources and do not perform live cutover without separate approval.
+Create exactly one new R2 bucket for CODE1 STAGING, proposed name `code1-staging-media`, in the verified authenticated Cloudflare account. Do not enable public access and do not upload objects yet. Immediately rerun the read-only audit with `--bucket code1-staging-media` and verify bucket identity/private state, r2.dev/custom-domain state, CORS, lifecycle, lock rules, and empty object state. Only after that bucket gate passes should the branch add `[[r2_buckets]] binding = "CODE1_MEDIA_BUCKET"` and the exact bucket name, then close the `mediaUpload.chunk` compatibility and retry/compensation gaps before any staging object write. Do not migrate the four deleted legacy Drive sources and do not perform live cutover without separate approval.
