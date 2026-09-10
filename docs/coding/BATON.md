@@ -2,9 +2,9 @@
 
 Updated: 2026-09-11
 PLANNING_DELTA_SEQ_SEEN = 20260911-003
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260911-0009
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260911-0010
 
-LAST_VERIFIED_ACTION: CODE1 STAGING R2 bucket `code1-staging-media` was created and read-only verified private/empty. Media upload contract hardening commit `a2c65735c5606789c7dfe423a3988229e96b0505` passed GitHub Actions run `34512718904` without a Cloudflare Pages deployment because `[CF-Pages-Skip]` was used. Supabase STAGING migration `r2_media_upload_state` / ledger version `20260910181248` then applied successfully and independent readback verified the new columns/index/functions and preserved all 4 legacy DELETED media rows. Planning Delta `20260911-003` / `MSG-20260911-0009` was read at the next infra boundary and is compatible with the current isolated-STAGING plan.
+LAST_VERIFIED_ACTION: CODE1 STAGING R2 bucket `code1-staging-media` was created and read-only verified private/empty. Media upload contract hardening commit `a2c65735c5606789c7dfe423a3988229e96b0505` passed GitHub Actions run `34512718904` without a Cloudflare Pages deployment because `[CF-Pages-Skip]` was used. Supabase STAGING migration `r2_media_upload_state` / ledger version `20260910181248` then applied successfully and independent readback verified the new columns/index/functions and preserved all 4 legacy DELETED media rows. Planning Delta `20260911-003` / `MSG-20260911-0009` was read and applied at the next infra boundary.
 
 CURRENT_WORK: preserve current Pages Preview configuration, then add Preview-only R2 binding `CODE1_MEDIA_BUCKET -> code1-staging-media` and intentionally deploy/test exactly one preview. Production/live remains prohibited.
 
@@ -99,8 +99,9 @@ CROSS_TRACK_SYNC:
 - `MSG-20260911-0005` PLANNING -> CODING Drive root hygiene: ACKED / ROOT_EXCEPTION
 - `MSG-20260911-0006`: SUPERSEDED
 - `MSG-20260911-0007` CODING -> PLANNING R2 account inventory evidence: APPLIED
-- `MSG-20260911-0009` PLANNING -> CODING Delta003: READ / APPLYING AT THIS CHECKPOINT
-- next new CODING message must use a fresh ID after re-reading the Bus and should report bucket creation + 0010 + upload-contract hardening evidence; do not duplicate FIRST_IMPORT evidence
+- `MSG-20260911-0009` PLANNING -> CODING Delta003: APPLIED
+- `MSG-20260911-0010` CODING -> PLANNING bucket/schema/upload hardening evidence: PENDING
+- current CODING sync: inbound 0 / outbound 1
 
 OPEN_WAITING:
 - sanitized Pages Preview config shape: WAITING operator read-only output
