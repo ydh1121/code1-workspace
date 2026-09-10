@@ -1,28 +1,35 @@
 # CODE1 CODING BATON
 
 PLANNING_DELTA_SEQ_SEEN = 20260910-002
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260910-0004
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260911-0001
 
-LAST_VERIFIED_ACTION: resumed the isolated CODE1 runtime-backend migration, completed the private source-snapshot audit, discovered and excluded the stale duplicate farm block at `01_농가_Master` rows 501–512 without modifying the source Sheet, fixed append-only retry identity for legacy media/access logs, added a dedicated `IDEMPOTENT_RETRY` regression test, and verified GitHub Actions run `34494835092` SUCCESS. No live/Public Frontend/Production cutover was performed.
+LAST_VERIFIED_ACTION: completed the secure operator import handoff for the isolated CODE1 runtime-backend migration. The private source snapshot was moved to a dedicated My Drive root private migration folder, a Windows SecureString import wrapper and explicit runbook were added, the CI workflow was extended to parse-check the PowerShell wrapper, and GitHub Actions run `34498679315` completed SUCCESS with staging 41/41 PASS, root baseline gate PASS, and build PASS. No actual source import, live cutover, Public Frontend, main, Production, or HOOOO change was performed.
 
-CURRENT_WORK: CODE1 STAGING schema/security/runtime adapters, source normalization, fail-closed import preflight, private source snapshot, and retry-safety gate are prepared. Real source-data import remains blocked only on a writable CODE1 service-role execution context. Current live Internal Workspace remains Apps Script/Sheet/Drive; no dual-write exists.
+CURRENT_WORK: CODE1 STAGING schema/security/runtime adapters, source normalization, private source snapshot, fail-closed import preflight, exact-snapshot verifier, retry-safety gate, and Windows operator import path are prepared. Real source-data import now waits only for the operator to enter the CODE1 STAGING service-role key at the hidden local prompt. Current live Internal Workspace remains Apps Script/Sheet/Drive; no dual-write exists.
 
 VERIFIED_CODE_STATE:
 - branch: `coding/runtime-backend-staging`
 - base main remains: `a71a71eae73706862308e194110f4fcc2d25db01`
-- latest verified code-bearing HEAD: `d8888ada09e7e9b85e99fdb606d6a8a929ccbc71`
+- latest verified implementation/documentation HEAD before final handoff-doc commits: `2b631deb54fe0fc16e8eb960c6ce93e7beeca7ea`
 - retry identity fix commit: `2fa67873bc16c573cb48c4bb674f2fb5f63ad698`
-- GitHub Actions run: `34494835092` / SUCCESS
+- idempotency test commit: `d8888ada09e7e9b85e99fdb606d6a8a929ccbc71`
+- Windows secure wrapper commit: `fe0ee097acee365cea33ba5db2cb91869a79c1c9`
+- PowerShell CI gate commit: `4660be991162fb6c612f8d5d732f3da1c3a81b8b`
+- secure operator runbook commit: `2b631deb54fe0fc16e8eb960c6ce93e7beeca7ea`
+- GitHub Actions run: `34498679315` / SUCCESS
+- Windows PowerShell parser gate: PASS
 - staging unit+contract tests: 41/41 PASS
 - append-only retry regression: PASS
-- root regression baseline gate: PASS; zero new root failures beyond the five known pre-existing baseline failures
+- root regression suite: 35 PASS / 5 known pre-existing FAIL only
+- root baseline comparison gate: PASS / zero new failures
 - build: PASS
-- later documentation commits advance branch HEAD; always re-read branch HEAD before the next code write.
+- later handoff documentation commits advance branch HEAD; always re-read branch HEAD before the next code write.
 - `public/*` UI and legacy media/deck sources were not changed to make this backend gate pass.
 
 CROSS_TRACK_SYNC:
-- Message Bus `MSG-20260910-0004` (PLANNING -> CODING / BUS_PROTOCOL_ACTIVATION) was actually read and ACKED.
+- Message Bus `MSG-20260910-0004` (PLANNING -> CODING / BUS_PROTOCOL_ACTIVATION) was actually read and ACKED earlier; final Bus sync must mark it APPLIED after this handoff is written.
 - Planning Delta CURRENT was actually re-read at `LATEST_DELTA_SEQ = 20260910-002`.
+- CODING -> PLANNING implementation evidence `MSG-20260911-0001` was already published for source snapshot/retry-safety work and remains subject to Planning review.
 - Delta 002 states current coding priority is unchanged and only requires future schema/API awareness for guest order identity, multi-entity Save, review `DELIVERED + 7d`, and authoritative availability/price/shipping revalidation.
 - No Public Frontend, consumer UI, main/live, Production, or Premium Membership implementation is authorized by this delta and none was started in this track.
 
@@ -55,14 +62,19 @@ LATEST SECURITY/DB GATE:
 - Performance Advisor after `0009`: INFO only (`unindexed_foreign_keys` 23, `unused_index` 11). Do not change indexes solely to silence INFO before imported workload measurement.
 
 CURRENT_STAGING_DATA:
-- verified durable source-import targets remain all zero after `0009`.
+- durable source-import targets remain all zero after `0009`.
 - no source import was partially written by the rejected connector DML attempt.
+- this handoff added no Supabase DML/DDL.
 
 PRIVATE_SOURCE_SNAPSHOT:
 - safe manifest: `docs/coding/SOURCE_SNAPSHOT_MANIFEST_20260910.md`
-- actual `source.json` is private and must not be committed or copied into browser code/docs.
+- actual source JSON is private and must not be committed or copied into browser code/docs/chat-visible config.
 - SHA-256: `bde8f0671fd59bc125573129db7d4391bf0987380effcb50e91e43019eeb8f5b`
 - size: 200458 bytes
+- Drive private folder: `[PRIVATE] CODE1 STAGING MIGRATION`
+- folder ID: `1YMiqei4FbYe01V8RdN6x93Vjse4KPftw`
+- source file: `CODE1_PRIVATE_SOURCE_SNAPSHOT_20260910.json`
+- file ID: `16iBk4-qDfIG1HlLlAzUsaUtOW4DQWJVm`
 - farms 12
 - accounts 2
 - questions 231
@@ -81,7 +93,7 @@ SOURCE_ANOMALY:
 - live `01_농가_Master` contains stale sparse duplicate `GF-ORIGIN-01..12` rows at 501–512.
 - canonical migration snapshot uses rows 2–13 only.
 - including the stale block causes duplicate `farm_id` and source normalization fails closed.
-- source Sheet was not changed. Cleanup requires a separate decision.
+- source Sheet was not changed. Cleanup requires a separate source-data decision; migration code does not silently delete it.
 
 MIGRATION_SEMANTICS:
 - preserve explicit blank answer revision `C-02 / revision 2`;
@@ -97,11 +109,14 @@ IMPORT_TOOLING:
 - `backend/staging/scripts/import-source-to-staging.mjs`
 - `backend/staging/src/import-preflight.mjs`
 - `backend/staging/scripts/preflight-import-to-staging.mjs`
+- `backend/staging/scripts/run-verified-private-import.mjs`
+- `backend/staging/scripts/run-private-import.ps1`
 - `backend/staging/test/import-idempotency.test.mjs`
-- apply requires `CODE1_IMPORT_TARGET=STAGING`, exact `CODE1_IMPORT_CONFIRM_REF`, exact staging URL/ref match, and a server-only `CODE1_SUPABASE_SERVICE_ROLE_KEY`.
-- preflight reads all durable import surfaces before write, requires all-zero target for first import, and only permits non-empty retry with explicit `CODE1_IMPORT_ALLOW_NONEMPTY=IDEMPOTENT_RETRY`.
-- preflight output never includes the service-role secret.
-- legacy `media_events` and `audit_log` now preserve `metadata.source_row`, so an explicitly allowed retry can deduplicate append-only source rows instead of duplicating them.
+- `docs/coding/PRIVATE_STAGING_IMPORT_RUNBOOK_20260911.md`
+- verified runner pins the exact CODE1 STAGING ref, source SHA-256/byte size and normalized shape before write.
+- Windows wrapper requires exact isolated branch, prompts service-role as hidden `SecureString`, runs preflight before apply, requires exact project-ref confirmation, then clears the process environment and zeroes the BSTR.
+- preflight requires `FIRST_IMPORT` on an all-zero target; non-empty target requires explicit controlled `IDEMPOTENT_RETRY`.
+- legacy `media_events` and `audit_log` preserve `metadata.source_row`, so controlled retry can deduplicate append-only source rows.
 
 KNOWN_ROOT_BASELINE_FAILURES — DO NOT FIX FROM CODING/BACKEND TRACK BY EDITING UI:
 1. deck-edit fixture
@@ -112,20 +127,35 @@ KNOWN_ROOT_BASELINE_FAILURES — DO NOT FIX FROM CODING/BACKEND TRACK BY EDITING
 
 CI treats those five as known baseline and fails on any additional root regression. This is not a claim that the whole root suite is green.
 
-CURRENT_BLOCKER:
-- connected Supabase SQL is read-only in the invited Developer context.
-- no connected tool exposes the CODE1 service-role/secret key or writable Cloudflare secret context.
-- GitHub connector cannot administer repository secrets.
-- do not put credential hashes, private source data, or service-role secrets into Git, migrations, logs, browser code, docs, or chat-visible config as a workaround.
+INFRA_CHANGES_THIS_HANDOFF:
+- Google Drive: created `[PRIVATE] CODE1 STAGING MIGRATION` in My Drive root and moved the verified private snapshot there.
+- GitHub isolated branch: added secure Windows import wrapper, runbook, and PowerShell parser CI gate.
+- Supabase: no new DDL/DML; source-import tables remain empty.
+- Cloudflare/live Apps Script: unchanged.
+- HOOOO/Production/main/Public Frontend: unchanged.
+
+PLANNING_IMPACTING_TECHNICAL_CONSTRAINTS:
+- code-derived values are not Planning policy.
+- stale duplicate farm rows are a source-data hygiene issue requiring a separate explicit cleanup decision.
+- actual STAGING import requires one operator-provided `service_role` credential because connected SQL is read-only.
+- Planning capabilities remain 0 by contract; existing admin roles are not silently granted them.
+- index/performance changes wait for imported workload measurement.
+
+OPEN_WAITING:
+- actual STAGING source import: WAITING_OPERATOR_SERVICE_ROLE_INPUT
+- post-import exact count/security/performance checks: WAITING_IMPORT
+- R2/private-media migration: WAITING_DB_DATA_GATE
+- stale source duplicate cleanup: OPEN_SEPARATE_DECISION
+- dependency vulnerabilities 3 high + 1 critical: OPEN_SEPARATE_HARDENING
 
 NEXT_ATOMIC_ACTION:
-1. Establish a writable CODE1 STAGING service-role execution context outside Git/browser/docs/chat.
-2. Use the private snapshot matching `SOURCE_SNAPSHOT_MANIFEST_20260910.md`.
-3. Run `preflight-import-to-staging.mjs`; require `FIRST_IMPORT` / all-zero target.
-4. Run the prepared source import against `bsintmkyhptizrjoizfb` only.
-5. Verify exact counts, stable IDs, revision history, deleted-media event history, append-only retry identity, actor mapping, permissions, and planning capability count 0.
-6. Re-run Security/Performance Advisor and measured imported-data query checks.
-7. Only after DB data gate PASS, verify the exact existing CODE1 R2 bucket/binding and proceed with isolated private-media migration/integration tests.
+1. On the operator Windows machine, update/check out `coding/runtime-backend-staging`.
+2. Download the private source file from `[PRIVATE] CODE1 STAGING MIGRATION` to a local non-repository path.
+3. Run `backend/staging/scripts/run-private-import.ps1 -PreflightOnly` and enter the CODE1 STAGING service-role key only at the hidden prompt.
+4. Require `ok: true`, exact ref `bsintmkyhptizrjoizfb`, all-zero target, and `FIRST_IMPORT`.
+5. Run the same wrapper without `-PreflightOnly`, type the exact project ref when prompted, and let the runner perform import plus post-write count verification.
+6. Return only sanitized output; never return the service-role key.
+7. Re-run exact count/security/performance checks and only after DB data gate PASS proceed to R2/private-media migration.
 8. Do not change live/Public Frontend/Production before separately approved cutover.
 
 ROLLBACK: live remains unchanged. Until an approved cutover, rollback remains “do nothing.” Existing Apps Script/Sheet/Drive stays the migration source and rollback evidence; long-term dual-write remains prohibited.
