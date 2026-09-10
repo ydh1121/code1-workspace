@@ -1,0 +1,31 @@
+name: CODE1 runtime backend staging CI
+
+on:
+  push:
+    branches:
+      - coding/runtime-backend-staging
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-node-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@v4
+
+      - name: Runtime version
+        run: node --version
+
+      - name: Syntax check staging modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          find backend/staging/src backend/staging/scripts backend/staging/test -type f -name '*.mjs' -print0 \
+            | xargs -0 -n1 node --check
+
+      - name: Run staging unit and contract tests
+        run: node --test backend/staging/test/*.test.mjs
