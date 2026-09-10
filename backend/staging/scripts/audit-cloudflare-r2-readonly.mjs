@@ -49,11 +49,13 @@ function printSection(name,value){
   console.log(`\n===== ${name} =====`);
   console.log(value||'(empty)');
 }
+function parseWhoami(raw){
+  try{return JSON.parse(raw);}catch{return null;}
+}
 function safeWhoami(raw){
-  try{
-    const data=JSON.parse(raw);
-    return JSON.stringify({loggedIn:!!data.loggedIn,authType:data.authType||null,accountCount:Array.isArray(data.accounts)?data.accounts.length:0,tokenPermissionCount:Array.isArray(data.tokenPermissions)?data.tokenPermissions.length:0},null,2);
-  }catch{return 'WHOAMI_PARSE_FAILED';}
+  const data=parseWhoami(raw);
+  if(!data)return 'WHOAMI_PARSE_FAILED';
+  return JSON.stringify({loggedIn:!!data.loggedIn,authType:data.authType||null,accountCount:Array.isArray(data.accounts)?data.accounts.length:0,tokenPermissionCount:Array.isArray(data.tokenPermissions)?data.tokenPermissions.length:0},null,2);
 }
 function extractTomlSafeShape(text){
   const out=[];
@@ -122,7 +124,7 @@ function interpretDownloadedR2(text){
   const production=groups.production;
   return {preview,production};
 }
-function safeDeploymentExposure(raw,expectedEnvironment){
+function safeDeploymentExposure(raw,expectedEnvironment,branchControls=null){
   if(String(raw).startsWith('COMMAND_FAILED'))return raw;
   try{
     const parsed=JSON.parse(raw);
@@ -137,15 +139,19 @@ function safeDeploymentExposure(raw,expectedEnvironment){
     const matching=normalized.filter(row=>!row.environment||row.environment===expectedEnvironment);
     const branches=[...new Set(matching.map(row=>row.branch).filter(Boolean))].sort();
     const unexpected=expectedEnvironment==='preview'?branches.filter(branch=>branch!==EXPECTED_BRANCH):[];
+    let exposureGate='OBSERVED_PRODUCTION_CONTEXT_ONLY';
+    if(expectedEnvironment==='preview'){
+      if(unexpected.length)exposureGate='BLOCKED_OTHER_PREVIEW_BRANCHES_OBSERVED';
+      else if(!branchControls)exposureGate='UNRESOLVED_CONFIGURED_BRANCH_FILTER_NOT_READABLE';
+      else exposureGate=branchControls.exposureGate;
+    }
     return JSON.stringify({
       environment:expectedEnvironment,
       deploymentCount:matching.length,
       observedBranches:branches,
       unexpectedPreviewBranches:unexpected,
-      configuredBranchFilter:'UNAVAILABLE_VIA_SAFE_WRANGLER_CLI',
-      exposureGate:expectedEnvironment==='preview'
-        ? (unexpected.length?'BLOCKED_OTHER_PREVIEW_BRANCHES_OBSERVED':'UNRESOLVED_CONFIGURED_BRANCH_FILTER_NOT_READABLE')
-        : 'OBSERVED_PRODUCTION_CONTEXT_ONLY'
+      configuredBranchFilter:branchControls?.summary??'UNAVAILABLE',
+      exposureGate
     },null,2);
   }catch{
     return 'DEPLOYMENT_LIST_PARSE_FAILED';
@@ -163,7 +169,74 @@ function resolveWranglerCli(repoRoot){
   const cli=resolve(packageRoot,binRelative);
   const packagePrefix=packageRoot.endsWith(sep)?packageRoot:`${packageRoot}${sep}`;
   if(!cli.startsWith(packagePrefix)||!existsSync(cli)) fail('LOCAL_WRANGLER_BIN_INVALID');
-  return cli;
+  return {cli,version:String(pkg.version||'unknown')};
+}
+function branchFilterAssessment(config){
+  const setting=String(config?.preview_deployment_setting||'').trim().toLowerCase();
+  const includes=Array.isArray(config?.preview_branch_includes)?config.preview_branch_includes.map(String):[];
+  const excludes=Array.isArray(config?.preview_branch_excludes)?config.preview_branch_excludes.map(String):[];
+  const exact=setting==='custom'&&includes.length===1&&includes[0]===EXPECTED_BRANCH&&excludes.length===0;
+  return {
+    setting,
+    includes,
+    excludes,
+    exact,
+    summary:exact?`CUSTOM_INCLUDE_EXACT:${EXPECTED_BRANCH}`:`SETTING=${setting||'<missing>'};INCLUDES=${includes.join(',')||'<none>'};EXCLUDES=${excludes.join(',')||'<none>'}`,
+    exposureGate:exact?'PASS_CONFIGURED_PREVIEW_BRANCH_EXACT':'BLOCKED_CONFIGURED_PREVIEW_BRANCH_FILTER_NOT_EXACT'
+  };
+}
+async function readPagesProjectBranchControls(whoamiRaw,pagesProject,wranglerVersion){
+  const whoami=parseWhoami(whoamiRaw);
+  const accounts=Array.isArray(whoami?.accounts)?whoami.accounts:[];
+  if(accounts.length!==1||!accounts[0]?.id){
+    return {text:'PAGES_PROJECT_API_READBACK_BLOCKED account identity is ambiguous or unavailable',assessment:null};
+  }
+  try{
+    const {createWranglerAuth}=await import('@cloudflare/workers-auth/wrangler');
+    const silentLogger={debug(){},log(){},warn(){},error(){}};
+    const denyInteractive=async()=>{throw new Error('INTERACTIVE_AUTH_DISALLOWED');};
+    const auth=createWranglerAuth({
+      logger:silentLogger,
+      userAgent:`wrangler/${wranglerVersion}`,
+      prompt:denyInteractive,
+      select:denyInteractive,
+      isNoDefaultValueProvidedError:()=>false
+    });
+    const credentials=auth.getAPIToken();
+    if(!credentials?.apiToken){
+      return {text:'PAGES_PROJECT_API_READBACK_BLOCKED bearer token unavailable without exposing credentials',assessment:null};
+    }
+    const url=`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accounts[0].id)}/pages/projects/${encodeURIComponent(pagesProject)}`;
+    const response=await fetch(url,{
+      method:'GET',
+      headers:{Authorization:`Bearer ${credentials.apiToken}`,'User-Agent':`wrangler/${wranglerVersion}`,'Accept':'application/json'},
+      signal:AbortSignal.timeout(15000)
+    });
+    if(!response.ok){
+      return {text:`PAGES_PROJECT_API_READBACK_FAILED status=${response.status}`,assessment:null};
+    }
+    const body=await response.json();
+    const project=body?.result??body;
+    const config=project?.source?.config;
+    if(!config||typeof config!=='object'){
+      return {text:'PAGES_PROJECT_API_READBACK_FAILED source.config missing',assessment:null};
+    }
+    const assessment=branchFilterAssessment(config);
+    const safe={
+      sourceType:project?.source?.type??null,
+      productionBranch:config.production_branch??project?.production_branch??null,
+      productionDeploymentsEnabled:config.production_deployments_enabled??null,
+      previewDeploymentSetting:assessment.setting||null,
+      previewBranchIncludes:assessment.includes,
+      previewBranchExcludes:assessment.excludes,
+      previewBranchFilterExact:assessment.exact,
+      exposureGate:assessment.exposureGate
+    };
+    return {text:JSON.stringify(safe,null,2),assessment};
+  }catch(error){
+    const detail=redactDiagnostic(error?.message||String(error)).slice(0,300);
+    return {text:`PAGES_PROJECT_API_READBACK_FAILED${detail?` detail=${detail}`:''}`,assessment:null};
+  }
 }
 
 assertArgs();
@@ -174,7 +247,8 @@ const scriptDir=resolve(fileURLToPath(new URL('.',import.meta.url)));
 const repoRoot=resolve(scriptDir,'../../..');
 const branch=command('git',['rev-parse','--abbrev-ref','HEAD'],repoRoot);
 if(branch!==EXPECTED_BRANCH) fail(`BRANCH_MISMATCH expected=${EXPECTED_BRANCH} actual=${branch}`);
-const wranglerCli=resolveWranglerCli(repoRoot);
+const wranglerResolved=resolveWranglerCli(repoRoot);
+const wranglerCli=wranglerResolved.cli;
 function wrangler(args,cwd=repoRoot,options={}){return command(process.execPath,[wranglerCli,...args],cwd,options);}
 
 function inspectPagesConfig(){
@@ -206,16 +280,19 @@ console.log(`branch=${branch}`);
 console.log(`pagesProject=${pagesProject}`);
 console.log(`bucket=${bucketName||'UNSELECTED'}`);
 console.log('REMOTE_MUTATION=DISALLOWED');
-console.log('This runner never calls create/delete/set/enable/disable/deploy/auth-token commands.');
+console.log('This runner never calls create/delete/set/enable/disable/deploy/auth-token/object-write commands.');
 
 printSection('WRANGLER_VERSION',wrangler(['--version']));
-printSection('WHOAMI_SAFE',safeWhoami(wrangler(['whoami','--json'])));
+const whoamiRaw=wrangler(['whoami','--json']);
+printSection('WHOAMI_SAFE',safeWhoami(whoamiRaw));
 printSection('PAGES_PROJECT_LIST',wrangler(['pages','project','list','--json']));
 printSection('R2_BUCKET_LIST',wrangler(['r2','bucket','list']));
 inspectPagesConfig();
-printSection('PAGES_PREVIEW_DEPLOYMENT_EXPOSURE',safeDeploymentExposure(wrangler(['pages','deployment','list','--project-name',pagesProject,'--environment','preview','--json'],repoRoot,{allowFailure:true}),'preview'));
-printSection('PAGES_PRODUCTION_DEPLOYMENT_EXPOSURE',safeDeploymentExposure(wrangler(['pages','deployment','list','--project-name',pagesProject,'--environment','production','--json'],repoRoot,{allowFailure:true}),'production'));
-printSection('PAGES_BRANCH_FILTER_READBACK','UNAVAILABLE_VIA_SAFE_WRANGLER_CLI: project/deployment list commands do not expose preview_branch_includes/excludes. Do not use Wrangler debug logs because they may contain project environment metadata.');
+const branchControlReadback=await readPagesProjectBranchControls(whoamiRaw,pagesProject,wranglerResolved.version);
+printSection('PAGES_PROJECT_SOURCE_BRANCH_CONTROLS',branchControlReadback.text);
+printSection('PAGES_PREVIEW_DEPLOYMENT_EXPOSURE',safeDeploymentExposure(wrangler(['pages','deployment','list','--project-name',pagesProject,'--environment','preview','--json'],repoRoot,{allowFailure:true}),'preview',branchControlReadback.assessment));
+printSection('PAGES_PRODUCTION_DEPLOYMENT_EXPOSURE',safeDeploymentExposure(wrangler(['pages','deployment','list','--project-name',pagesProject,'--environment','production','--json'],repoRoot,{allowFailure:true}),'production',branchControlReadback.assessment));
+printSection('PAGES_BRANCH_FILTER_READBACK',branchControlReadback.assessment?'READ_ONLY_PROJECT_API_PASS: source.config branch controls were read using the current Wrangler bearer credential in memory; credential/account identifiers are not printed.':'BLOCKED: safe Project API branch-control readback did not complete; do not provision Preview secrets.');
 
 if(bucketName){
   printSection('R2_BUCKET_INFO',wrangler(['r2','bucket','info',bucketName,'--json']));
