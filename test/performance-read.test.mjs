@@ -21,16 +21,19 @@ test('read-only bridge actions do not hold the long mutation lock',async()=>{
   assert.match(source,/var data=withLock_\(function\(\)/);
 });
 
-test('bootstrap uses one Cloudflare to Apps Script bridge request',async()=>{
+test('rpc uses exactly one selected backend path and staging does not silently fall back',async()=>{
   const source=await read('functions/api/rpc.js');
-  assert.match(source,/const data = await bridge\(env, user, action, payload \|\| \{\}\)/);
+  assert.match(source,/if\(useSupabaseStaging\(env\)&&stagingOwns\(action,body\)\)/);
+  assert.match(source,/data=await dispatchCode1Staging\(env,user,action,body\)/);
+  assert.match(source,/data=await bridge\(env, user, action, body\)/);
   assert.doesNotMatch(source,/Promise\.all/);
   assert.doesNotMatch(source,/questionPolicy\.effective/);
+  assert.match(source,/No farm-runtime fallback here/);
 });
 
 test('temporary bootstrap excludes deck and reuses policy data for admins',async()=>{
   const source=await read('bridge/PerformanceRead.gs');
-  assert.match(source,/PERFORMANCE_READ_VERSION_ = 4/);
+  assert.match(source,/PERFORMANCE_READ_VERSION_ = 5/);
   assert.match(source,/deck:null/);
   assert.match(source,/questionPolicyPrefetched:policy\.prefetched/);
   assert.match(source,/performancePolicyBundle_/);
