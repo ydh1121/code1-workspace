@@ -21,17 +21,6 @@ function Invoke-NodeChecked {
   }
 }
 
-function Clear-Code1Clipboard {
-  # Windows PowerShell 5.1 rejects Set-Clipboard -Value ''. Overwrite the
-  # sensitive value with one harmless space instead. This removes the key
-  # without making clipboard cleanup itself a fatal import error.
-  try {
-    Set-Clipboard -Value ' ' -ErrorAction Stop
-  } catch {
-    Write-Warning 'Could not clear the Windows clipboard automatically. Copy any non-sensitive text before continuing.'
-  }
-}
-
 $source = (Resolve-Path -LiteralPath $SourcePath).Path
 if (-not (Test-Path -LiteralPath $Runner -PathType Leaf)) {
   throw "Verified import runner not found: $Runner"
@@ -52,19 +41,17 @@ Write-Host "Branch : $branch"
 Write-Host "Project: $ExpectedRef"
 Write-Host "Source : $source"
 Write-Host ''
-Write-Host 'Copy the CODE1 STAGING service_role key in Supabase before running this command.'
-Write-Host 'The script reads it from the Windows clipboard and overwrites the clipboard immediately.'
+Write-Host 'Paste the CODE1 STAGING service_role key below. The pasted value will be visible.'
 
 $plainKey = $null
 try {
-  $plainKey = [string](Get-Clipboard -Raw)
+  $plainKey = Read-Host 'CODE1 STAGING service_role key'
   if ($null -ne $plainKey) { $plainKey = $plainKey.Trim() }
   if ([string]::IsNullOrWhiteSpace($plainKey) -or $plainKey.Length -lt 32) {
-    throw 'Clipboard does not contain a valid CODE1 STAGING service_role key.'
+    throw 'Service-role key is missing or invalid.'
   }
 
   $env:CODE1_SUPABASE_SERVICE_ROLE_KEY = $plainKey
-  Clear-Code1Clipboard
   $plainKey = $null
 
   Write-Host ''
@@ -96,6 +83,5 @@ try {
 }
 finally {
   Remove-Item Env:CODE1_SUPABASE_SERVICE_ROLE_KEY -ErrorAction SilentlyContinue
-  Clear-Code1Clipboard
   $plainKey = $null
 }
