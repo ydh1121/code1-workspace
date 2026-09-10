@@ -2,9 +2,9 @@
 
 Updated: 2026-09-11
 PLANNING_DELTA_SEQ_SEEN = 20260910-002
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260911-0006
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260911-0007
 
-LAST_VERIFIED_ACTION: CODE1 Supabase STAGING FIRST_IMPORT remains complete and durable counts still match the verified post-import state. The operator successfully ran the fail-closed Cloudflare/R2 read-only inventory using Wrangler `4.129.0`. The verified Cloudflare account contains Pages project `code1-workspace`, but account-level R2 bucket inventory is empty and Pages has no R2 binding. No Cloudflare bucket/binding/object mutation occurred.
+LAST_VERIFIED_ACTION: CODE1 Supabase STAGING FIRST_IMPORT remains complete and durable counts still match the verified post-import state. The operator successfully ran the fail-closed Cloudflare/R2 read-only inventory using Wrangler `4.129.0`. The verified authenticated Cloudflare account contains Pages project `code1-workspace`, but account-level R2 bucket inventory is empty and Pages has no R2 binding. No Cloudflare bucket/binding/object mutation occurred.
 
 CURRENT_WORK: prior `R2_RESOURCE_IDENTITY_BLOCKED` ambiguity is resolved as `R2_ACCOUNT_INVENTORY_EMPTY`. There is no existing bucket to select or reuse. Next resource gate is creation of exactly one CODE1 STAGING-only private R2 bucket, proposed exact name `code1-staging-media`, followed immediately by read-only bucket-detail verification before binding or object writes.
 
@@ -36,7 +36,7 @@ POST_IMPORT_DB_GATE:
 - migration registry 268
 
 R2_ACCOUNT_INVENTORY:
-- authenticated Cloudflare account id: `7c52434598072e9bce77aa00bafa1ed3`
+- exact authenticated Cloudflare account identity: observed in operator output and intentionally not committed to this repository
 - Pages project: `code1-workspace`
 - Pages domain: `code1-workspace.pages.dev`
 - account R2 bucket list: EMPTY / zero bucket rows returned
@@ -102,7 +102,8 @@ CROSS_TRACK_SYNC:
 - `MSG-20260911-0002` SUPERSEDED
 - `MSG-20260911-0003` CODING -> PLANNING / IMPLEMENTATION_EVIDENCE / PENDING
 - `MSG-20260911-0005` PLANNING -> CODING / DRIVE_ROOT_HYGIENE / NEEDS_REVIEW because Drive connector write authorization blocked; no move occurred
-- `MSG-20260911-0006` CODING -> PLANNING / R2 IMPLEMENTATION_EVIDENCE / PENDING
+- `MSG-20260911-0006` SUPERSEDED by `MSG-20260911-0007`
+- `MSG-20260911-0007` CODING -> PLANNING / R2 ACCOUNT INVENTORY EVIDENCE / PENDING
 - do not duplicate completed FIRST_IMPORT evidence
 - publish a new message only after the new bucket/detail verification or later backend implementation produces new evidence, with a fresh collision check
 
@@ -119,7 +120,7 @@ OPEN_WAITING:
 - CODE1 Production: PROHIBITED
 
 NEXT_ATOMIC_ACTION:
-1. create exactly one R2 bucket in the verified account, proposed exact name `code1-staging-media`; use default private state and do not upload objects;
+1. create exactly one R2 bucket in the verified authenticated account, proposed exact name `code1-staging-media`; use default private state and do not upload objects;
 2. rerun `node backend/staging/scripts/audit-cloudflare-r2-readonly.mjs --bucket code1-staging-media`;
 3. verify exact account/bucket identity, private/public URL state, custom domains, CORS, lifecycle, lock rules, and empty object state;
 4. only after that bucket gate passes, add the isolated staging `[[r2_buckets]]` binding with `binding = "CODE1_MEDIA_BUCKET"` and `bucket_name = "code1-staging-media"`;
