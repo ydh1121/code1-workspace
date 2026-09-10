@@ -6,3 +6,13 @@ SESSION_SECRET=
 BRIDGE_URL=
 BRIDGE_SECRET=
 PASSWORD_PEPPER=
+
+# Default preserves the current Apps Script runtime. Change only in an isolated
+# staging deployment after DB import/integration gates pass.
+CODE1_RUNTIME_BACKEND=APPS_SCRIPT
+CODE1_STAGING_PROJECT_REF=
+CODE1_SUPABASE_URL=
+CODE1_SUPABASE_SERVICE_ROLE_KEY=
+CODE1_UPLOAD_TOKEN_SECRET=
+CODE1_MEDIA_TOKEN_SECRET=
+# CODE1_MEDIA_BUCKET is an R2 binding, never a text secret.
