@@ -20,11 +20,11 @@ jobs:
       - name: Runtime version
         run: node --version
 
-      - name: Syntax check staging modules
+      - name: Syntax check staging modules and Cloudflare functions
         shell: bash
         run: |
           set -euo pipefail
-          find backend/staging/src backend/staging/scripts backend/staging/test -type f -name '*.mjs' -print0 \
+          find backend/staging/src backend/staging/scripts backend/staging/test functions -type f \( -name '*.mjs' -o -name '*.js' \) -print0 \
             | xargs -0 -n1 node --check
 
       - name: Run staging unit and contract tests
