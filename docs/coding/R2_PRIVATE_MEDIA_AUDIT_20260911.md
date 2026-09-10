@@ -89,7 +89,36 @@ Without touching an external bucket, isolated tests were added for:
 
 These tests are contract tests only. They are not evidence of actual R2 PUT/HEAD/GET and are not `BROWSER_PASS`.
 
-## 7. Remaining gate
+## 7. Fail-closed local Cloudflare inventory runner
+
+To recover the missing account-level identity without exposing an API token in chat or Git, the branch now includes:
+
+`backend/staging/scripts/audit-cloudflare-r2-readonly.mjs`
+
+The runner:
+
+- refuses to run outside `coding/runtime-backend-staging`;
+- uses only the already-installed local Wrangler binary and never installs packages;
+- calls only read operations: Wrangler version, `whoami --json`, Pages project list, R2 bucket list, and a temporary Pages config download;
+- filters the downloaded Pages configuration to R2 binding/bucket fields only, then deletes the temporary local directory;
+- when an exact bucket name is supplied, additionally reads bucket info, r2.dev state, custom domains, CORS, lifecycle rules, and lock rules;
+- never calls `auth token`, create, delete, set, enable, disable, deploy, or any object-write command.
+
+First pass:
+
+```powershell
+node backend/staging/scripts/audit-cloudflare-r2-readonly.mjs
+```
+
+If and only if the output identifies an exact CODE1-only candidate, second pass:
+
+```powershell
+node backend/staging/scripts/audit-cloudflare-r2-readonly.mjs --bucket <EXACT_CODE1_BUCKET_NAME>
+```
+
+The runner is an inventory collector only. It does not convert `R2_RESOURCE_IDENTITY_BLOCKED` to PASS by itself; the returned account/project/bucket/binding evidence still has to be checked for CODE1 identity and cross-project contamination before any binding change.
+
+## 8. Remaining gate
 
 Before any actual R2 binding change or object migration, obtain current account-level evidence for the exact CODE1 STAGING resource:
 
@@ -104,6 +133,6 @@ Before any actual R2 binding change or object migration, obtain current account-
 
 Only after resource identity is verified should the isolated staging implementation close `mediaUpload.chunk` compatibility and retry/compensation gaps, then run actual R2 PUT/HEAD/private GET/unauthorized-denial/DB-linkage tests.
 
-## 8. Performance state
+## 9. Performance state
 
 No same-action Drive/R2 latency baseline was established in this audit. `NO_BASELINE` remains the correct performance statement. No speed multiplier or index optimization is inferred.
