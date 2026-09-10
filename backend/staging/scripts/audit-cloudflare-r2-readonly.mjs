@@ -1,7 +1,7 @@
 import {execFileSync} from 'node:child_process';
 import {existsSync,mkdtempSync,readFileSync,readdirSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
-import {join,resolve} from 'node:path';
+import {join,resolve,sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const EXPECTED_BRANCH='coding/runtime-backend-staging';
@@ -50,6 +50,26 @@ function extractTomlR2(text){
   }
   return out.length?out.join('\n'):'PAGES_R2_BINDINGS = NONE_FOUND';
 }
+function resolveWranglerCli(repoRoot){
+  const packageRoot=resolve(repoRoot,'node_modules','wrangler');
+  const packageJsonPath=join(packageRoot,'package.json');
+  if(!existsSync(packageJsonPath)) fail('LOCAL_WRANGLER_NOT_FOUND run npm ci in the CODE1 repo; this runner never installs packages');
+
+  let pkg;
+  try{
+    pkg=JSON.parse(readFileSync(packageJsonPath,'utf8'));
+  }catch{
+    fail('LOCAL_WRANGLER_PACKAGE_INVALID');
+  }
+
+  const binRelative=typeof pkg.bin==='string' ? pkg.bin : pkg.bin?.wrangler;
+  if(typeof binRelative!=='string'||!binRelative.trim()) fail('LOCAL_WRANGLER_BIN_NOT_FOUND');
+
+  const cli=resolve(packageRoot,binRelative);
+  const packagePrefix=packageRoot.endsWith(sep)?packageRoot:`${packageRoot}${sep}`;
+  if(!cli.startsWith(packagePrefix)||!existsSync(cli)) fail('LOCAL_WRANGLER_BIN_INVALID');
+  return cli;
+}
 
 assertArgs();
 const bucketRaw=arg('--bucket');
@@ -61,9 +81,10 @@ const repoRoot=resolve(scriptDir,'../../..');
 const branch=command('git',['rev-parse','--abbrev-ref','HEAD'],repoRoot);
 if(branch!==EXPECTED_BRANCH) fail(`BRANCH_MISMATCH expected=${EXPECTED_BRANCH} actual=${branch}`);
 
-const bin=process.platform==='win32'?'wrangler.cmd':'wrangler';
-const wrangler=join(repoRoot,'node_modules','.bin',bin);
-if(!existsSync(wrangler)) fail('LOCAL_WRANGLER_NOT_FOUND run npm ci in the CODE1 repo; this runner never installs packages');
+const wranglerCli=resolveWranglerCli(repoRoot);
+function wrangler(args,cwd=repoRoot,options={}){
+  return command(process.execPath,[wranglerCli,...args],cwd,options);
+}
 
 console.log('CODE1 Cloudflare/R2 READ-ONLY audit');
 console.log(`branch=${branch}`);
@@ -72,14 +93,14 @@ console.log(`bucket=${bucketName||'UNSELECTED'}`);
 console.log('REMOTE_MUTATION=DISALLOWED');
 console.log('This runner never calls create/delete/set/enable/disable/deploy/auth-token commands.');
 
-printSection('WRANGLER_VERSION',command(wrangler,['--version'],repoRoot));
-printSection('WHOAMI_SAFE',command(wrangler,['whoami','--json'],repoRoot));
-printSection('PAGES_PROJECT_LIST',command(wrangler,['pages','project','list','--json'],repoRoot));
-printSection('R2_BUCKET_LIST',command(wrangler,['r2','bucket','list'],repoRoot));
+printSection('WRANGLER_VERSION',wrangler(['--version']));
+printSection('WHOAMI_SAFE',wrangler(['whoami','--json']));
+printSection('PAGES_PROJECT_LIST',wrangler(['pages','project','list','--json']));
+printSection('R2_BUCKET_LIST',wrangler(['r2','bucket','list']));
 
 const temp=mkdtempSync(join(tmpdir(),'code1-cf-readonly-'));
 try{
-  command(wrangler,['pages','download','config',pagesProject,'--force'],temp);
+  wrangler(['pages','download','config',pagesProject,'--force'],temp);
   const configName=readdirSync(temp).find(n=>/^wrangler\.toml$/i.test(n));
   if(!configName) printSection('PAGES_R2_BINDINGS','DOWNLOAD_SUCCEEDED_BUT_WRANGLER_TOML_NOT_FOUND');
   else printSection('PAGES_R2_BINDINGS',extractTomlR2(readFileSync(join(temp,configName),'utf8')));
@@ -88,12 +109,12 @@ try{
 }
 
 if(bucketName){
-  printSection('R2_BUCKET_INFO',command(wrangler,['r2','bucket','info',bucketName,'--json'],repoRoot));
-  printSection('R2_DEV_URL',command(wrangler,['r2','bucket','dev-url','get',bucketName],repoRoot,{allowFailure:true}));
-  printSection('R2_CUSTOM_DOMAINS',command(wrangler,['r2','bucket','domain','list',bucketName],repoRoot,{allowFailure:true}));
-  printSection('R2_CORS',command(wrangler,['r2','bucket','cors','list',bucketName],repoRoot,{allowFailure:true}));
-  printSection('R2_LIFECYCLE',command(wrangler,['r2','bucket','lifecycle','list',bucketName],repoRoot,{allowFailure:true}));
-  printSection('R2_LOCKS',command(wrangler,['r2','bucket','lock','list',bucketName],repoRoot,{allowFailure:true}));
+  printSection('R2_BUCKET_INFO',wrangler(['r2','bucket','info',bucketName,'--json']));
+  printSection('R2_DEV_URL',wrangler(['r2','bucket','dev-url','get',bucketName],repoRoot,{allowFailure:true}));
+  printSection('R2_CUSTOM_DOMAINS',wrangler(['r2','bucket','domain','list',bucketName],repoRoot,{allowFailure:true}));
+  printSection('R2_CORS',wrangler(['r2','bucket','cors','list',bucketName],repoRoot,{allowFailure:true}));
+  printSection('R2_LIFECYCLE',wrangler(['r2','bucket','lifecycle','list',bucketName],repoRoot,{allowFailure:true}));
+  printSection('R2_LOCKS',wrangler(['r2','bucket','lock','list',bucketName],repoRoot,{allowFailure:true}));
   console.log('\nR2_RESOURCE_IDENTITY_AUDIT=BUCKET_DETAIL_COLLECTED');
 }else{
   console.log('\nR2_RESOURCE_IDENTITY_AUDIT=BUCKET_SELECTION_REQUIRED');
