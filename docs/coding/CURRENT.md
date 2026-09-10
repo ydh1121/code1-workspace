@@ -6,11 +6,16 @@ Branch: `coding/runtime-backend-staging`
 Base main: `a71a71eae73706862308e194110f4fcc2d25db01`
 Live cutover: NOT APPROVED
 Production: PROHIBITED
-PLANNING_DELTA_SEQ_SEEN = 20260910-001
+PLANNING_DELTA_SEQ_SEEN = 20260910-002
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260910-0004
 
-## Verified authority
+## Verified authority and cross-track sync
 
-The coding track consumed `10_CODE1 Coding Handoff — Planning Delta 20260910-001 v0.1` and verified `02_CODE1 CROSS-TRACK PLANNING DELTA — CURRENT v1.0`. Planning and UI/UX canonical documents were not edited.
+The coding track consumed `10_CODE1 Coding Handoff — Planning Delta 20260910-001 v0.1`, then re-read `02_CODE1 CROSS-TRACK PLANNING DELTA — CURRENT v1.0` after it advanced to `LATEST_DELTA_SEQ = 20260910-002` and performed the required SESSION CHECK against `02_CODE1 CROSS-TRACK MESSAGE BUS — CURRENT v1.0`.
+
+`MSG-20260910-0004` (BUS_PROTOCOL_ACTIVATION, PLANNING -> CODING) was actually read and ACKED on 2026-09-10 23:42 KST. Delta 002 explicitly says current coding-task priority is unchanged. Its coding impact is future Public commerce schema/API awareness only (guest order identity, multi-entity Save, delivered-window reviews, availability revalidation). It does not authorize Public Frontend implementation, main/live changes, Production changes, consumer UI 2-4, or Premium Membership implementation. No such work was started here.
+
+Planning and UI/UX canonical documents were not edited.
 
 ## Current runtime boundary
 
@@ -50,21 +55,13 @@ Verified after `0009`:
 - service_role retains the required server-side access.
 - `submission_answers_current` remains server-side readable and browser-role unreadable.
 - `code1_auth_throttle`, `code1_save_account`, and `code1_change_password` are SECURITY DEFINER functions with fixed search paths; browser-role EXECUTE is denied and service_role EXECUTE is allowed.
-- account save/password operations now use single PostgreSQL transaction RPCs instead of several REST mutations that could leave partial account/farm-access/audit state.
+- account save/password operations use single PostgreSQL transaction RPCs instead of several REST mutations that could leave partial account/farm-access/audit state.
 - Security Advisor after `0009`: WARN 0. The remaining `rls_enabled_no_policy` notices are intentional INFO for the server-only authorization boundary.
 - Performance Advisor after `0009`: INFO only — 23 unindexed foreign-key notices and 11 unused-index notices. The target is still empty; index changes are deferred until imported-data query measurement rather than made only to silence INFO.
 
 ## Current STAGING data state
 
-The rejected read-only connector DML attempt wrote zero rows. Re-read after `0009` confirms the runtime target is still empty:
-
-- accounts: 0
-- farms: 0
-- questions: 0
-- submissions: 0
-- media: 0
-
-No partial source import exists.
+The rejected read-only connector DML attempt wrote zero rows. Re-read after `0009` confirms all checked durable import targets remain zero, including accounts, farms, questions, submissions, answer versions, media, media events, audit log, login guard, housing-environment records, planning capabilities, brief versions, and planning source artifacts. There is no partial source import.
 
 ## Authoritative migration source snapshot
 
@@ -100,7 +97,7 @@ The isolated branch includes:
 
 The runner maps legacy actors to stable account IDs, preserves explicit blank answers, reconstructs deleted-media timestamps from append-only history, uses idempotent upserts, deduplicates imported event/log rows by source row, updates the migration registry, and verifies final counts.
 
-The new preflight is fail-closed before any write:
+The preflight is fail-closed before any write:
 
 - `CODE1_IMPORT_TARGET` must equal `STAGING`.
 - `CODE1_IMPORT_CONFIRM_REF` must exactly equal `CODE1_STAGING_PROJECT_REF`.
@@ -111,7 +108,7 @@ The new preflight is fail-closed before any write:
 
 ## Automated verification
 
-Latest verified code-bearing HEAD before documentation refresh: `85e51274b30538d87acce2f7761b53be19fdfc64`.
+Latest code-bearing preflight HEAD: `85e51274b30538d87acce2f7761b53be19fdfc64`.
 
 GitHub Actions run `34486213742` completed SUCCESS:
 
@@ -121,23 +118,26 @@ GitHub Actions run `34486213742` completed SUCCESS:
 - zero additional root failures
 - build: PASS
 
-The five known root baseline failures are deck-edit fixture, media-organizer filename assertion, two media-upload UX fixture assertions, and `test/migration.test.mjs`. The coding/backend track did not edit `public/*` or legacy UI/media source merely to force those unrelated baseline tests green. The CI now fails if any new root regression appears.
+The five known root baseline failures are deck-edit fixture, media-organizer filename assertion, two media-upload UX fixture assertions, and `test/migration.test.mjs`. The coding/backend track did not edit `public/*` or legacy UI/media source merely to force those unrelated baseline tests green. CI fails if any new root regression appears.
 
-`npm ci` also reports 4 dependency vulnerabilities (3 high, 1 critical). They are not silently auto-fixed because a forced dependency upgrade can be breaking; this remains a separate dependency-hardening item, not evidence of a staging runtime regression.
+`npm ci` reports 4 dependency vulnerabilities (3 high, 1 critical). They remain a separate dependency-hardening item; no forced breaking upgrade is performed inside this runtime migration step.
+
+The complete apply-gate record is `docs/coding/SUPABASE_STAGING_APPLY_GATE_20260910.md`, refreshed through migration `0009`, current all-zero data state, fail-closed import preflight, and the 40/40 staging CI gate.
 
 ## Current data-import blocker
 
-The connected Supabase tool can inspect CODE1 STAGING and apply managed DDL migrations, but its general SQL session is read-only in the current invited Developer context. No connected tool exposes the CODE1 service-role/secret key.
+The connected Supabase tool can inspect CODE1 STAGING and apply managed DDL migrations, but its general SQL session is read-only in the current invited Developer context. No connected tool exposes the CODE1 service-role/secret key or a writable Cloudflare secret context.
 
-Do not work around this by committing service-role secrets, account credential hashes, or source data into Git/migrations/browser code/logs. A writable CODE1 STAGING service-role execution context is required for the actual data transfer.
+Do not work around this by committing service-role secrets, account credential hashes, or source data into Git/migrations/browser code/logs/chat. A writable CODE1 STAGING service-role execution context is required for the actual data transfer.
 
-## Planning Delta contract retained
+## Planning Delta contracts retained
 
-- Housing-environment code accepts nullable 1..4; migration never auto-verifies source values.
-- Fact Inbox requires ordered verification/evidence before VERIFIED/APPROVED_CURRENT and cannot disclose externally in staging.
-- Executive Brief reads only a PUBLISHED snapshot.
-- Planning capabilities remain separate and are not auto-granted to SUPER_ADMIN/ADMIN.
-- confidential planning source artifacts remain private-only and have no public-delivery path.
+- Delta 001: housing-environment code accepts nullable 1..4; migration never auto-verifies source values.
+- Delta 001: Fact Inbox requires ordered verification/evidence before VERIFIED/APPROVED_CURRENT and cannot disclose externally in staging.
+- Delta 001: Executive Brief reads only a PUBLISHED snapshot.
+- Delta 001: Planning capabilities remain separate and are not auto-granted to SUPER_ADMIN/ADMIN.
+- Delta 001: confidential planning source artifacts remain private-only and have no public-delivery path.
+- Delta 002: future Public commerce schema/API must remain extensible for guest order identity, Save across product/farm/story, reviews tied to DELIVERED+7d, and server-authoritative availability/price/shipping revalidation. Awareness only in this workstream; no Public commerce implementation now.
 
 ## Performance gate
 
