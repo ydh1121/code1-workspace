@@ -1,12 +1,19 @@
 # CODE1 CODING BATON
 
 Updated: 2026-09-11
-PLANNING_DELTA_SEQ_SEEN = 20260910-002
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260911-0007
+PLANNING_DELTA_SEQ_SEEN = 20260911-003
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260911-0009
 
-LAST_VERIFIED_ACTION: CODE1 STAGING R2 bucket `code1-staging-media` was created and read-only verified private/empty. Media upload contract hardening commit `a2c65735c5606789c7dfe423a3988229e96b0505` passed GitHub Actions run `34512718904` without a Cloudflare Pages deployment because `[CF-Pages-Skip]` was used. Supabase STAGING migration `r2_media_upload_state` / ledger version `20260910181248` then applied successfully and independent readback verified the new columns/index/functions and preserved all 4 legacy DELETED media rows.
+LAST_VERIFIED_ACTION: CODE1 STAGING R2 bucket `code1-staging-media` was created and read-only verified private/empty. Media upload contract hardening commit `a2c65735c5606789c7dfe423a3988229e96b0505` passed GitHub Actions run `34512718904` without a Cloudflare Pages deployment because `[CF-Pages-Skip]` was used. Supabase STAGING migration `r2_media_upload_state` / ledger version `20260910181248` then applied successfully and independent readback verified the new columns/index/functions and preserved all 4 legacy DELETED media rows. Planning Delta `20260911-003` / `MSG-20260911-0009` was read at the next infra boundary and is compatible with the current isolated-STAGING plan.
 
 CURRENT_WORK: preserve current Pages Preview configuration, then add Preview-only R2 binding `CODE1_MEDIA_BUCKET -> code1-staging-media` and intentionally deploy/test exactly one preview. Production/live remains prohibited.
+
+PLANNING_DELTA_003:
+- `code1-staging-media` + `CODE1_MEDIA_BUCKET` accepted as `ISOLATED_STAGING_TECHNICAL_CANDIDATE`
+- no public R2 endpoint, no other-project resource reuse, no live/main/Production impact
+- no automatic migration of the four legacy Drive media rows
+- Apps Script root-hygiene result reconciled as `ROOT_EXCEPTION / MOVE_BLOCKED_BY_FILE_AUTHORIZATION`; no copy/replacement file may be created
+- current CODING priority unchanged
 
 VERIFIED_CODE_STATE:
 - branch: `coding/runtime-backend-staging`
@@ -14,6 +21,7 @@ VERIFIED_CODE_STATE:
 - R2 upload hardening: `a2c65735c5606789c7dfe423a3988229e96b0505`
 - R2 upload hardening CI: `34512718904` / SUCCESS
 - read-only audit sanitizer: `9dd49cb99e3a334945de14cad57855112cfcd8bd`
+- durable pre-binding checkpoint: `e1d6e3c069bcd274059a6e19fbd4404d9805b4fc` / CI `34513384604` SUCCESS
 - normal branch commits were proven to trigger Cloudflare Pages Preview; `[CF-Pages-Skip]` is required for non-deployment hardening/checkpoint commits until the intentional integration deployment.
 
 POST_IMPORT_DB_GATE:
@@ -74,7 +82,7 @@ SECURITY_PERFORMANCE_POST_0010:
 PAGES_CONFIG_GATE:
 - repo `wrangler.toml` remains intentionally minimal and does not yet contain R2 binding
 - do not promote it blindly to Pages source-of-truth
-- enhanced runner `backend/staging/scripts/audit-cloudflare-r2-readonly.mjs` now prints sanitized `PAGES_SAFE_CONFIG_SHAPE`, variable/binding presence with values redacted, sanitized WHOAMI, and detailed allowed-command failures
+- enhanced runner `backend/staging/scripts/audit-cloudflare-r2-readonly.mjs` prints sanitized `PAGES_SAFE_CONFIG_SHAPE`, variable/binding presence with values redacted, sanitized WHOAMI, and detailed allowed-command failures
 - next operator read-only command: `node backend/staging/scripts/audit-cloudflare-r2-readonly.mjs --bucket code1-staging-media`
 - after safe-shape review, add Preview-only binding `CODE1_MEDIA_BUCKET -> code1-staging-media` while preserving existing Preview variables/secrets/settings
 - then intentionally deploy one Preview and run actual R2 integration tests
@@ -87,10 +95,11 @@ SOURCE_MEDIA_MANIFEST:
 - do not copy/delete them merely because R2 now exists
 
 CROSS_TRACK_SYNC:
-- `MSG-20260911-0003` CODING -> PLANNING post-import evidence: PENDING
-- `MSG-20260911-0005` PLANNING -> CODING Drive root hygiene: NEEDS_REVIEW; connector 403 blocked safe same-file-ID move, no Drive mutation
+- `MSG-20260911-0003` CODING -> PLANNING post-import evidence: APPLIED
+- `MSG-20260911-0005` PLANNING -> CODING Drive root hygiene: ACKED / ROOT_EXCEPTION
 - `MSG-20260911-0006`: SUPERSEDED
-- `MSG-20260911-0007` CODING -> PLANNING R2 account inventory/provisioning evidence: PENDING
+- `MSG-20260911-0007` CODING -> PLANNING R2 account inventory evidence: APPLIED
+- `MSG-20260911-0009` PLANNING -> CODING Delta003: READ / APPLYING AT THIS CHECKPOINT
 - next new CODING message must use a fresh ID after re-reading the Bus and should report bucket creation + 0010 + upload-contract hardening evidence; do not duplicate FIRST_IMPORT evidence
 
 OPEN_WAITING:
@@ -100,7 +109,7 @@ OPEN_WAITING:
 - same-action p50/p95: NO_BASELINE / WAITING runnable R2-backed staging
 - npm 3 high + 1 critical: OPEN_SEPARATE_HARDENING
 - stale source duplicate rows 501-512: OPEN_SEPARATE_DECISION
-- Drive root hygiene: NEEDS_REVIEW
+- Drive root hygiene: ROOT_EXCEPTION / no active coding mutation
 - live cutover: NOT APPROVED
 - CODE1 Production: PROHIBITED
 
