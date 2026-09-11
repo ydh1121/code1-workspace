@@ -11,6 +11,8 @@ $ExpectedProjectRef = 'bsintmkyhptizrjoizfb'
 $ExpectedDeckId = 'CODE1_AZA_INTERNAL'
 $ExpectedAssetCount = 15
 $ExpectedRevisionCount = 2
+$RepoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$Wrangler = Join-Path $RepoRoot 'node_modules\.bin\wrangler.cmd'
 
 function Fail([string]$Message) {
   throw "CODE1_DECK_PHASEC_R2_COPY_FAIL: $Message"
@@ -25,7 +27,10 @@ function Resolve-SafeChild([string]$Root, [string]$Relative) {
 }
 
 function Invoke-Wrangler([string[]]$Arguments, [switch]$AllowFailure) {
-  $lines = @(& npx.cmd wrangler @Arguments 2>&1 | ForEach-Object { $_.ToString() })
+  if (-not (Test-Path -LiteralPath $Wrangler -PathType Leaf)) {
+    Fail "repo-local Wrangler not installed: $Wrangler ; run npm ci in $RepoRoot first"
+  }
+  $lines = @(& $Wrangler @Arguments 2>&1 | ForEach-Object { $_.ToString() })
   $code = $LASTEXITCODE
   if (($code -ne 0) -and (-not $AllowFailure)) {
     Fail ("wrangler failed ({0}): {1}`n{2}" -f $code,($Arguments -join ' '),($lines -join "`n"))
@@ -35,6 +40,7 @@ function Invoke-Wrangler([string[]]$Arguments, [switch]$AllowFailure) {
 
 $BundleRoot = [IO.Path]::GetFullPath($BundleRoot)
 if (-not (Test-Path -LiteralPath $BundleRoot -PathType Container)) { Fail "bundle root not found: $BundleRoot" }
+if (-not (Test-Path -LiteralPath $Wrangler -PathType Leaf)) { Fail "repo-local Wrangler not installed: $Wrangler ; run npm ci in $RepoRoot first" }
 $PlanPath = Join-Path $BundleRoot 'import-plan.json'
 if (-not (Test-Path -LiteralPath $PlanPath -PathType Leaf)) { Fail 'import-plan.json not found' }
 $plan = Get-Content -LiteralPath $PlanPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -50,6 +56,7 @@ if (@($plan.revisions).Count -ne $ExpectedRevisionCount) { Fail "expected $Expec
 
 Write-Host 'CODE1 DECK PHASE C R2 COPY'
 Write-Host '==========================='
+Write-Host "REPO_ROOT              : $RepoRoot"
 Write-Host "BUNDLE_ROOT            : $BundleRoot"
 Write-Host "TARGET_BUCKET          : $ExpectedBucket"
 Write-Host "TARGET_PREFIX          : private/decks/$ExpectedDeckId/assets/"
@@ -90,77 +97,85 @@ foreach ($a in @($plan.assets)) {
 
 Write-Host ("LOCAL_PREFLIGHT         : PASS ({0}/{0})" -f $validated.Count)
 
-# Verify Wrangler can authenticate before any object write.
-$who = Invoke-Wrangler @('whoami')
-Write-Host 'WRANGLER_AUTH           : PASS'
+Push-Location $RepoRoot
+try {
+  $version = Invoke-Wrangler @('--version')
+  Write-Host ("WRANGLER_VERSION        : {0}" -f (($version.Lines | Select-Object -First 1) -join ''))
 
-$results = @()
-foreach ($a in $validated) {
-  $remotePath = "$ExpectedBucket/$($a.ObjectKey)"
-  $temp = Join-Path ([IO.Path]::GetTempPath()) ("code1-deck-r2-{0}-{1}.bin" -f $a.AssetId,[Guid]::NewGuid().ToString('N'))
-  $action = $null
-  try {
-    # Idempotent preflight: if the object already exists, it must match exactly.
-    $probe = Invoke-Wrangler @('r2','object','get',$remotePath,'--file',$temp,'--remote') -AllowFailure
-    if ($probe.Code -eq 0) {
-      $remoteBytes = (Get-Item -LiteralPath $temp).Length
-      $remoteSha = (Get-FileHash -LiteralPath $temp -Algorithm SHA256).Hash.ToLowerInvariant()
-      if ($remoteBytes -ne $a.Bytes -or $remoteSha -ne $a.Sha256) {
-        Fail "R2_OBJECT_CONFLICT: $($a.AssetId) existing object differs; refusing overwrite"
+  # Verify Wrangler can authenticate before any object write.
+  $who = Invoke-Wrangler @('whoami')
+  Write-Host 'WRANGLER_AUTH           : PASS'
+
+  $results = @()
+  foreach ($a in $validated) {
+    $remotePath = "$ExpectedBucket/$($a.ObjectKey)"
+    $temp = Join-Path ([IO.Path]::GetTempPath()) ("code1-deck-r2-{0}-{1}.bin" -f $a.AssetId,[Guid]::NewGuid().ToString('N'))
+    $action = $null
+    try {
+      # Idempotent preflight: if the object already exists, it must match exactly.
+      $probe = Invoke-Wrangler @('r2','object','get',$remotePath,'--file',$temp,'--remote') -AllowFailure
+      if ($probe.Code -eq 0) {
+        $remoteBytes = (Get-Item -LiteralPath $temp).Length
+        $remoteSha = (Get-FileHash -LiteralPath $temp -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($remoteBytes -ne $a.Bytes -or $remoteSha -ne $a.Sha256) {
+          Fail "R2_OBJECT_CONFLICT: $($a.AssetId) existing object differs; refusing overwrite"
+        }
+        $action = 'EXISTING_MATCH'
+      } else {
+        if ($probe.Text -notmatch '(?i)(not found|nosuchkey|404)') {
+          Fail "R2 preflight read failed for $($a.AssetId): $($probe.Text)"
+        }
+        if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force }
+        Invoke-Wrangler @('r2','object','put',$remotePath,'--file',$a.File,'--content-type',$a.Mime,'--remote','--force') | Out-Null
+        $action = 'COPIED'
       }
-      $action = 'EXISTING_MATCH'
-    } else {
-      if ($probe.Text -notmatch '(?i)(not found|nosuchkey|404)') {
-        Fail "R2 preflight read failed for $($a.AssetId): $($probe.Text)"
-      }
+
       if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force }
-      Invoke-Wrangler @('r2','object','put',$remotePath,'--file',$a.File,'--content-type',$a.Mime,'--remote','--force') | Out-Null
-      $action = 'COPIED'
-    }
+      Invoke-Wrangler @('r2','object','get',$remotePath,'--file',$temp,'--remote') | Out-Null
+      $verifyBytes = (Get-Item -LiteralPath $temp).Length
+      $verifySha = (Get-FileHash -LiteralPath $temp -Algorithm SHA256).Hash.ToLowerInvariant()
+      if ($verifyBytes -ne $a.Bytes -or $verifySha -ne $a.Sha256) {
+        Fail "R2 post-copy verification mismatch: $($a.AssetId)"
+      }
 
-    if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force }
-    Invoke-Wrangler @('r2','object','get',$remotePath,'--file',$temp,'--remote') | Out-Null
-    $verifyBytes = (Get-Item -LiteralPath $temp).Length
-    $verifySha = (Get-FileHash -LiteralPath $temp -Algorithm SHA256).Hash.ToLowerInvariant()
-    if ($verifyBytes -ne $a.Bytes -or $verifySha -ne $a.Sha256) {
-      Fail "R2 post-copy verification mismatch: $($a.AssetId)"
+      $results += [pscustomobject]@{
+        asset_id=$a.AssetId; object_key=$a.ObjectKey; action=$action;
+        file_size_bytes=$verifyBytes; checksum_sha256=$verifySha; verified=$true
+      }
+      Write-Host ("R2_VERIFY              : PASS {0} [{1}]" -f $a.AssetId,$action)
+    } finally {
+      if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue }
     }
-
-    $results += [pscustomobject]@{
-      asset_id=$a.AssetId; object_key=$a.ObjectKey; action=$action;
-      file_size_bytes=$verifyBytes; checksum_sha256=$verifySha; verified=$true
-    }
-    Write-Host ("R2_VERIFY              : PASS {0} [{1}]" -f $a.AssetId,$action)
-  } finally {
-    if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue }
   }
-}
 
-$evidence = [ordered]@{
-  schema_version=1
-  work_order=[string]$plan.work_order
-  target='CODE1 STAGING ONLY'
-  project_ref=$ExpectedProjectRef
-  bucket=$ExpectedBucket
-  deck_id=$ExpectedDeckId
-  completed_at=(Get-Date).ToUniversalTime().ToString('o')
-  asset_count=$results.Count
-  all_verified=($results.Count -eq $ExpectedAssetCount -and @($results | Where-Object { -not $_.verified }).Count -eq 0)
-  production_mutation='NONE'
-  live_source_mutation='NONE'
-  delete_operation='NONE'
-  objects=$results
-}
-$EvidencePath = Join-Path $BundleRoot 'r2-copy-evidence.json'
-$evidence | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $EvidencePath -Encoding UTF8
+  $evidence = [ordered]@{
+    schema_version=1
+    work_order=[string]$plan.work_order
+    target='CODE1 STAGING ONLY'
+    project_ref=$ExpectedProjectRef
+    bucket=$ExpectedBucket
+    deck_id=$ExpectedDeckId
+    completed_at=(Get-Date).ToUniversalTime().ToString('o')
+    asset_count=$results.Count
+    all_verified=($results.Count -eq $ExpectedAssetCount -and @($results | Where-Object { -not $_.verified }).Count -eq 0)
+    production_mutation='NONE'
+    live_source_mutation='NONE'
+    delete_operation='NONE'
+    objects=$results
+  }
+  $EvidencePath = Join-Path $BundleRoot 'r2-copy-evidence.json'
+  $evidence | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $EvidencePath -Encoding UTF8
 
-if (-not $evidence.all_verified) { Fail 'final evidence gate failed' }
-Write-Host ''
-Write-Host 'CODE1 DECK PHASE C R2 COPY RESULT'
-Write-Host '================================='
-Write-Host "ASSET_COUNT            : $($results.Count)"
-Write-Host 'ALL_VERIFIED           : TRUE'
-Write-Host "EVIDENCE               : $EvidencePath"
-Write-Host 'SUPABASE_IMPORT         : NOT_RUN_BY_THIS_SCRIPT'
-Write-Host 'PRODUCTION_MUTATION     : NONE'
-Write-Host 'LIVE_SOURCE_MUTATION    : NONE'
+  if (-not $evidence.all_verified) { Fail 'final evidence gate failed' }
+  Write-Host ''
+  Write-Host 'CODE1 DECK PHASE C R2 COPY RESULT'
+  Write-Host '================================='
+  Write-Host "ASSET_COUNT            : $($results.Count)"
+  Write-Host 'ALL_VERIFIED           : TRUE'
+  Write-Host "EVIDENCE               : $EvidencePath"
+  Write-Host 'SUPABASE_IMPORT         : NOT_RUN_BY_THIS_SCRIPT'
+  Write-Host 'PRODUCTION_MUTATION     : NONE'
+  Write-Host 'LIVE_SOURCE_MUTATION    : NONE'
+} finally {
+  Pop-Location
+}
