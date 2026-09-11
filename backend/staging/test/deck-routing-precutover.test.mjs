@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {isDeckAction} from '../src/staging-dispatch.mjs';
+import {isDeckAction,isDeckImportAction} from '../src/staging-dispatch.mjs';
 
 const here=path.dirname(fileURLToPath(import.meta.url));
 const repo=path.resolve(here,'../../..');
@@ -17,9 +17,17 @@ test('isolated STAGING dispatcher recognizes the three Deck RPCs',()=>{
   assert.match(dispatchSource,/if\(DECK_ACTIONS\.has\(action\)\)return dispatchDeckAction/);
 });
 
-test('pre-cutover edge routing still blocks Deck actions from STAGING runtime',()=>{
+test('pre-cutover edge routing still blocks normal Deck actions from STAGING runtime',()=>{
   assert.match(edgeRpcSource,/const legacyDeckActions=new Set\(\['deckAssets','deckBootstrap','saveDeck'\]\)/);
   assert.match(edgeRpcSource,/if\(legacyDeckActions\.has\(action\)\)return false/);
   assert.match(edgeRpcSource,/if\(\(action==='upload'\|\|action==='linkDrive'\)&&payload\?\.kind==='DECK'\)return false/);
   assert.match(edgeRpcSource,/data=await bridge\(env, user, action, body\)/);
+});
+
+test('one-time Deck source import is an explicit STAGING-owned action, not a legacy Deck action',()=>{
+  const action='deckMigration.importSource20260912';
+  assert.equal(isDeckImportAction(action),true);
+  assert.equal(isDeckAction(action),false);
+  assert.match(edgeRpcSource,/['"]deckMigration\.importSource20260912['"]/);
+  assert.doesNotMatch(edgeRpcSource,/legacyDeckActions=new Set\([^\n]*deckMigration/);
 });
