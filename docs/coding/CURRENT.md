@@ -7,7 +7,7 @@ Base main: `a71a71eae73706862308e194110f4fcc2d25db01`
 Live cutover: NOT APPROVED
 Production: PROHIBITED
 PLANNING_DELTA_SEQ_SEEN = 20260911-003
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0025
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0026
 
 ## Hard boundaries
 
@@ -107,10 +107,15 @@ Do not opportunistically change these as part of backend hardening. UI-facing it
 
 Do not use hidden/SecureString prompts or clipboard-dependent secret instructions. If local secret entry is technically unavoidable, use ordinary visible input and never put the value in chat or durable project documents.
 
+## Cross-track sync
+
+- `MSG-20260912-0026`: CODING -> PLANNING consolidated implementation evidence, PENDING.
+- No newer PLANNING -> CODING instruction was present immediately after append/readback.
+
 ## NEXT_ATOMIC_ACTION
 
-1. Publish one consolidated CODING implementation-evidence message to Planning covering: R2 gate closed, 404 live PASS, read-only latency baseline, and dependency security audit=0/PDF smoke PASS.
-2. Re-read Message Bus after publishing. Consume only a fresh PLANNING -> CODING instruction if one exists.
-3. If no new CODING work order exists, do not invent a Production cutover or performance optimization. Hold the verified STAGING state and keep the five pre-existing root failures in their existing ownership buckets.
+1. Await/consume Planning review of `MSG-20260912-0026` or a newer explicit PLANNING -> CODING work order.
+2. If no new CODING work order exists, hold the verified STAGING state. Do not invent a Production cutover or evidence-free performance optimization.
+3. Keep the five pre-existing root failures in their existing ownership buckets until explicitly routed.
 
 ROLLBACK: Apps Script/Sheet/Drive remains live. Production has no R2 binding.
