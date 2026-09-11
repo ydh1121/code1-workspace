@@ -1,13 +1,13 @@
 # CODE1 CODING CURRENT
 
-Updated: 2026-09-12 04:38 KST
-Status: PHASE 0 VERIFIED / SUPABASE STAGING FIRST_IMPORT PASS / PRIVATE R2 CREATED / MEDIA SCHEMA 0010 APPLIED / R2 UPLOAD CONTRACT HARDENED / PAGES PREVIEW R2 BINDING VERIFIED / PREVIEW BRANCH FILTER EXACT PASS / PREVIEW ORIGIN PASS / PREVIEW CORE ENV PASS / CONTROLLED PREVIEW DEPLOY PASS / PREVIEW READONLY HTTP PASS / ACTUAL R2 INTEGRATION PASS / SUPABASE POST-INTEGRATION VERIFY PASS / R2 INVENTORY READBACK NEXT
+Updated: 2026-09-12 05:08 KST
+Status: PHASE 0 VERIFIED / SUPABASE STAGING FIRST_IMPORT PASS / PRIVATE R2 CREATED / MEDIA SCHEMA 0010 APPLIED / R2 UPLOAD CONTRACT HARDENED / PAGES PREVIEW R2 BINDING VERIFIED / PREVIEW BRANCH FILTER EXACT PASS / PREVIEW ORIGIN PASS / PREVIEW CORE ENV PASS / CONTROLLED PREVIEW DEPLOY PASS / PREVIEW READONLY HTTP PASS / ACTUAL R2 INTEGRATION PASS / SUPABASE POST-INTEGRATION VERIFY PASS / R2 INVENTORY READBACK PASS / RUNTIME SEMANTICS HARDENING ACTIVE
 Branch: `coding/runtime-backend-staging`
 Base main: `a71a71eae73706862308e194110f4fcc2d25db01`
 Live cutover: NOT APPROVED
 Production: PROHIBITED
 PLANNING_DELTA_SEQ_SEEN = 20260911-003
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0022
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0025
 
 ## Hard boundaries
 
@@ -19,6 +19,7 @@ CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0022
 - No public R2 endpoint, `r2.dev`, custom R2 domain, or browser-visible credential.
 - Production variables/secrets/bindings remain READ_ONLY.
 - No secret value may be committed to Git, Message Bus, Drive documents, or chat.
+- Local Orchestrator work is OUT OF SCOPE for this CODING chat/track. It runs only in the separate ORCHESTRATOR track per `MSG-20260912-0024/0025`.
 
 ## Durable staging state
 
@@ -28,7 +29,7 @@ Imported legacy media remain 4/4 `GOOGLE_DRIVE_LEGACY`, `object_key=NULL`, `DELE
 
 R2 `code1-staging-media` remains private, with `r2.dev` disabled, no custom domain, and no legacy media migration.
 
-Upload runtime hardening commit `a2c65735c5606789c7dfe423a3988229e96b0505`, CI `34512718904` SUCCESS. Begin/chunk/finish, 6 MiB multipart, idempotency/retry/finalize, HEAD verification, private GET, and small-upload orphan compensation are implemented.
+Upload runtime supports begin/chunk/finish, 6 MiB multipart, request idempotency/retry/finalize, HEAD verification, private GET, and small-upload orphan compensation.
 
 ## Pages isolation/runtime gates: PASS
 
@@ -53,7 +54,7 @@ Stable Preview origin:
 
 `https://coding-runtime-backend-stagi.code1-workspace.pages.dev`
 
-Preview environment exact runtime-name set remains:
+Preview environment runtime-name set:
 
 ```text
 APP_ORIGIN
@@ -89,9 +90,7 @@ REMOTE_MUTATION=NONE
 
 ## Actual external R2 integration: PASS
 
-Operator ran `backend/staging/scripts/run-pages-r2-integration.ps1` once against the stable Preview alias.
-
-Observed top-level result:
+Operator ran the guarded Preview-only integration once. Observed result:
 
 ```text
 SIGNED_SESSION=PASS
@@ -116,73 +115,76 @@ PRODUCTION_MUTATION=NONE
 LEGACY_DRIVE_MUTATION=NONE
 ```
 
-The signed-session success proves the entered Preview `SESSION_SECRET` matched the configured value; an incorrect secret could not have reached authenticated bootstrap or any subsequent PASS stage.
+Independent Supabase SQL readback verified both test rows are `DELETED`, `R2_PRIVATE`, exact expected sizes/received bytes, and each has one `UPLOADED` + one `SOFT_DELETED` event.
 
-The post-delete `media` RPC returns generic HTTP 400 `REQUEST_FAILED` because `NOT_FOUND` is not currently mapped to a dedicated 404 response in the shared failure mapper. This is semantically rough but still proves new read-token issuance is denied after soft-delete. It does not invalidate the integration PASS.
+## Independent R2 inventory close: PASS
 
-## Independent Supabase post-integration verification: PASS
-
-Independent SQL readback verified both test rows:
+Operator read-only verifier result:
 
 ```text
-M_32c63189358249c2844869a4
-  status=DELETED
-  source_storage=R2_PRIVATE
-  file_size_bytes=131072
-  upload_received_bytes=131072
-  uploaded_by=OWNER
-
-M_6132c51925d449b2b5b2e402
-  status=DELETED
-  source_storage=R2_PRIVATE
-  file_size_bytes=11534336
-  upload_received_bytes=11534336
-  uploaded_by=OWNER
-  r2_multipart_upload_id populated
+BUCKET_OBJECT_COUNT=2
+BUCKET_SIZE_REPORTED=11.7 MB
+OBJECT_READ=PASS mediaId=M_32c63189358249c2844869a4 bytes=131072
+OBJECT_READ=PASS mediaId=M_6132c51925d449b2b5b2e402 bytes=11534336
+VERIFIED_OBJECT_TOTAL_BYTES=11665408
+EXPECTED_OBJECTS=2
+R2_INVENTORY_READONLY_VERIFY=PASS
+REMOTE_MUTATION=NONE
 ```
 
-Independent `media_events` readback also verified one `UPLOADED` event and one `SOFT_DELETED` event for each test media ID, with expected transition to `REVIEW_REQUIRED` and then `DELETED`.
+Therefore the external `Pages Preview -> Supabase STAGING -> private R2` integration gate is CLOSED PASS. Exactly two intentional private test objects exist; unexpected objects = 0; legacy Drive migration = 0; Production mutation = 0.
 
-## Local secret-input UX preference
+Do not rerun the integration merely to re-prove the same gate.
 
-Operator preference recorded: do not use clipboard-dependent secret entry and do not use hidden/SecureString input for future local operator steps. Prefer ordinary visible local input when a secret must be entered, and avoid requesting secret input entirely where technically unnecessary.
+## Planning scope correction: APPLIED LOCALLY
 
-`backend/staging/scripts/run-pages-r2-integration.ps1` was updated accordingly in commit `5a2ee0109e6c97ed322f5906abd953cb181acc73` using `[CF-Pages-Skip]`; it now uses normal visible `Read-Host` input and still clears the temporary environment variable after execution.
+Latest Planning inbound is `MSG-20260912-0025` (`SCOPE_CORRECTION`, P0):
 
-No secret value is stored in Git, Bus, Drive documents, or this CURRENT.
+- do NOT execute Local Orchestrator in CODING;
+- prior CODING-targeted orchestrator order `MSG-20260912-0021` is superseded;
+- dedicated Orchestrator work is `MSG-20260912-0024` in the separate ORCHESTRATOR chat/track;
+- CODING continues Cloudflare Preview/Supabase/R2/runtime-backend work unchanged.
+
+This CURRENT follows that routing. No Orchestrator implementation belongs in this branch's current CODING atomic path.
+
+## Runtime semantics hardening: NOT_FOUND -> 404
+
+The completed R2 integration exposed one response-semantics defect: requesting a soft-deleted media item correctly denied access but surfaced generic HTTP 400 `REQUEST_FAILED` because `NOT_FOUND` was not in the shared failure map.
+
+Staging-only correction:
+
+- `functions/_shared/security.js`: exact `NOT_FOUND` now maps to HTTP 404 + stable `error=NOT_FOUND`.
+- unknown/unmapped runtime failures remain generic HTTP 400 `REQUEST_FAILED`.
+- unit regression `backend/staging/test/http-failure-mapping.test.mjs` added.
+- read-only Preview E2E verifier `backend/staging/scripts/verify-deleted-media-not-found.mjs` added for the two already-soft-deleted test media IDs.
+- commit `f79e11045a92c5dbe667c7860e74b61faf8073e5` CI `34642527599` SUCCESS.
+- verifier commit `1f276ac2f9d6c8b26f74ec40ee71ce6768a75a53` CI `34642626295` SUCCESS.
+- all related commits so far used `[CF-Pages-Skip]`; live Preview has not yet received this 404 mapping.
+
+## Local input preference
+
+Do not use clipboard-dependent secret instructions and do not use hidden/SecureString prompts for future local operator steps. If a local secret must be entered, use ordinary visible input; avoid asking for secret input when technically unnecessary. Never put the value in chat or durable project documents.
 
 ## Cross-track sync
 
 - `MSG-20260912-0019`: CODING -> PLANNING APPLIED.
-- `MSG-20260912-0021`: PLANNING -> CODING Local Orchestrator Phase 1 notice ACKED; deferred until active R2 atomic work completes.
-- `MSG-20260912-0022`: CODING -> PLANNING PENDING, Preview runtime read-only PASS + guarded R2 integration readiness.
-- current CODING inbound pending: 0.
-- current CODING outbound pending: 1.
+- `MSG-20260912-0022`: CODING -> PLANNING APPLIED.
+- `MSG-20260912-0021`: superseded orchestrator-in-CODING order; DO NOT EXECUTE here.
+- `MSG-20260912-0024`: canonical ORCHESTRATOR-only work order; separate track/chat.
+- `MSG-20260912-0025`: PLANNING -> CODING P0 scope correction; consumed by this CURRENT/BATON update and should be marked APPLIED in Bus after durable refs are written.
 
 ## NEXT_ATOMIC_ACTION
 
-Close the external R2 integration gate with an independent Cloudflare R2 inventory readback proving the two intended private test objects exist and no unexpected object was created.
-
-Expected intentional post-test delta:
-
-```text
-private R2 test objects = 2
-DB test rows = 2, both DELETED
-legacy Drive media migrated = 0
-Production mutation = 0
-```
-
-Do not rerun the integration test merely to re-prove already-passed stages.
-
-After R2 inventory PASS, publish the consolidated R2 completion evidence to Planning, then read/apply the already-ACKED Local Orchestrator Phase 1 Work Order.
+1. Trigger exactly one controlled Preview deployment containing the `NOT_FOUND -> 404` mapping and its verifier. Do not alter Preview env/bindings or Production.
+2. After deployment SUCCESS, run the read-only deleted-media verifier against the stable Preview alias. It must prove both known soft-deleted media IDs return `HTTP 404 / error=NOT_FOUND` with `REMOTE_MUTATION=NONE / R2_OBJECT_WRITE=NONE`.
+3. If PASS, close this runtime-semantics defect and continue the existing runtime-backend stabilization queue. The next likely runnable technical item is same-action staging latency measurement (`p50/p95`), but do not promote or optimize before the 404 live verification is closed.
 
 ## Other open items
 
-- HTTP error mapping: consider mapping `NOT_FOUND` to 404 instead of generic 400 in a separate behavioral cleanup.
-- npm audit: 3 high + 1 critical; separate dependency hardening, no blind `npm audit fix --force`
-- stale source duplicate rows 501-512: separate decision
-- same-action p50/p95: now eligible for later runnable staging measurement
-- Apps Script Drive root: `ROOT_EXCEPTION`; no copy/replacement
-- Local Orchestrator Phase 1: ACKED and next after R2 inventory close
+- npm audit: 3 high + 1 critical; separate dependency hardening, no blind `npm audit fix --force`.
+- stale source duplicate rows 501-512: separate Planning/data decision.
+- same-action p50/p95: eligible after current 404 verification.
+- Apps Script Drive root: `ROOT_EXCEPTION`; no copy/replacement.
+- Local Orchestrator: separate ORCHESTRATOR track only; not a CODING next action.
 
 ROLLBACK: Apps Script/Sheet/Drive remains live. Production has no R2 binding.
