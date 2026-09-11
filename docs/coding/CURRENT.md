@@ -7,7 +7,7 @@ Base main: `a71a71eae73706862308e194110f4fcc2d25db01`
 Live cutover: NOT APPROVED
 Production: PROHIBITED
 PLANNING_DELTA_SEQ_SEEN = 20260911-003
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260911-0015
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0016
 
 ## Hard boundaries
 
@@ -96,7 +96,8 @@ Any mismatch keeps the gate BLOCKED. Observed deployment history alone is not su
 
 - `MSG-20260911-0009` Planning Delta003: APPLIED
 - `MSG-20260911-0011` prior R2 deployment evidence: APPLIED by Planning
-- `MSG-20260911-0015` CODING -> PLANNING branch-exposure/filter evidence: PENDING
+- `MSG-20260911-0015` prior branch-exposure/filter evidence: SUPERSEDED
+- `MSG-20260912-0016` current CODING -> PLANNING implementation evidence: PENDING
 - current CODING inbound: 0
 
 ## NEXT_ATOMIC_ACTION
@@ -115,7 +116,7 @@ Expected branch-control section now says `MANUAL_DASHBOARD_VERIFICATION_REQUIRED
 
 3. Do not rerun `verify-pages-preview-readonly.mjs` yet; runtime env has not changed.
 
-4. Only after the configured branch filter gate is explicitly PASS: provision Preview-only Supabase/runtime vars and newly generated staging-only secrets, intentionally deploy one Preview, rerun read-only HTTP probes, then perform actual R2 single PUT/multipart/HEAD/DB/private-GET/denial/retry integration tests.
+4. Only after the configured branch filter gate is explicitly PASS: provision Preview-only Supabase staging vars and newly generated staging-only secrets, intentionally deploy one Preview, rerun read-only HTTP probes, then perform actual R2 single PUT/multipart/HEAD/DB/private-GET/denial/retry integration tests.
 
 ## Other open items
 
