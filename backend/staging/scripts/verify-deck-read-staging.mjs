@@ -69,8 +69,9 @@ console.log(`PRIVATE_ASSET_READ_ALL=PASS count=${refs.length} bytes=${bytesTotal
 for(const [action,payload] of [['saveDeck',{}],['upload',{kind:'DECK'}],['linkDrive',{kind:'DECK'}]]){
   const response=await fetch(`${base}/api/rpc`,{method:'POST',headers:{'Content-Type':'application/json','Origin':base,'Cookie':cookie},body:JSON.stringify({action,payload}),redirect:'manual',signal:AbortSignal.timeout(30000)});
   const text=await response.text();
-  if(response.ok||!text.includes('DECK_WRITE_GATE_CLOSED'))throw Error(`WRITE_GATE_NOT_CLOSED:${action}:status=${response.status}:body=${text.slice(0,240)}`);
-  console.log(`WRITE_GATE=PASS action=${action} status=${response.status}`);
+  let body=null;try{body=JSON.parse(text);}catch{}
+  if(response.status!==503||body?.error!=='DECK_WRITE_GATE_CLOSED')throw Error(`WRITE_GATE_NOT_CLOSED:${action}:status=${response.status}:body=${text.slice(0,240)}`);
+  console.log(`WRITE_GATE=PASS action=${action} status=${response.status} error=${body.error}`);
 }
 
 const logout=await fetch(`${base}/api/auth/logout`,{method:'POST',headers:{'Origin':base,'Cookie':cookie},redirect:'manual',signal:AbortSignal.timeout(20000)});
