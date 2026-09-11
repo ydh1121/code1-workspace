@@ -11,6 +11,7 @@ $ExpectedProjectRef = 'bsintmkyhptizrjoizfb'
 $ExpectedDeckId = 'CODE1_AZA_INTERNAL'
 $ExpectedAssetCount = 15
 $ExpectedRevisionCount = 2
+$ExpectedWranglerMinimum = [version]'4.131.1'
 $RepoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $Wrangler = Join-Path $RepoRoot 'node_modules\.bin\wrangler.cmd'
 
@@ -30,8 +31,25 @@ function Invoke-Wrangler([string[]]$Arguments, [switch]$AllowFailure) {
   if (-not (Test-Path -LiteralPath $Wrangler -PathType Leaf)) {
     Fail "repo-local Wrangler not installed: $Wrangler ; run npm ci in $RepoRoot first"
   }
-  $lines = @(& $Wrangler @Arguments 2>&1 | ForEach-Object { $_.ToString() })
-  $code = $LASTEXITCODE
+
+  # Windows PowerShell 5 surfaces native stderr as NativeCommandError when the
+  # script-level ErrorActionPreference is Stop. Expected negative probes (for
+  # example R2 GET on a missing key) must be captured by exit code/text instead
+  # of terminating before AllowFailure can inspect them.
+  $previousErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    $raw = @(& $Wrangler @Arguments 2>&1)
+    $code = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+
+  $lines = @($raw | ForEach-Object {
+    if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message }
+    else { $_.ToString() }
+  })
+
   if (($code -ne 0) -and (-not $AllowFailure)) {
     Fail ("wrangler failed ({0}): {1}`n{2}" -f $code,($Arguments -join ' '),($lines -join "`n"))
   }
@@ -100,7 +118,14 @@ Write-Host ("LOCAL_PREFLIGHT         : PASS ({0}/{0})" -f $validated.Count)
 Push-Location $RepoRoot
 try {
   $version = Invoke-Wrangler @('--version')
-  Write-Host ("WRANGLER_VERSION        : {0}" -f (($version.Lines | Select-Object -First 1) -join ''))
+  $versionText = (($version.Lines | Select-Object -First 1) -join '')
+  $versionMatch = [regex]::Match($versionText,'\d+\.\d+\.\d+')
+  if (-not $versionMatch.Success) { Fail "unable to parse repo-local Wrangler version: $versionText" }
+  $actualWranglerVersion = [version]$versionMatch.Value
+  Write-Host ("WRANGLER_VERSION        : {0}" -f $actualWranglerVersion)
+  if ($actualWranglerVersion -lt $ExpectedWranglerMinimum) {
+    Fail "repo-local Wrangler $actualWranglerVersion is older than required $ExpectedWranglerMinimum ; run npm ci in $RepoRoot and retry"
+  }
 
   # Verify Wrangler can authenticate before any object write.
   $who = Invoke-Wrangler @('whoami')
@@ -122,7 +147,7 @@ try {
         }
         $action = 'EXISTING_MATCH'
       } else {
-        if ($probe.Text -notmatch '(?i)(not found|nosuchkey|404)') {
+        if ($probe.Text -notmatch '(?i)(not found|nosuchkey|404|specified key does not exist)') {
           Fail "R2 preflight read failed for $($a.AssetId): $($probe.Text)"
         }
         if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force }
