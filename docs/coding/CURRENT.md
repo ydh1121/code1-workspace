@@ -74,8 +74,14 @@ Operator audit on 2026-09-12 produced:
 - Preview unexpectedPreviewBranches: `[]`
 - Production deploymentCount: 25
 - Production observedBranches: only `main`
+- Preview R2 binding: `CODE1_MEDIA_BUCKET -> code1-staging-media`
+- Production R2 binding: NONE
+- R2 object count / size: 0 / 0 B
+- remote mutation: NONE
 
 This closes the recent-deployment observation portion of the gate.
+
+The operator then pulled through `abcd5ea089a8717c20ed536df9f7d691db514d1d` and reran the canonical read-only audit successfully. The runner reached `PAGES_PROJECT_SOURCE_BRANCH_CONTROLS = MANUAL_DASHBOARD_VERIFICATION_REQUIRED` without any `workers-auth` package-resolution/import error, proving the unsupported private Wrangler auth dependency is fully removed from the operator path.
 
 The configured Project branch filter remains unverified. Supported Wrangler Pages list/download commands do not expose `preview_deployment_setting`, `preview_branch_includes`, or `preview_branch_excludes`. Attempts to reuse/import private Wrangler OAuth internals (`61d467a...`, `bd2bd30...`) proved dependent on package-install layout and are retired; no further private-auth-module workaround is authorized.
 
@@ -102,17 +108,18 @@ Any mismatch keeps the gate BLOCKED. Observed deployment history alone is not su
 
 ## NEXT_ATOMIC_ACTION
 
-1. Operator pulls the current staging branch and reruns the read-only audit once to confirm the canonical fail-closed runner is installed:
+1. In Cloudflare Dashboard for Pages project `code1-workspace`, inspect the configured branch controls without changing secrets or environment variables.
 
-```powershell
-cd C:\Users\Administrator\Desktop\code1
-git pull --ff-only origin coding/runtime-backend-staging
-node backend/staging/scripts/audit-cloudflare-r2-readonly.mjs --bucket code1-staging-media
+Required values:
+
+```text
+Production branch = main
+Preview branch = Custom branches
+Include Preview branches = coding/runtime-backend-staging
+Exclude Preview branches = empty
 ```
 
-Expected branch-control section now says `MANUAL_DASHBOARD_VERIFICATION_REQUIRED`; it must not emit a `workers-auth` package-resolution error.
-
-2. In Cloudflare Dashboard for Pages project `code1-workspace`, verify the configured Production branch and Preview branch controls exactly match the four required values above. Do not enter or change secrets during this verification step.
+2. If any configured value differs, stop before secret provisioning. Correct only the branch-control configuration, then report the resulting values before any runtime secret mutation.
 
 3. Do not rerun `verify-pages-preview-readonly.mjs` yet; runtime env has not changed.
 
