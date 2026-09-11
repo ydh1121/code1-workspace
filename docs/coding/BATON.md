@@ -1,12 +1,12 @@
 # CODE1 CODING BATON
 
-Updated: 2026-09-12 05:16 KST
+Updated: 2026-09-12 05:33 KST
 PLANNING_DELTA_SEQ_SEEN = 20260911-003
 CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0025
 
-LAST_VERIFIED_ACTION: Cloudflare Pages Preview -> Supabase STAGING -> private R2 integration/inventory are CLOSED PASS, and the follow-up runtime semantics defect is also CLOSED PASS in live Preview. Single controlled deployment commit `a6556d46948ccc1a9936eacaea4867de97647a43` succeeded; both known soft-deleted test media IDs now return exact `HTTP 404 / error=NOT_FOUND`, with `REMOTE_MUTATION=NONE` and `R2_OBJECT_WRITE=NONE`.
+LAST_VERIFIED_ACTION: CODE1 Preview/Supabase STAGING/private-R2 external integration is CLOSED PASS; deleted-media `NOT_FOUND -> HTTP 404` is LIVE PASS; read-only latency baseline is recorded; dependency security hardening is CLOSED PASS with locked `npm audit = 0` and CODE1 PDF runtime smoke PASS.
 
-CURRENT_WORK: measure same-action read-only STAGING latency before attempting any optimization. Prepared benchmark performs sequential Preview RPC measurements for `bootstrap` and `getSubmission`, with 3 warmups + 30 measured runs each and reports p50/p95/mean/min/max. No performance threshold is invented; this is measurement-only.
+CURRENT_WORK: publish consolidated implementation evidence to Planning and then consume only a fresh PLANNING -> CODING instruction. Do not execute Orchestrator work here and do not invent Production cutover or optimization work.
 
 ## Fixed boundaries
 
@@ -20,122 +20,87 @@ CURRENT_WORK: measure same-action read-only STAGING latency before attempting an
 - no public R2 endpoint
 - no HOOOO/INDX/IndiaDesk mutation
 - no legacy Drive-media auto migration/deletion
-- Production vars/secrets/bindings remain READ_ONLY
-- no secret value in Git/Bus/Drive documents/chat
-- Local Orchestrator work is separate ORCHESTRATOR scope only; do not execute it here.
+- Production vars/secrets/bindings READ_ONLY
+- no secret value in Git/Bus/Drive docs/chat
+- Local Orchestrator is separate ORCHESTRATOR scope only.
 
-## R2 / Preview external gate: CLOSED PASS
-
-Pages state:
-
-- exact Preview branch control includes only `coding/runtime-backend-staging`
-- Production branch `main`
-- Preview R2 `CODE1_MEDIA_BUCKET -> code1-staging-media`
-- Production R2 binding NONE
-- stable Preview alias `https://coding-runtime-backend-stagi.code1-workspace.pages.dev`
-- Preview core runtime read-only verifier PASS
-
-External integration + independent inventory:
+## Verified external backend gate
 
 ```text
+Preview branch = coding/runtime-backend-staging only
+Production branch = main
+Preview R2 = CODE1_MEDIA_BUCKET -> code1-staging-media
+Production R2 = NONE
+stable Preview = https://coding-runtime-backend-stagi.code1-workspace.pages.dev
 R2_STAGING_INTEGRATION=PASS
-SMALL object bytes=131072
-MULTIPART object bytes=11534336
-DB linkage/private GET/retry idempotency=PASS
-both test DB rows=DELETED
-R2 objects retained private by policy
 BUCKET_OBJECT_COUNT=2
 VERIFIED_OBJECT_TOTAL_BYTES=11665408
-R2_INVENTORY_READONLY_VERIFY=PASS
 unexpected objects=0
 Production mutation=0
 legacy Drive migration=0
 ```
 
-Do not rerun the upload integration simply to re-prove this gate.
+Do not rerun actual upload integration merely to re-prove this gate.
 
-## Planning scope routing
+## Runtime semantics: LIVE PASS
+
+Single Preview trigger `a6556d46948ccc1a9936eacaea4867de97647a43` succeeded. Both known soft-deleted R2 test media return exact `HTTP 404 / error=NOT_FOUND`; verification performed no DB/R2 write.
+
+## Read-only latency baseline
+
+```text
+bootstrap      n=30 p50=51.8ms p95=64.3ms mean=53.2ms min=48.6ms max=65.5ms
+getSubmission n=30 p50=53.6ms p95=67.5ms mean=59.8ms min=48.3ms max=218.3ms
+REMOTE_MUTATION=NONE
+R2_OBJECT_WRITE=NONE
+PERFORMANCE_THRESHOLD=NOT_SET_MEASUREMENT_ONLY
+```
+
+The p50/p95 distributions align closely. With the project percentile implementation and 30 samples, only one `getSubmission` sample lies above the 67.5 ms p95 boundary. Treat 218.3 ms as an isolated observed outlier unless later evidence proves recurrence. Do not optimize from this run alone.
+
+## Dependency security hardening: PASS
+
+Old audit: 3 high + 1 critical.
+
+Validated/fixed axes:
+
+- `jspdf` -> `^4.2.1`
+- `wrangler` -> `^4.131.1`, clearing transitive `miniflare`/`sharp` advisories.
+
+Atomic manifest upgrade commit: `2d7eb63374b61072ce2d132d4efe566508664aa2`.
+
+Final CI contract:
+
+```text
+npm ci
+62/62 staging tests PASS
+npm audit total=0
+known root baseline remains exact pre-existing 5 failures
+build PASS
+```
+
+PDF major-version smoke uses real `public/assets/RequestFont.ttf`, executes CODE1 `requestDocument()`, and validates `%PDF-` output. Final CI run `34644776006` SUCCESS after moving dependency installation before the dependency-aware staging tests.
+
+All security/CI/docs changes use `[CF-Pages-Skip]`; Preview/Production deployment = NONE.
+
+## Planning routing
 
 - `MSG-20260912-0021`: superseded; do not execute Orchestrator in CODING.
-- `MSG-20260912-0024`: canonical Orchestrator work order, separate ORCHESTRATOR track/chat.
-- `MSG-20260912-0025`: P0 scope correction APPLIED; existing Cloudflare/Supabase/R2/runtime-backend work continues unchanged.
+- `MSG-20260912-0024`: ORCHESTRATOR-only, separate chat/track.
+- `MSG-20260912-0025`: P0 CODING scope correction APPLIED.
 
-## Runtime semantics correction: LIVE PASS
+## Known baseline / ownership
 
-Observed integration defect was generic `HTTP 400 / REQUEST_FAILED` for a soft-deleted media read even though the domain error was `NOT_FOUND`.
-
-Correction now deployed and independently verified:
-
-```text
-NOT_FOUND -> HTTP 404 / error=NOT_FOUND
-unknown unmapped error -> HTTP 400 / REQUEST_FAILED
-```
-
-Evidence:
-
-- mapping commit `3b825e67a07bfc739651df449dbaa256da434800`
-- unit regression commit `f79e11045a92c5dbe667c7860e74b61faf8073e5`
-- verifier commit `1f276ac2f9d6c8b26f74ec40ee71ce6768a75a53`
-- single Preview deployment trigger `a6556d46948ccc1a9936eacaea4867de97647a43` -> SUCCESS
-- visible local verifier wrapper `backend/staging/scripts/run-deleted-media-not-found.ps1`
-
-Live Preview result:
-
-```text
-SIGNED_SESSION=PASS
-DELETED_MEDIA_NOT_FOUND=PASS mediaId=M_32c63189358249c2844869a4 status=404 error=NOT_FOUND
-DELETED_MEDIA_NOT_FOUND=PASS mediaId=M_6132c51925d449b2b5b2e402 status=404 error=NOT_FOUND
-DELETED_MEDIA_NOT_FOUND_VERIFY=PASS
-REMOTE_MUTATION=NONE
-R2_OBJECT_WRITE=NONE
-```
-
-## Read-only latency benchmark prepared
-
-Files:
-
-- `backend/staging/scripts/benchmark-pages-staging-readonly.mjs`
-- `backend/staging/scripts/run-pages-staging-readonly-benchmark.ps1`
-
-Contract:
-
-```text
-Preview stable alias only
-signed existing STAGING session
-bootstrap: 3 warmups + 30 measured sequential runs
-getSubmission: 3 warmups + 30 measured sequential runs
-report: p50/p95/mean/min/max
-PERFORMANCE_THRESHOLD=NOT_SET_MEASUREMENT_ONLY
-REMOTE_MUTATION=NONE
-R2_OBJECT_WRITE=NONE
-```
-
-No tuning or architectural conclusion is allowed before the measured evidence is recorded.
+Five root failures remain pre-existing and unchanged: deck UI fixture, legacy media-organizer naming expectation, two media UX expectations, legacy migration fetch fixture. Do not fold them into this backend hardening without an explicit owner/task decision. Stale source duplicate rows 501-512 remain Planning/data decision.
 
 ## Local input preference
 
-Do not use hidden/SecureString prompts and do not rely on clipboard-paste instructions. If a local secret is technically required, use ordinary visible input and never ask the operator to place the value in chat.
+No hidden/SecureString prompts and no clipboard-dependent secret workflow. Visible local input only if technically required; no secret in chat/durable docs.
 
 ## NEXT_ATOMIC_ACTION
 
-Run:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File backend/staging/scripts/run-pages-staging-readonly-benchmark.ps1
-```
-
-Required evidence shape:
-
-```text
-SIGNED_SESSION=PASS
-bootstrapBackend=SUPABASE_STAGING
-BENCH_CASE=bootstrap runs=30 p50_ms=... p95_ms=... mean_ms=... min_ms=... max_ms=...
-BENCH_CASE=getSubmission runs=30 p50_ms=... p95_ms=... mean_ms=... min_ms=... max_ms=...
-STAGING_READONLY_LATENCY_BENCH=PASS cases=2
-REMOTE_MUTATION=NONE
-R2_OBJECT_WRITE=NONE
-```
-
-After measurement, compare the two action distributions and choose the next runtime-backend stabilization item from evidence only.
+1. Append one CODING -> PLANNING consolidated implementation-evidence message for R2 close + 404 live PASS + latency baseline + dependency audit=0/PDF smoke PASS.
+2. Re-read Message Bus for a newer PLANNING -> CODING P0/P1 instruction.
+3. If none exists, hold the verified STAGING state. No Production promotion, no evidence-free performance tuning, no Orchestrator work in this chat.
 
 ROLLBACK: Apps Script/Sheet/Drive remains live. Production has no R2 binding.
