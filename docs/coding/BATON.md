@@ -2,11 +2,11 @@
 
 Updated: 2026-09-12 05:52 KST
 PLANNING_DELTA_SEQ_SEEN = 20260911-003
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0026
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0027
 
 LAST_VERIFIED_ACTION: CODE1 Preview/Supabase STAGING/private-R2 external integration is CLOSED PASS; deleted-media `NOT_FOUND -> HTTP 404` is LIVE PASS; read-only latency baseline is recorded; dependency security hardening is CLOSED PASS; real browser `owner` ID/password login and session restore are CLOSED PASS.
 
-CURRENT_WORK: browser auth is verified. Farm/question-policy/account flows run on Supabase STAGING. Aza Mall Deck is blocked because `deckAssets/deckBootstrap/saveDeck` still intentionally route through the legacy bridge while Preview has no `BRIDGE_URL/BRIDGE_SECRET`. Do not attach Preview to Production bridge values by assumption. Planning must choose a staging-safe Deck path before CODING enables it.
+CURRENT_WORK: browser auth is verified. Farm/question-policy/account flows run on Supabase STAGING. Aza Mall Deck is blocked because `deckAssets/deckBootstrap/saveDeck` still intentionally route through the legacy bridge while Preview has no `BRIDGE_URL/BRIDGE_SECRET`. Do not attach Preview to Production bridge values by assumption. Planning decision request is published as `MSG-20260912-0027` and is PENDING.
 
 ## Fixed boundaries
 
@@ -124,7 +124,7 @@ Until then Deck remains fail-closed.
 - `MSG-20260912-0024`: ORCHESTRATOR-only, separate chat/track.
 - `MSG-20260912-0025`: P0 CODING scope correction APPLIED.
 - `MSG-20260912-0026`: CODING -> PLANNING consolidated implementation evidence PENDING at last readback.
-- New evidence to route: browser password/session CLOSED PASS + Deck legacy-bridge blocker/decision request.
+- `MSG-20260912-0027`: CODING -> PLANNING architecture decision request PENDING; browser auth CLOSED PASS + Deck legacy-bridge blocker, requesting staging-safe bridge vs Supabase STAGING Deck migration decision.
 
 ## Known baseline / ownership
 
@@ -136,8 +136,8 @@ No hidden/SecureString prompts and no clipboard-dependent secret workflow. Visib
 
 ## NEXT_ATOMIC_ACTION
 
-1. Route browser-login CLOSED PASS and Deck blocker to Planning.
-2. Await explicit Deck architecture decision: staging-safe bridge vs Supabase STAGING Deck migration.
+1. Await Planning response to `MSG-20260912-0027` before enabling Deck in Preview.
+2. Do not copy Production bridge values into Preview while waiting.
 3. Hold Production/main/live Apps Script/Sheet/Drive unchanged.
 4. Keep auth-flash UX issue separate from the Deck architecture decision.
 
