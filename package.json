@@ -10,11 +10,11 @@
     "deploy": "npm run build && wrangler pages deploy public --project-name code1-workspace"
   },
   "dependencies": {
-    "jspdf": "^3.0.2"
+    "jspdf": "^4.2.1"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",
     "happy-dom": "^20.14.0",
-    "wrangler": "^4.0.0"
+    "wrangler": "^4.131.1"
   }
 }
