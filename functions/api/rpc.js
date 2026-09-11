@@ -25,7 +25,7 @@ export async function onRequestPost({ request, env }) {
     const body=payload||{};
     let data;
     if(useSupabaseStaging(env)&&stagingOwns(action,body)){
-      // No staging fallback to the live rollback source. Missing/unimplemented staging actions fail closed.
+      // No farm-runtime fallback here. Missing/unimplemented STAGING actions fail closed instead of reaching the live rollback source.
       data=await dispatchCode1Staging(env,user,action,body);
     }else{
       data=await bridge(env, user, action, body);
