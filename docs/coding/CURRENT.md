@@ -1,7 +1,7 @@
 # CODE1 CODING CURRENT
 
-Updated: 2026-09-12 03:24 KST
-Status: PHASE 0 VERIFIED / SUPABASE STAGING FIRST_IMPORT PASS / PRIVATE R2 CREATED / MEDIA SCHEMA 0010 APPLIED / R2 UPLOAD CONTRACT HARDENED / PAGES PREVIEW R2 BINDING VERIFIED / PREVIEW BRANCH FILTER EXACT PASS / PREVIEW ENV INVENTORY PASS / PREVIEW SUPABASE RUNTIME NOT_CONFIGURED / PREVIEW ORIGIN NEXT
+Updated: 2026-09-12 03:40 KST
+Status: PHASE 0 VERIFIED / SUPABASE STAGING FIRST_IMPORT PASS / PRIVATE R2 CREATED / MEDIA SCHEMA 0010 APPLIED / R2 UPLOAD CONTRACT HARDENED / PAGES PREVIEW R2 BINDING VERIFIED / PREVIEW BRANCH FILTER EXACT PASS / PREVIEW ENV INVENTORY PASS / PREVIEW ORIGIN PASS / PREVIEW SUPABASE RUNTIME NOT_CONFIGURED / CORE PREVIEW CONFIGURATION NEXT
 Branch: `coding/runtime-backend-staging`
 Base main: `a71a71eae73706862308e194110f4fcc2d25db01`
 Live cutover: NOT APPROVED
@@ -19,7 +19,7 @@ CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0018
 - Do not migrate/delete the four legacy Drive media rows merely because R2 exists.
 - No public R2 endpoint, `r2.dev`, custom R2 domain, or browser-visible credentials.
 - Production variables/secrets/bindings remain READ_ONLY and must not be copied into Preview by assumption.
-- Do not add or modify Preview variables/secrets until the exact Preview origin is verified.
+- Any new runtime secret must be staging-only and must never be committed to Git or the Message Bus.
 
 ## Durable staging state
 
@@ -48,7 +48,7 @@ Recent deployment observation also remains consistent: Preview 25/25 observed de
 
 ## Preview environment inventory: PASS
 
-Operator screenshot of Cloudflare Pages `code1-workspace -> Settings -> Preview` on 2026-09-12 verified:
+Cloudflare Pages `code1-workspace -> Settings -> Preview` verified:
 
 ```text
 Variables and secrets = NONE
@@ -58,68 +58,88 @@ Placement = Default
 Compatibility date = 2026-09-01
 ```
 
-Therefore `previewEnvInventory = PASS_EMPTY_RUNTIME_VARS_WITH_R2_BINDING`.
+`previewEnvInventory = PASS_EMPTY_RUNTIME_VARS_WITH_R2_BINDING`.
 
 No Preview variable/secret was added, edited, revealed, or deleted. No Production setting/binding was changed. No R2 object write occurred.
 
+## Preview origin gate: PASS
+
+Operator deployment-history screenshots and a successful Preview deployment detail verified the branch exactly as `coding/runtime-backend-staging` and the latest grounded successful deployment as:
+
+```text
+commit = 0920bfa
+status = success
+deploymentId = bea5991d-0e6d-464d-bea9-7d695ec8b46d
+atomicDeploymentUrl = https://bea5991d.code1-workspace.pages.dev
+branchAlias = https://coding-runtime-backend-stagi.code1-workspace.pages.dev
+```
+
+Cloudflare Pages branch aliases track the latest successful deployment for the branch, whereas the hash deployment URL is atomic. Therefore the stable Preview origin for runtime same-origin checks is:
+
+`APP_ORIGIN=https://coding-runtime-backend-stagi.code1-workspace.pages.dev`
+
+No trailing slash. Do not use the hash deployment URL as APP_ORIGIN.
+
+## Preview runtime state
+
 Preview runtime remains NOT_CONFIGURED for `SUPABASE_STAGING`; the previous read-only probe still represents runtime state: root 200, session `configured=false`, unauth RPC 400, media route 404, object write NONE.
 
-## Runtime provisioning plan
+Repository `configured(env)` requires a valid `APP_ORIGIN`, a 32+ character `SESSION_SECRET`, and in `SUPABASE_STAGING` mode a 32+ character `CODE1_LOGIN_IP_SECRET` before the app reports configured. Full staging RPC/media operation additionally requires the staging Supabase and token secrets.
 
-Core Preview-only configuration after exact Preview origin verification:
+Supabase STAGING project URL was re-read as:
 
-Text/runtime values:
+`https://bsintmkyhptizrjoizfb.supabase.co`
 
-- `APP_ORIGIN` = exact stable Preview origin, no trailing slash
-- `CODE1_RUNTIME_BACKEND=SUPABASE_STAGING`
-- `CODE1_STAGING_PROJECT_REF=bsintmkyhptizrjoizfb`
-- `CODE1_SUPABASE_URL=https://bsintmkyhptizrjoizfb.supabase.co`
+## Approved core Preview configuration
+
+Plain/runtime values:
+
+```text
+APP_ORIGIN=https://coding-runtime-backend-stagi.code1-workspace.pages.dev
+CODE1_RUNTIME_BACKEND=SUPABASE_STAGING
+CODE1_STAGING_PROJECT_REF=bsintmkyhptizrjoizfb
+CODE1_SUPABASE_URL=https://bsintmkyhptizrjoizfb.supabase.co
+```
 
 Server-only secrets:
 
-- `CODE1_SUPABASE_SERVICE_ROLE_KEY` = CODE1 STAGING service-role credential only
-- `SESSION_SECRET` = newly generated staging-only 32+ character secret
-- `CODE1_LOGIN_IP_SECRET` = newly generated staging-only 32+ character secret
-- `CODE1_UPLOAD_TOKEN_SECRET` = newly generated staging-only 32+ character secret
-- `CODE1_MEDIA_TOKEN_SECRET` = newly generated staging-only 32+ character secret
+```text
+CODE1_SUPABASE_SERVICE_ROLE_KEY=<CODE1 STAGING service-role credential only>
+SESSION_SECRET=<new staging-only 32+ chars>
+CODE1_LOGIN_IP_SECRET=<new staging-only 32+ chars>
+CODE1_UPLOAD_TOKEN_SECRET=<new staging-only 32+ chars>
+CODE1_MEDIA_TOKEN_SECRET=<new staging-only 32+ chars>
+```
 
-Existing binding:
+Existing binding remains `CODE1_MEDIA_BUCKET -> code1-staging-media`; do not create a duplicate text variable.
 
-- `CODE1_MEDIA_BUCKET -> code1-staging-media` — already VERIFIED; do not add a duplicate text variable.
+Deferred compatibility:
 
-Auth/legacy compatibility is intentionally deferred until explicitly needed:
-
-- `PASSWORD_PEPPER` must not be randomly regenerated if imported ID/password credentials are expected to remain valid; current password hashes depend on the existing pepper. Preserve the correct existing pepper or use a separately approved staging password-reset path.
-- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` are needed only when enabling OWNER Google recovery in Preview; they are not required for the first core runtime/read-only R2 probe.
-- `BRIDGE_URL` / `BRIDGE_SECRET` are required only for legacy deck/DECK fallback paths in the current staging routing; do not inject Production/live bridge secrets into staging by assumption.
+- `PASSWORD_PEPPER`: do not create a random replacement if imported ID/password credentials must remain valid. Password hashes depend on the existing pepper; preserve it or use an approved staging reset path.
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`: defer until OWNER Google recovery is explicitly enabled in Preview.
+- `BRIDGE_URL` / `BRIDGE_SECRET`: defer; current staging routing only needs the legacy bridge for compatibility fallback paths. Do not copy Production/live values by assumption.
 
 No secret value is committed to Git or written to the Message Bus.
 
-## Cross-track sync correction
+## Cross-track sync
 
-The prior CODING harness text incorrectly treated `MSG-20260912-0017` as a CODING outbound message. Bus readback proves that global ID is already `PLANNING -> UIUX / LONG_FORM_WORK_ORDER_AVAILABLE` and is unrelated to CODING.
-
-Correct state:
-
-- `MSG-20260912-0016`: CODING -> PLANNING implementation evidence, APPLIED by Planning at 2026-09-12 02:58.
-- `MSG-20260912-0017`: PLANNING -> UIUX long-form work order, PENDING; not a CODING message.
-- prior CODING status events that claimed 0016 was superseded by CODING 0017 are bookkeeping errors and are corrected append-only in the Bus.
-- `MSG-20260912-0018`: new CODING -> PLANNING PENDING implementation evidence for exact branch-control PASS plus Preview inventory PASS and Preview-origin next gate.
+- `MSG-20260912-0016`: CODING -> PLANNING, APPLIED at 2026-09-12 02:58.
+- `MSG-20260912-0017`: PLANNING -> UIUX, unrelated to CODING.
+- `MSG-20260912-0018`: CODING -> PLANNING PENDING evidence for branch-control exact PASS + Preview environment inventory PASS.
 - current CODING inbound: 0.
 
 ## NEXT_ATOMIC_ACTION
 
-Read only the exact stable Preview origin before provisioning any variable/secret:
+Provision only the approved **Preview** runtime set in Cloudflare Pages; Production must remain untouched:
 
-1. In Cloudflare Pages `code1-workspace`, open **Deployments**.
-2. Find the latest successful **Preview** deployment whose branch is exactly `coding/runtime-backend-staging`.
-3. Open that deployment and capture the displayed Preview deployment URL / branch alias / environment identifier.
-4. Do not click Retry deployment, Rollback, Promote, or any deployment mutation.
-5. Do not add variables or secrets yet.
+1. Keep `Choose Environment = Preview`.
+2. Add the four plain/runtime values exactly as listed above.
+3. Add the five server-only values as encrypted Secrets. The four staging-local HMAC/token secrets must be newly generated 32+ character values; do not paste them into chat or commit them anywhere.
+4. `CODE1_SUPABASE_SERVICE_ROLE_KEY` must be the CODE1 STAGING project service-role credential only.
+5. Do not add PASSWORD_PEPPER, Google OAuth, or legacy BRIDGE settings in this first core pass.
+6. Do not deploy manually until all nine entries are saved and the Preview inventory is re-opened to confirm only the intended names/types are present.
 
-The origin must be an HTTPS non-Production `*.code1-workspace.pages.dev` origin accepted by the repository verifier; do not guess it from the branch name.
-
-After exact origin verification, provision only the approved core Preview values/secrets above, intentionally deploy one Preview, rerun `verify-pages-preview-readonly.mjs`, and only after PASS run actual R2 single/multipart/HEAD/DB/private-GET/denial/retry integration tests.
+After the Preview runtime inventory matches the approved set, intentionally trigger exactly one Preview deployment, run the read-only HTTP verifier, and only after PASS run actual R2 single/multipart/HEAD/DB/private-GET/denial/retry integration tests.
 
 ## Other open items
 
