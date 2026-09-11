@@ -2,7 +2,7 @@ import {execFileSync} from 'node:child_process';
 import {existsSync,mkdtempSync,readFileSync,readdirSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join,resolve,sep} from 'node:path';
-import {fileURLToPath} from 'node:url';
+import {fileURLToPath,pathToFileURL} from 'node:url';
 
 const EXPECTED_BRANCH='coding/runtime-backend-staging';
 const DEFAULT_PAGES_PROJECT='code1-workspace';
@@ -157,6 +157,28 @@ function safeDeploymentExposure(raw,expectedEnvironment,branchControls=null){
     return 'DEPLOYMENT_LIST_PARSE_FAILED';
   }
 }
+function resolveWorkersAuthModule(wranglerPackageRoot,repoRoot){
+  const packageRoots=[
+    join(wranglerPackageRoot,'node_modules','@cloudflare','workers-auth'),
+    join(repoRoot,'node_modules','@cloudflare','workers-auth')
+  ];
+  for(const packageRoot of packageRoots){
+    const packageJsonPath=join(packageRoot,'package.json');
+    if(!existsSync(packageJsonPath))continue;
+    try{
+      const pkg=JSON.parse(readFileSync(packageJsonPath,'utf8'));
+      const exported=pkg?.exports?.['./wrangler'];
+      const relative=typeof exported==='string'?exported:exported?.import;
+      if(typeof relative!=='string'||!relative.trim())continue;
+      const entry=resolve(packageRoot,relative);
+      const prefix=packageRoot.endsWith(sep)?packageRoot:`${packageRoot}${sep}`;
+      if(entry.startsWith(prefix)&&existsSync(entry))return entry;
+    }catch{
+      continue;
+    }
+  }
+  return '';
+}
 function resolveWranglerCli(repoRoot){
   const packageRoot=resolve(repoRoot,'node_modules','wrangler');
   const packageJsonPath=join(packageRoot,'package.json');
@@ -169,7 +191,7 @@ function resolveWranglerCli(repoRoot){
   const cli=resolve(packageRoot,binRelative);
   const packagePrefix=packageRoot.endsWith(sep)?packageRoot:`${packageRoot}${sep}`;
   if(!cli.startsWith(packagePrefix)||!existsSync(cli)) fail('LOCAL_WRANGLER_BIN_INVALID');
-  return {cli,version:String(pkg.version||'unknown')};
+  return {cli,version:String(pkg.version||'unknown'),authModulePath:resolveWorkersAuthModule(packageRoot,repoRoot)};
 }
 function branchFilterAssessment(config){
   const setting=String(config?.preview_deployment_setting||'').trim().toLowerCase();
@@ -185,14 +207,17 @@ function branchFilterAssessment(config){
     exposureGate:exact?'PASS_CONFIGURED_PREVIEW_BRANCH_EXACT':'BLOCKED_CONFIGURED_PREVIEW_BRANCH_FILTER_NOT_EXACT'
   };
 }
-async function readPagesProjectBranchControls(whoamiRaw,pagesProject,wranglerVersion){
+async function readPagesProjectBranchControls(whoamiRaw,pagesProject,wranglerVersion,authModulePath){
   const whoami=parseWhoami(whoamiRaw);
   const accounts=Array.isArray(whoami?.accounts)?whoami.accounts:[];
   if(accounts.length!==1||!accounts[0]?.id){
     return {text:'PAGES_PROJECT_API_READBACK_BLOCKED account identity is ambiguous or unavailable',assessment:null};
   }
+  if(!authModulePath){
+    return {text:'PAGES_PROJECT_API_READBACK_BLOCKED Wrangler workers-auth dependency could not be resolved from local installation',assessment:null};
+  }
   try{
-    const {createWranglerAuth}=await import('@cloudflare/workers-auth/wrangler');
+    const {createWranglerAuth}=await import(pathToFileURL(authModulePath).href);
     const silentLogger={debug(){},log(){},warn(){},error(){}};
     const denyInteractive=async()=>{throw new Error('INTERACTIVE_AUTH_DISALLOWED');};
     const auth=createWranglerAuth({
@@ -288,7 +313,7 @@ printSection('WHOAMI_SAFE',safeWhoami(whoamiRaw));
 printSection('PAGES_PROJECT_LIST',wrangler(['pages','project','list','--json']));
 printSection('R2_BUCKET_LIST',wrangler(['r2','bucket','list']));
 inspectPagesConfig();
-const branchControlReadback=await readPagesProjectBranchControls(whoamiRaw,pagesProject,wranglerResolved.version);
+const branchControlReadback=await readPagesProjectBranchControls(whoamiRaw,pagesProject,wranglerResolved.version,wranglerResolved.authModulePath);
 printSection('PAGES_PROJECT_SOURCE_BRANCH_CONTROLS',branchControlReadback.text);
 printSection('PAGES_PREVIEW_DEPLOYMENT_EXPOSURE',safeDeploymentExposure(wrangler(['pages','deployment','list','--project-name',pagesProject,'--environment','preview','--json'],repoRoot,{allowFailure:true}),'preview',branchControlReadback.assessment));
 printSection('PAGES_PRODUCTION_DEPLOYMENT_EXPOSURE',safeDeploymentExposure(wrangler(['pages','deployment','list','--project-name',pagesProject,'--environment','production','--json'],repoRoot,{allowFailure:true}),'production',branchControlReadback.assessment));
