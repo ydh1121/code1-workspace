@@ -53,6 +53,16 @@ jobs:
       - name: Install workspace dependencies
         run: npm ci
 
+      - name: Report npm audit details without applying fixes
+        shell: bash
+        run: |
+          set +e
+          npm audit --json > /tmp/code1-npm-audit.json
+          audit_status=$?
+          set -e
+          node backend/staging/scripts/report-npm-audit.mjs /tmp/code1-npm-audit.json
+          echo "NPM_AUDIT_EXIT=$audit_status (nonzero means vulnerabilities were reported; no fix was applied)"
+
       - name: Compare root regression against known baseline
         shell: bash
         run: |
