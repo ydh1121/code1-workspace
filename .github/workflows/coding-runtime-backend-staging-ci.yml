@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   isolated-node-checks:
@@ -91,12 +91,16 @@ jobs:
       - name: Build upgraded workspace
         run: npm run build
 
-      - name: Upload validated dependency manifest artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: validated-dependency-security-upgrade
-          path: |
-            package.json
-            package-lock.json
-          if-no-files-found: error
-          retention-days: 1
+      - name: Commit validated dependency manifests atomically
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          if git diff --cached --quiet; then
+            echo "Validated manifests already match branch; no commit needed."
+            exit 0
+          fi
+          git commit -m "[CF-Pages-Skip] chore(coding): upgrade vulnerable dependencies"
+          git push origin HEAD:coding/runtime-backend-staging
