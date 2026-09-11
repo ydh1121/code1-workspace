@@ -1,12 +1,12 @@
 # CODE1 CODING BATON
 
-Updated: 2026-09-12 04:18 KST
+Updated: 2026-09-12 04:38 KST
 PLANNING_DELTA_SEQ_SEEN = 20260911-003
 CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0022
 
-LAST_VERIFIED_ACTION: the freshly provisioned Cloudflare Pages Preview deployment passed the repository read-only HTTP verifier. Root=200; session reports configured=true/authenticated=false; unauth bootstrap fails closed with 401 UNAUTHENTICATED; R2-backed media route fails closed with 403 FORBIDDEN; verifier reports PREVIEW_READONLY_VERIFY=PASS, OBJECT_WRITE=NONE, REMOTE_MUTATION=NONE. Branch control, stable Preview origin, nine-name environment inventory, Preview R2 binding, and Production isolation remain PASS.
+LAST_VERIFIED_ACTION: actual Cloudflare Pages Preview -> private R2 -> Supabase STAGING integration completed PASS. Signed staging session was accepted; small 128 KiB PUT/private GET/tampered-token denial passed; 11 MiB multipart begin/chunk/finish plus retry idempotency/HEAD/DB linkage/private GET passed; both test media rows soft-deleted; new read issuance after delete denied; Production and legacy Drive mutation remained NONE. Independent Supabase SQL readback verified both rows are `DELETED`, `R2_PRIVATE`, exact expected sizes/received bytes, and each has UPLOADED + SOFT_DELETED events.
 
-CURRENT_WORK: execute one guarded external R2 integration pass against the stable Preview alias, then independently verify Supabase test state and R2 inventory. Do not switch to Local Orchestrator Phase 1 until this active R2 atomic work reaches completion.
+CURRENT_WORK: perform one independent Cloudflare R2 inventory readback to prove exactly the two intended private test objects exist and no unexpected object was created. Then close the R2 atomic work and switch to the already-ACKED Local Orchestrator Phase 1 Work Order.
 
 ## Fixed boundaries
 
@@ -23,13 +23,13 @@ CURRENT_WORK: execute one guarded external R2 integration pass against the stabl
 - Production vars/secrets/bindings remain READ_ONLY
 - no secret value in Git/Bus/Drive documents/chat
 
-## Durable state before integration
+## Durable state
 
-FIRST_IMPORT is VERIFIED_COMPLETE and must not be rerun. Pre-integration counts remain accounts 2, farms 12, questions 231, submissions 2, answer versions 5, media 4, media events 5, audit 29, login guard 3, housing 12, migration registry 268.
+FIRST_IMPORT remains VERIFIED_COMPLETE and must not be rerun.
 
-Imported media remain 4/4 `GOOGLE_DRIVE_LEGACY`, `object_key=NULL`, `DELETED`; no legacy copy has occurred. Migration `r2_media_upload_state` / ledger `20260910181248` remains applied.
+Imported legacy media remain 4/4 `GOOGLE_DRIVE_LEGACY`, `object_key=NULL`, `DELETED`; no legacy R2 copy occurred.
 
-R2 `code1-staging-media` is private and, before the external integration run, remains 0 objects / 0 B with r2.dev disabled, no custom domain, CORS absent/code 10059, and default 7-day multipart abort.
+R2 `code1-staging-media` remains private with r2.dev disabled and no custom domain. The integration intentionally created two private test objects retained by soft-delete policy.
 
 ## Pages state: PASS
 
@@ -38,92 +38,21 @@ R2 `code1-staging-media` is private and, before the external integration run, re
 - Preview R2: `CODE1_MEDIA_BUCKET -> code1-staging-media`
 - Production R2 binding: NONE
 - stable Preview alias: `https://coding-runtime-backend-stagi.code1-workspace.pages.dev`
-- Preview runtime names: exact approved nine-name set, stored as encrypted Secret entries by current UI
-- deferred: `PASSWORD_PEPPER`, Google OAuth vars, `BRIDGE_URL/BRIDGE_SECRET`
+- controlled post-provisioning Preview deployment `84ef7ed379c0a568544536b89039a0b335b681b1` -> SUCCESS
+- read-only runtime verifier -> PASS
 
-Controlled post-provisioning Preview deployment:
+## External R2 integration: PASS
 
-`84ef7ed379c0a568544536b89039a0b335b681b1` -> SUCCESS
-
-Do not Retry, Rollback, Promote, or trigger another Preview deployment for the integration runner/doc commits; all subsequent preparation commits use `[CF-Pages-Skip]`.
-
-## Read-only verifier: PASS
-
-Operator output:
-
-```text
-ROOT_GET: status=200
-SESSION_GET: status=200 body={"configured":true,"authenticated":false,"googleEnabled":false}
-RPC_UNAUTH_BOOTSTRAP: status=401 body={"error":"UNAUTHENTICATED",...}
-MEDIA_BINDING_PROBE: status=403 body=FORBIDDEN
-PREVIEW_READONLY_VERIFY=PASS
-OBJECT_WRITE=NONE
-REMOTE_MUTATION=NONE
-```
-
-This is the final no-write gate before actual R2 integration.
-
-## Guarded integration tooling: READY
-
-Files:
-
-```text
-backend/staging/scripts/integrate-pages-r2-staging.mjs
-backend/staging/scripts/run-pages-r2-integration.ps1
-```
-
-Runner commit `1bef88f9ecaa0ba8dc929e3492c0a4b13d09a988` -> CI `34637938259` SUCCESS.
-
-CI hardening head `fa9b1fc6fb501a91ab9b0c69b7e28a4ebac0a488` parses all staging PowerShell wrappers and preserves existing syntax/unit/root-baseline/build checks.
-
-Runner contract:
-
-- exact branch guard and Preview-host guard;
-- explicit `--confirm-staging-r2-write` required;
-- hidden local Preview `SESSION_SECRET` input via SecureString wrapper;
-- active default test principal `OWNER`, session_version 2;
-- authenticated bootstrap must prove `SUPABASE_STAGING`;
-- actual small PUT and 11 MiB multipart flow;
-- begin/chunk/finish retry idempotency;
-- HEAD/DB linkage/private GET/hash checks;
-- tampered media token denial;
-- DB soft-delete + denial of new read-token issuance after delete.
-
-Successful test objects remain private in R2 by soft-delete retention policy. A full PASS therefore intentionally leaves 2 private R2 test objects while test DB rows are soft-deleted. Production/main/legacy Drive remain untouched.
-
-The session-cookie mechanism in this runner is integration-only and does not prove password login; `PASSWORD_PEPPER` remains deferred.
-
-## Cross-track sync
-
-- MSG-0019: CODING -> PLANNING APPLIED.
-- MSG-0021: PLANNING -> CODING ACKED; Local Orchestrator Phase 1 is intentionally deferred until this R2 atomic work completes.
-- MSG-0022: CODING -> PLANNING PENDING; Preview read-only PASS + integration readiness.
-- CODING inbound pending: 0.
-- CODING outbound pending: 1.
-
-## NEXT_ATOMIC_ACTION
-
-On the operator PC:
-
-```powershell
-cd C:\Users\Administrator\Desktop\code1
-git pull --ff-only origin coding/runtime-backend-staging
-powershell -NoProfile -ExecutionPolicy Bypass -File backend/staging/scripts/run-pages-r2-integration.ps1
-```
-
-When prompted `Paste Preview SESSION_SECRET (hidden)`, paste the exact Preview `SESSION_SECRET` currently saved in Cloudflare. Never send it to chat.
-
-Do not run the integration a second time automatically if any step fails. Return the complete console output so the failed stage and any created staging rows/multipart state can be inspected first.
-
-PASS requires at minimum:
+Operator output included:
 
 ```text
 SIGNED_SESSION=PASS
-SMALL_PUT=PASS
+bootstrapBackend=SUPABASE_STAGING
+SMALL_PUT=PASS mediaId=M_32c63189358249c2844869a4 bytes=131072
 SMALL_PUT_RETRY_IDEMPOTENT=PASS
 SMALL_PRIVATE_GET=PASS
 TAMPERED_MEDIA_TOKEN_DENIAL=PASS
-MULTIPART_BEGIN=PASS
+MULTIPART_BEGIN=PASS mediaId=M_6132c51925d449b2b5b2e402 bytes=11534336
 MULTIPART_BEGIN_RETRY_IDEMPOTENT=PASS
 MULTIPART_CHUNK1=PASS
 MULTIPART_CHUNK_RETRY_IDEMPOTENT=PASS
@@ -139,6 +68,61 @@ PRODUCTION_MUTATION=NONE
 LEGACY_DRIVE_MUTATION=NONE
 ```
 
-After PASS, perform independent Supabase row/event verification and Cloudflare R2 object inventory before marking external integration complete.
+The accepted signed session proves the entered `SESSION_SECRET` was correct. A wrong secret would fail before authenticated bootstrap.
+
+The post-delete media read attempts currently surface HTTP 400 generic `REQUEST_FAILED` rather than dedicated 404 because `NOT_FOUND` is not mapped in the shared failure mapper. This is a semantic cleanup item only; denial itself is confirmed.
+
+## Independent Supabase verification: PASS
+
+Rows:
+
+```text
+M_32c63189358249c2844869a4
+  status=DELETED
+  source_storage=R2_PRIVATE
+  size=131072
+  received=131072
+  uploaded_by=OWNER
+
+M_6132c51925d449b2b5b2e402
+  status=DELETED
+  source_storage=R2_PRIVATE
+  size=11534336
+  received=11534336
+  uploaded_by=OWNER
+  multipart upload id populated
+```
+
+Events: each media ID has one `UPLOADED` transition to `REVIEW_REQUIRED` and one `SOFT_DELETED` transition to `DELETED`.
+
+## Local input preference
+
+Do not use clipboard-dependent secret instructions and do not use hidden/SecureString prompts for future local operator steps. If a local secret must be entered, use ordinary visible input; avoid asking for secret input when it is not technically required.
+
+Wrapper `backend/staging/scripts/run-pages-r2-integration.ps1` changed at commit `5a2ee0109e6c97ed322f5906abd953cb181acc73` to normal visible `Read-Host` input while still clearing the temporary environment variable after execution.
+
+## Cross-track sync
+
+- MSG-0019: CODING -> PLANNING APPLIED.
+- MSG-0021: PLANNING -> CODING ACKED; Local Orchestrator Phase 1 remains next after R2 atomic close.
+- MSG-0022: CODING -> PLANNING PENDING; read-only PASS + integration readiness.
+- CODING inbound pending: 0.
+- CODING outbound pending: 1.
+
+## NEXT_ATOMIC_ACTION
+
+Perform independent Cloudflare R2 inventory readback only. Do not rerun uploads.
+
+Required close condition:
+
+```text
+bucket = code1-staging-media
+expected test objects = 2
+unexpected objects = 0
+legacy migrated objects = 0
+Production mutation = 0
+```
+
+After inventory PASS, publish consolidated CODING->PLANNING R2 completion evidence and begin the deferred Local Orchestrator Phase 1 Work Order.
 
 ROLLBACK: Apps Script/Sheet/Drive remains live. Production has no R2 binding.
