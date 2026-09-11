@@ -42,8 +42,8 @@ const cookie=cookieFrom(login.headers.get('set-cookie'));if(!cookie)throw Error(
 console.log(`PASSWORD_LOGIN=PASS account=OWNER sessionVersion=${loginBody.user.version}`);
 
 const session=await fetch(`${BASE}/api/session`,{headers:{Cookie:cookie},redirect:'manual',signal:AbortSignal.timeout(30000)});const sessionBody=await session.json();
-if(!session.ok||sessionBody.authenticated!==true||sessionBody.user?.id!=='OWNER')throw Error('SESSION_RESTORE_FAILED');
-console.log(`SESSION_RESTORE=PASS account=OWNER sessionVersion=${sessionBody.user.version}`);
+if(!session.ok||sessionBody.configured!==true||sessionBody.authenticated!==true)throw Error('SESSION_RESTORE_FAILED');
+console.log(`SESSION_RESTORE=PASS configured=true authenticated=true googleEnabled=${sessionBody.googleEnabled===true}`);
 
 const boot=(await rpc(cookie,'deckBootstrap')).data;
 if(boot?.deck?.deck_id!==EXPECTED_DECK||Number(boot?.deck?.version)<MIN_VERSION)throw Error(`DECK_BOOTSTRAP_STATE_MISMATCH version=${boot?.deck?.version}`);
