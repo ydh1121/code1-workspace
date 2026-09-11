@@ -1,12 +1,12 @@
 # CODE1 CODING BATON
 
-Updated: 2026-09-12 05:33 KST
+Updated: 2026-09-12 05:52 KST
 PLANNING_DELTA_SEQ_SEEN = 20260911-003
 CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0026
 
-LAST_VERIFIED_ACTION: CODE1 Preview/Supabase STAGING/private-R2 external integration is CLOSED PASS; deleted-media `NOT_FOUND -> HTTP 404` is LIVE PASS; read-only latency baseline is recorded; dependency security hardening is CLOSED PASS with locked `npm audit = 0` and CODE1 PDF runtime smoke PASS.
+LAST_VERIFIED_ACTION: CODE1 Preview/Supabase STAGING/private-R2 external integration is CLOSED PASS; deleted-media `NOT_FOUND -> HTTP 404` is LIVE PASS; read-only latency baseline is recorded; dependency security hardening is CLOSED PASS; real browser `owner` ID/password login and session restore are CLOSED PASS.
 
-CURRENT_WORK: consolidated implementation evidence is published to Planning as `MSG-20260912-0026`. No newer PLANNING -> CODING instruction was present at immediate readback. Hold verified STAGING state until Planning routes the next CODING priority; do not execute Orchestrator work here and do not invent Production cutover or optimization work.
+CURRENT_WORK: browser auth is verified. Farm/question-policy/account flows run on Supabase STAGING. Aza Mall Deck is blocked because `deckAssets/deckBootstrap/saveDeck` still intentionally route through the legacy bridge while Preview has no `BRIDGE_URL/BRIDGE_SECRET`. Do not attach Preview to Production bridge values by assumption. Planning must choose a staging-safe Deck path before CODING enables it.
 
 ## Fixed boundaries
 
@@ -60,16 +60,10 @@ The p50/p95 distributions align closely. With the project percentile implementat
 
 ## Dependency security hardening: PASS
 
-Old audit: 3 high + 1 critical.
-
-Validated/fixed axes:
-
 - `jspdf` -> `^4.2.1`
 - `wrangler` -> `^4.131.1`, clearing transitive `miniflare`/`sharp` advisories.
 
 Atomic manifest upgrade commit: `2d7eb63374b61072ce2d132d4efe566508664aa2`.
-
-Final CI contract:
 
 ```text
 npm ci
@@ -79,20 +73,62 @@ known root baseline remains exact pre-existing 5 failures
 build PASS
 ```
 
-PDF major-version smoke uses real `public/assets/RequestFont.ttf`, executes CODE1 `requestDocument()`, and validates `%PDF-` output. Final CI run `34644776006` SUCCESS after moving dependency installation before the dependency-aware staging tests.
+PDF major-version smoke uses real `public/assets/RequestFont.ttf`, executes CODE1 `requestDocument()`, and validates `%PDF-` output. Final CI run `34644776006` SUCCESS.
 
-All security/CI/docs changes use `[CF-Pages-Skip]`; Preview/Production deployment = NONE.
+## Browser password login: CLOSED PASS
+
+Preview has a STAGING-only `PASSWORD_PEPPER`; value is not recorded.
+
+Operator E2E:
+
+```text
+STAGING_OWNER_PASSWORD_RESET=PASS newSessionVersion=3
+PASSWORD_LOGIN=PASS account=OWNER sessionVersion=3
+SESSION_RESTORE=PASS googleEnabled=false
+AUTHENTICATED_BOOTSTRAP=PASS backend=SUPABASE_STAGING
+LOGOUT=PASS
+STAGING_WEB_LOGIN_E2E=PASS
+PRODUCTION_MUTATION=NONE
+LEGACY_DRIVE_MUTATION=NONE
+R2_OBJECT_WRITE=NONE
+```
+
+Manual browser verification:
+
+- `owner` login succeeded;
+- SUPER_ADMIN identity/account management visible;
+- Farm workspace loaded Supabase STAGING data;
+- Question-policy management loaded;
+- F5 briefly showed login then automatically returned to the authenticated workspace, proving real browser cookie/session restore.
+
+The brief login-screen flash is a UX issue caused by asynchronous `restoreSession()` after initial login markup is already visible. It is not session loss. Route separately under appropriate UI ownership or an explicit atomic coding task.
+
+## Deck blocker: PLANNING DECISION REQUIRED
+
+Manual browser Deck entry reproduces `SETUP_REQUIRED`.
+
+`functions/api/rpc.js` explicitly keeps `deckAssets`, `deckBootstrap`, and `saveDeck` outside Supabase STAGING ownership and routes them through `bridge(...)`. Preview intentionally has no `BRIDGE_URL/BRIDGE_SECRET`.
+
+Do not copy Production bridge values into Preview by assumption; that could expose the live Apps Script/Sheet/Drive rollback source to STAGING deck writes.
+
+Planning must choose:
+
+1. a specifically isolated/staging-safe legacy bridge contract; or
+2. Deck migration to Supabase STAGING/private staging storage.
+
+Until then Deck remains fail-closed.
 
 ## Planning routing
 
 - `MSG-20260912-0021`: superseded; do not execute Orchestrator in CODING.
 - `MSG-20260912-0024`: ORCHESTRATOR-only, separate chat/track.
 - `MSG-20260912-0025`: P0 CODING scope correction APPLIED.
-- `MSG-20260912-0026`: CODING -> PLANNING consolidated implementation evidence PENDING.
+- `MSG-20260912-0026`: CODING -> PLANNING consolidated implementation evidence PENDING at last readback.
+- New evidence to route: browser password/session CLOSED PASS + Deck legacy-bridge blocker/decision request.
 
 ## Known baseline / ownership
 
-Five root failures remain pre-existing and unchanged: deck UI fixture, legacy media-organizer naming expectation, two media UX expectations, legacy migration fetch fixture. Do not fold them into this backend hardening without an explicit owner/task decision. Stale source duplicate rows 501-512 remain Planning/data decision.
+Five root failures remain pre-existing and unchanged: deck UI fixture, legacy media-organizer naming expectation, two media UX expectations, legacy migration fetch fixture. Do not fold them into backend hardening without an explicit owner/task decision. Stale source duplicate rows 501-512 remain Planning/data decision.
 
 ## Local input preference
 
@@ -100,8 +136,9 @@ No hidden/SecureString prompts and no clipboard-dependent secret workflow. Visib
 
 ## NEXT_ATOMIC_ACTION
 
-1. Await/consume Planning review of `MSG-20260912-0026` or a newer explicit PLANNING -> CODING work order.
-2. If none exists, hold the verified STAGING state. No Production promotion, no evidence-free performance tuning, no Orchestrator work in this chat.
-3. Keep the five pre-existing root failures in their current ownership buckets until explicitly routed.
+1. Route browser-login CLOSED PASS and Deck blocker to Planning.
+2. Await explicit Deck architecture decision: staging-safe bridge vs Supabase STAGING Deck migration.
+3. Hold Production/main/live Apps Script/Sheet/Drive unchanged.
+4. Keep auth-flash UX issue separate from the Deck architecture decision.
 
 ROLLBACK: Apps Script/Sheet/Drive remains live. Production has no R2 binding.
