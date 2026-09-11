@@ -1,7 +1,6 @@
 -- CODE1 Internal Workspace / STAGING ONLY
 -- Aza Mall Deck runtime target for WO-20260912-CODING-DECK-001.
--- ADDITIVE DESIGN ONLY at commit time: this file must pass pre-apply tests before DB application.
--- Never apply to Production and never use this migration to mutate the live Apps Script/Sheet/Drive source.
+-- Additive, reversible staging schema. Never apply to Production or mutate live Apps Script/Sheet/Drive.
 
 begin;
 
@@ -87,8 +86,7 @@ alter table deck_assets enable row level security;
 alter table deck_revisions enable row level security;
 alter table deck_revision_assets enable row level security;
 
--- Browser roles never access Deck persistence directly. Cloudflare uses the STAGING service boundary.
-revoke all on table deck_documents, deck_assets, deck_revisions, deck_revision_assets from anon, authenticated;
+revoke all on table deck_documents, deck_assets, deck_revisions, deck_revision_assets from public, anon, authenticated;
 grant select, insert, update on table deck_documents, deck_assets to service_role;
 grant select, insert on table deck_revisions, deck_revision_assets to service_role;
 
@@ -103,7 +101,7 @@ set search_path = public, extensions
 as $$
 declare
   v_role text;
-  v_status text;
+  v_account_status text;
   v_permissions jsonb;
   v_existing deck_assets%rowtype;
   v_row deck_assets%rowtype;
@@ -123,28 +121,40 @@ begin
   if v_size < 1 or v_size > 8388608 then raise exception 'PREVIEW_TOO_LARGE'; end if;
   if v_checksum !~ '^[a-f0-9]{64}$' then raise exception 'INVALID_CHECKSUM'; end if;
   if v_source_kind not in ('SEED_EMBEDDED','LEGACY_DRIVE','STAGING_UPLOAD') then raise exception 'INVALID_DECK_ASSET_SOURCE'; end if;
+  if coalesce(jsonb_typeof(p_asset->'metadata'),'object') <> 'object' then raise exception 'INVALID_DECK_ASSET_METADATA'; end if;
 
-  select role,status,permissions_json into v_role,v_status,v_permissions
-  from workspace_accounts where account_id=p_actor_id;
-  if not found or v_status <> 'active' then raise exception 'UNAUTHENTICATED'; end if;
+  select wa.role,wa.status,wa.permissions_json
+    into v_role,v_account_status,v_permissions
+  from workspace_accounts wa
+  where wa.account_id=p_actor_id;
+  if not found or v_account_status <> 'active' then raise exception 'UNAUTHENTICATED'; end if;
   if v_role not in ('SUPER_ADMIN','ADMIN') and coalesce(v_permissions->>'deck','none') <> 'edit' then raise exception 'FORBIDDEN'; end if;
 
-  select * into v_existing
-  from deck_assets
-  where deck_id=v_deck_id and registered_by=p_actor_id and request_id=p_request_id
+  -- Bootstrap only the document identity needed by the asset FK. Do not advance the current pointer.
+  insert into deck_documents(deck_id,current_version,version_label,status,updated_by,updated_at)
+  values(v_deck_id,0,'v0.1','INTERNAL WORKING COPY',p_actor_id,now())
+  on conflict (deck_id) do nothing;
+
+  select da.* into v_existing
+  from deck_assets da
+  where da.deck_id=v_deck_id and da.registered_by=p_actor_id and da.request_id=p_request_id
   limit 1;
   if found then
+    if v_existing.asset_id <> v_asset_id then raise exception 'REQUEST_ID_REUSE'; end if;
     return next v_existing;
     return;
   end if;
 
-  select * into v_existing from deck_assets where asset_id=v_asset_id;
+  select da.* into v_existing
+  from deck_assets da
+  where da.asset_id=v_asset_id;
   if found then
     if v_existing.deck_id=v_deck_id
        and v_existing.object_key=v_object_key
        and v_existing.mime_type=v_mime
        and v_existing.file_size_bytes=v_size
        and v_existing.checksum_sha256=v_checksum
+       and v_existing.source_kind=v_source_kind
        and v_existing.state='ACTIVE' then
       return next v_existing;
       return;
@@ -160,7 +170,8 @@ begin
     v_asset_id,v_deck_id,v_object_key,v_mime,v_size,v_checksum,
     v_source_kind,nullif(p_asset->>'source_ref',''),nullif(p_asset->>'rights_status',''),
     nullif(p_asset->>'usage_note',''),nullif(p_asset->>'review_note',''),
-    coalesce(p_asset->'metadata','{}'::jsonb),'ACTIVE',p_actor_id,p_request_id
+    case when jsonb_typeof(p_asset->'metadata')='object' then p_asset->'metadata' else '{}'::jsonb end,
+    'ACTIVE',p_actor_id,p_request_id
   ) returning * into v_row;
 
   insert into audit_log(actor_id,action,target_type,target_id,detail,request_id,metadata)
@@ -202,7 +213,9 @@ declare
   v_distinct integer;
   v_current integer;
 begin
-  select * into v_actor from workspace_accounts where account_id=p_actor_id;
+  select wa.* into v_actor
+  from workspace_accounts wa
+  where wa.account_id=p_actor_id;
   if not found or v_actor.status <> 'active' then raise exception 'UNAUTHENTICATED'; end if;
   if v_actor.role <> 'SUPER_ADMIN' or p_actor_id <> 'OWNER' then raise exception 'FORBIDDEN'; end if;
   if p_deck_id <> 'CODE1_AZA_INTERNAL' then raise exception 'INVALID_DECK'; end if;
@@ -213,7 +226,11 @@ begin
   if p_payload_text is null or char_length(p_payload_text) not between 2 and 1200000 then raise exception 'INVALID_DECK'; end if;
   if p_asset_refs is null or cardinality(p_asset_refs) > 256 then raise exception 'INVALID_DECK_MEDIA'; end if;
 
-  begin v_payload:=p_payload_text::jsonb; exception when others then raise exception 'INVALID_DECK'; end;
+  begin
+    v_payload:=p_payload_text::jsonb;
+  exception when others then
+    raise exception 'INVALID_DECK';
+  end;
   if coalesce(v_payload->>'deck_id','') <> p_deck_id
      or coalesce((v_payload->>'version')::integer,0) <> p_version
      or coalesce(v_payload->>'version_label','') <> p_version_label
@@ -226,17 +243,35 @@ begin
   v_hash:=replace(translate(encode(extensions.digest(convert_to(p_payload_text,'UTF8'),'sha256'),'base64'),'+/','-_'),'=','');
   if v_hash <> p_content_hash then raise exception 'DECK_CONTENT_HASH_MISMATCH'; end if;
 
-  select count(distinct x) into v_distinct from unnest(p_asset_refs) x;
+  select count(distinct refs.asset_id) into v_distinct
+  from unnest(p_asset_refs) as refs(asset_id);
   if v_distinct <> cardinality(p_asset_refs) then raise exception 'INVALID_DECK_MEDIA'; end if;
+
   select count(*) into v_missing
-  from unnest(p_asset_refs) x
-  left join deck_assets a on a.asset_id=x and a.deck_id=p_deck_id and a.state='ACTIVE'
-  where a.asset_id is null;
+  from unnest(p_asset_refs) as refs(asset_id)
+  left join deck_assets da
+    on da.asset_id=refs.asset_id and da.deck_id=p_deck_id and da.state='ACTIVE'
+  where da.asset_id is null;
   if v_missing <> 0 then raise exception 'INVALID_DECK_MEDIA'; end if;
 
-  select * into v_existing from deck_revisions where revision_id=p_revision_id;
+  select dr.* into v_existing
+  from deck_revisions dr
+  where dr.revision_id=p_revision_id;
   if found then
-    if v_existing.deck_id=p_deck_id and v_existing.version=p_version and v_existing.content_hash=p_content_hash then
+    if v_existing.deck_id=p_deck_id
+       and v_existing.version=p_version
+       and v_existing.content_hash=p_content_hash then
+      if coalesce(p_make_current,false) then
+        update deck_documents dd
+        set current_revision_id=v_existing.revision_id,
+            current_version=v_existing.version,
+            version_label=v_existing.version_label,
+            status='INTERNAL WORKING COPY',
+            updated_by=p_actor_id,
+            updated_at=v_existing.saved_at
+        where dd.deck_id=p_deck_id
+          and dd.current_version <= v_existing.version;
+      end if;
       return query select v_existing.revision_id,v_existing.version,v_existing.version_label,v_existing.saved_at;
       return;
     end if;
@@ -247,7 +282,10 @@ begin
   values(p_deck_id,0,p_version_label,'INTERNAL WORKING COPY',p_actor_id,coalesce(p_saved_at,now()))
   on conflict (deck_id) do nothing;
 
-  if exists(select 1 from deck_revisions where deck_id=p_deck_id and version=p_version) then
+  if exists(
+    select 1 from deck_revisions dr
+    where dr.deck_id=p_deck_id and dr.version=p_version
+  ) then
     raise exception 'DECK_VERSION_CONFLICT';
   end if;
 
@@ -257,26 +295,38 @@ begin
     source_kind,source_revision_id,state
   ) values (
     p_revision_id,p_deck_id,p_version,p_version_label,'INTERNAL WORKING COPY',p_payload_text,p_content_hash,
-    p_actor_id,coalesce(nullif(p_saved_by_snapshot,''),p_actor_id),coalesce(p_saved_at,now()),left(coalesce(p_change_summary,''),1000),p_request_id,
-    'LEGACY_IMPORT',p_revision_id,'COMMITTED'
+    p_actor_id,coalesce(nullif(p_saved_by_snapshot,''),p_actor_id),coalesce(p_saved_at,now()),
+    left(coalesce(p_change_summary,''),1000),p_request_id,'LEGACY_IMPORT',p_revision_id,'COMMITTED'
   );
 
   insert into deck_revision_assets(revision_id,asset_id)
-  select p_revision_id,x from unnest(p_asset_refs) x;
+  select p_revision_id,refs.asset_id
+  from unnest(p_asset_refs) as refs(asset_id);
 
   if coalesce(p_make_current,false) then
-    select current_version into v_current from deck_documents where deck_id=p_deck_id for update;
+    select dd.current_version into v_current
+    from deck_documents dd
+    where dd.deck_id=p_deck_id
+    for update;
     if v_current > p_version then raise exception 'DECK_VERSION_CONFLICT'; end if;
-    update deck_documents
-    set current_revision_id=p_revision_id,current_version=p_version,version_label=p_version_label,
-        status='INTERNAL WORKING COPY',updated_by=p_actor_id,updated_at=coalesce(p_saved_at,now())
-    where deck_id=p_deck_id;
+
+    update deck_documents dd
+    set current_revision_id=p_revision_id,
+        current_version=p_version,
+        version_label=p_version_label,
+        status='INTERNAL WORKING COPY',
+        updated_by=p_actor_id,
+        updated_at=coalesce(p_saved_at,now())
+    where dd.deck_id=p_deck_id;
   end if;
 
   insert into audit_log(actor_id,action,target_type,target_id,detail,request_id,metadata)
   values(
     p_actor_id,'deck.revision.import','DECK',p_deck_id,'version='||p_version,p_request_id,
-    jsonb_build_object('revision_id',p_revision_id,'content_hash',p_content_hash,'asset_count',cardinality(p_asset_refs),'make_current',coalesce(p_make_current,false))
+    jsonb_build_object(
+      'revision_id',p_revision_id,'content_hash',p_content_hash,
+      'asset_count',cardinality(p_asset_refs),'make_current',coalesce(p_make_current,false)
+    )
   );
 
   return query select p_revision_id,p_version,p_version_label,coalesce(p_saved_at,now());
@@ -319,29 +369,40 @@ begin
   if p_payload_text is null or char_length(p_payload_text) not between 2 and 1200000 then raise exception 'INVALID_DECK'; end if;
   if p_asset_refs is null or cardinality(p_asset_refs) > 256 then raise exception 'INVALID_DECK_MEDIA'; end if;
 
-  select role,status,permissions_json,coalesce(nullif(email,''),username)
-  into v_role,v_account_status,v_permissions,v_snapshot
-  from workspace_accounts where account_id=p_actor_id;
+  select wa.role,wa.status,wa.permissions_json,coalesce(nullif(wa.email,''),wa.username)
+    into v_role,v_account_status,v_permissions,v_snapshot
+  from workspace_accounts wa
+  where wa.account_id=p_actor_id;
   if not found or v_account_status <> 'active' then raise exception 'UNAUTHENTICATED'; end if;
   if v_role not in ('SUPER_ADMIN','ADMIN') and coalesce(v_permissions->>'deck','none') <> 'edit' then raise exception 'FORBIDDEN'; end if;
 
-  select * into v_existing
-  from deck_revisions
-  where deck_id=p_deck_id and saved_by=p_actor_id and request_id=p_request_id and source_kind='STAGING_SAVE'
+  select dr.* into v_existing
+  from deck_revisions dr
+  where dr.deck_id=p_deck_id
+    and dr.saved_by=p_actor_id
+    and dr.request_id=p_request_id
+    and dr.source_kind='STAGING_SAVE'
   limit 1;
   if found then
     return query select v_existing.version,v_existing.version_label,v_existing.saved_at,v_existing.revision_id;
     return;
   end if;
 
-  select * into v_doc from deck_documents where deck_id=p_deck_id for update;
+  select dd.* into v_doc
+  from deck_documents dd
+  where dd.deck_id=p_deck_id
+  for update;
   if not found or v_doc.current_revision_id is null then raise exception 'NOT_FOUND'; end if;
   if v_doc.current_version <> p_base_version then raise exception 'CONFLICT'; end if;
 
   v_next:=v_doc.current_version+1;
   v_label:=case when coalesce(p_new_version,false) then 'v0.'||v_next::text else v_doc.version_label end;
 
-  begin v_payload:=p_payload_text::jsonb; exception when others then raise exception 'INVALID_DECK'; end;
+  begin
+    v_payload:=p_payload_text::jsonb;
+  exception when others then
+    raise exception 'INVALID_DECK';
+  end;
   if coalesce(v_payload->>'deck_id','') <> p_deck_id
      or coalesce((v_payload->>'version')::integer,0) <> v_next
      or coalesce(v_payload->>'version_label','') <> v_label
@@ -351,12 +412,15 @@ begin
     raise exception 'INVALID_DECK';
   end if;
 
-  select count(distinct x) into v_distinct from unnest(p_asset_refs) x;
+  select count(distinct refs.asset_id) into v_distinct
+  from unnest(p_asset_refs) as refs(asset_id);
   if v_distinct <> cardinality(p_asset_refs) then raise exception 'INVALID_DECK_MEDIA'; end if;
+
   select count(*) into v_missing
-  from unnest(p_asset_refs) x
-  left join deck_assets a on a.asset_id=x and a.deck_id=p_deck_id and a.state='ACTIVE'
-  where a.asset_id is null;
+  from unnest(p_asset_refs) as refs(asset_id)
+  left join deck_assets da
+    on da.asset_id=refs.asset_id and da.deck_id=p_deck_id and da.state='ACTIVE'
+  where da.asset_id is null;
   if v_missing <> 0 then raise exception 'INVALID_DECK_MEDIA'; end if;
 
   v_hash:=replace(translate(encode(extensions.digest(convert_to(p_payload_text,'UTF8'),'sha256'),'base64'),'+/','-_'),'=','');
@@ -371,17 +435,25 @@ begin
   );
 
   insert into deck_revision_assets(revision_id,asset_id)
-  select v_revision,x from unnest(p_asset_refs) x;
+  select v_revision,refs.asset_id
+  from unnest(p_asset_refs) as refs(asset_id);
 
-  update deck_documents
-  set current_revision_id=v_revision,current_version=v_next,version_label=v_label,
-      status='INTERNAL WORKING COPY',updated_by=p_actor_id,updated_at=v_saved
-  where deck_id=p_deck_id;
+  update deck_documents dd
+  set current_revision_id=v_revision,
+      current_version=v_next,
+      version_label=v_label,
+      status='INTERNAL WORKING COPY',
+      updated_by=p_actor_id,
+      updated_at=v_saved
+  where dd.deck_id=p_deck_id;
 
   insert into audit_log(actor_id,action,target_type,target_id,detail,request_id,metadata)
   values(
     p_actor_id,'deck.save','DECK',p_deck_id,'version='||v_next,p_request_id,
-    jsonb_build_object('revision_id',v_revision,'content_hash',v_hash,'asset_count',cardinality(p_asset_refs),'new_version',coalesce(p_new_version,false))
+    jsonb_build_object(
+      'revision_id',v_revision,'content_hash',v_hash,
+      'asset_count',cardinality(p_asset_refs),'new_version',coalesce(p_new_version,false)
+    )
   );
 
   return query select v_next,v_label,v_saved,v_revision;
