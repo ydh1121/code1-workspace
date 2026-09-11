@@ -2,6 +2,7 @@ import {dispatchStagingRpc} from './rpc-adapter.mjs';
 import {dispatchPlanningApi} from './planning-api.mjs';
 import {dispatchMediaUpload,isMediaUploadAction} from './media-upload-runtime.mjs';
 import {deckBootstrap,deckAssets,saveDeck} from './deck-runtime.mjs';
+import {uploadDeckAsset,getDeckMediaMaybe} from './deck-media-runtime.mjs';
 
 const PLANNING_ACTIONS=new Set([
   'factInbox.list',
@@ -16,14 +17,13 @@ const DECK_ACTIONS=new Set([
   'saveDeck'
 ]);
 
-// WO-20260912-CODING-DECK-001 requires read-path proof before any STAGING Deck write is enabled.
-// This gate is deliberately code-locked for the read-cutover deployment and is opened only after
-// live Preview deckBootstrap/deckAssets + private R2 read verification passes.
-export const DECK_WRITE_GATE_OPEN=false;
+// PHASE C live Preview read verification passed on 2026-09-12.
+// PHASE D opens only STAGING-native Deck save and direct private-R2 image upload.
+export const DECK_WRITE_GATE_OPEN=true;
+export const DECK_DRIVE_LINK_ENABLED=false;
 
-function isDeckAuxWrite(action,payload={}){
-  return (action==='upload'||action==='linkDrive')&&payload?.kind==='DECK';
-}
+function isDeckUpload(action,payload={}){return action==='upload'&&payload?.kind==='DECK';}
+function isDeckDriveLink(action,payload={}){return action==='linkDrive'&&payload?.kind==='DECK';}
 
 async function dispatchDeckAction(env,principal,action,payload,fetchImpl){
   switch(action){
@@ -37,7 +37,15 @@ async function dispatchDeckAction(env,principal,action,payload,fetchImpl){
 }
 
 export async function dispatchCode1Staging(env,principal,action,payload={},fetchImpl=fetch){
-  if(isDeckAuxWrite(action,payload))throw Error('DECK_WRITE_GATE_CLOSED');
+  if(isDeckDriveLink(action,payload))throw Error('DECK_DRIVE_LINK_DISABLED');
+  if(isDeckUpload(action,payload)){
+    if(!DECK_WRITE_GATE_OPEN)throw Error('DECK_WRITE_GATE_CLOSED');
+    return uploadDeckAsset(env,principal,payload,fetchImpl);
+  }
+  if(action==='media'){
+    const deckMedia=await getDeckMediaMaybe(env,principal,payload,fetchImpl);
+    if(deckMedia)return deckMedia;
+  }
   if(PLANNING_ACTIONS.has(action))return dispatchPlanningApi(env,principal,action,payload,fetchImpl);
   if(DECK_ACTIONS.has(action))return dispatchDeckAction(env,principal,action,payload,fetchImpl);
   if(isMediaUploadAction(action,payload))return dispatchMediaUpload(env,principal,action,payload,fetchImpl);
@@ -46,4 +54,5 @@ export async function dispatchCode1Staging(env,principal,action,payload={},fetch
 
 export function isPlanningAction(action){return PLANNING_ACTIONS.has(action);}
 export function isDeckAction(action){return DECK_ACTIONS.has(action);}
-export function isDeckAuxiliaryWrite(action,payload={}){return isDeckAuxWrite(action,payload);}
+export function isDeckUploadAction(action,payload={}){return isDeckUpload(action,payload);}
+export function isDeckDriveLinkAction(action,payload={}){return isDeckDriveLink(action,payload);}
