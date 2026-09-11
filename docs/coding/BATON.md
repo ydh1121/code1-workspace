@@ -2,11 +2,11 @@
 
 Updated: 2026-09-12 05:33 KST
 PLANNING_DELTA_SEQ_SEEN = 20260911-003
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0025
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0026
 
 LAST_VERIFIED_ACTION: CODE1 Preview/Supabase STAGING/private-R2 external integration is CLOSED PASS; deleted-media `NOT_FOUND -> HTTP 404` is LIVE PASS; read-only latency baseline is recorded; dependency security hardening is CLOSED PASS with locked `npm audit = 0` and CODE1 PDF runtime smoke PASS.
 
-CURRENT_WORK: publish consolidated implementation evidence to Planning and then consume only a fresh PLANNING -> CODING instruction. Do not execute Orchestrator work here and do not invent Production cutover or optimization work.
+CURRENT_WORK: consolidated implementation evidence is published to Planning as `MSG-20260912-0026`. No newer PLANNING -> CODING instruction was present at immediate readback. Hold verified STAGING state until Planning routes the next CODING priority; do not execute Orchestrator work here and do not invent Production cutover or optimization work.
 
 ## Fixed boundaries
 
@@ -88,6 +88,7 @@ All security/CI/docs changes use `[CF-Pages-Skip]`; Preview/Production deploymen
 - `MSG-20260912-0021`: superseded; do not execute Orchestrator in CODING.
 - `MSG-20260912-0024`: ORCHESTRATOR-only, separate chat/track.
 - `MSG-20260912-0025`: P0 CODING scope correction APPLIED.
+- `MSG-20260912-0026`: CODING -> PLANNING consolidated implementation evidence PENDING.
 
 ## Known baseline / ownership
 
@@ -99,8 +100,8 @@ No hidden/SecureString prompts and no clipboard-dependent secret workflow. Visib
 
 ## NEXT_ATOMIC_ACTION
 
-1. Append one CODING -> PLANNING consolidated implementation-evidence message for R2 close + 404 live PASS + latency baseline + dependency audit=0/PDF smoke PASS.
-2. Re-read Message Bus for a newer PLANNING -> CODING P0/P1 instruction.
-3. If none exists, hold the verified STAGING state. No Production promotion, no evidence-free performance tuning, no Orchestrator work in this chat.
+1. Await/consume Planning review of `MSG-20260912-0026` or a newer explicit PLANNING -> CODING work order.
+2. If none exists, hold the verified STAGING state. No Production promotion, no evidence-free performance tuning, no Orchestrator work in this chat.
+3. Keep the five pre-existing root failures in their current ownership buckets until explicitly routed.
 
 ROLLBACK: Apps Script/Sheet/Drive remains live. Production has no R2 binding.
