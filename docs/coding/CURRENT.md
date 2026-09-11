@@ -1,7 +1,7 @@
 # CODE1 CODING CURRENT
 
-Updated: 2026-09-12 05:08 KST
-Status: PHASE 0 VERIFIED / SUPABASE STAGING FIRST_IMPORT PASS / PRIVATE R2 CREATED / MEDIA SCHEMA 0010 APPLIED / R2 UPLOAD CONTRACT HARDENED / PAGES PREVIEW R2 BINDING VERIFIED / PREVIEW BRANCH FILTER EXACT PASS / PREVIEW ORIGIN PASS / PREVIEW CORE ENV PASS / CONTROLLED PREVIEW DEPLOY PASS / PREVIEW READONLY HTTP PASS / ACTUAL R2 INTEGRATION PASS / SUPABASE POST-INTEGRATION VERIFY PASS / R2 INVENTORY READBACK PASS / RUNTIME SEMANTICS HARDENING ACTIVE
+Updated: 2026-09-12 05:16 KST
+Status: PHASE 0 VERIFIED / SUPABASE STAGING FIRST_IMPORT PASS / PRIVATE R2 CREATED / MEDIA SCHEMA 0010 APPLIED / R2 UPLOAD CONTRACT HARDENED / PAGES PREVIEW R2 BINDING VERIFIED / PREVIEW BRANCH FILTER EXACT PASS / PREVIEW ORIGIN PASS / PREVIEW CORE ENV PASS / CONTROLLED PREVIEW DEPLOY PASS / PREVIEW READONLY HTTP PASS / ACTUAL R2 INTEGRATION PASS / SUPABASE POST-INTEGRATION VERIFY PASS / R2 INVENTORY READBACK PASS / NOT_FOUND 404 LIVE VERIFY PASS / READONLY LATENCY MEASUREMENT NEXT
 Branch: `coding/runtime-backend-staging`
 Base main: `a71a71eae73706862308e194110f4fcc2d25db01`
 Live cutover: NOT APPROVED
@@ -136,30 +136,61 @@ Therefore the external `Pages Preview -> Supabase STAGING -> private R2` integra
 
 Do not rerun the integration merely to re-prove the same gate.
 
-## Planning scope correction: APPLIED LOCALLY
+## Planning scope correction: APPLIED
 
-Latest Planning inbound is `MSG-20260912-0025` (`SCOPE_CORRECTION`, P0):
+`MSG-20260912-0025` (`SCOPE_CORRECTION`, P0) is applied:
 
 - do NOT execute Local Orchestrator in CODING;
 - prior CODING-targeted orchestrator order `MSG-20260912-0021` is superseded;
 - dedicated Orchestrator work is `MSG-20260912-0024` in the separate ORCHESTRATOR chat/track;
 - CODING continues Cloudflare Preview/Supabase/R2/runtime-backend work unchanged.
 
-This CURRENT follows that routing. No Orchestrator implementation belongs in this branch's current CODING atomic path.
-
-## Runtime semantics hardening: NOT_FOUND -> 404
+## Runtime semantics hardening: NOT_FOUND -> 404 LIVE PASS
 
 The completed R2 integration exposed one response-semantics defect: requesting a soft-deleted media item correctly denied access but surfaced generic HTTP 400 `REQUEST_FAILED` because `NOT_FOUND` was not in the shared failure map.
 
-Staging-only correction:
+Correction:
 
-- `functions/_shared/security.js`: exact `NOT_FOUND` now maps to HTTP 404 + stable `error=NOT_FOUND`.
+- `functions/_shared/security.js`: exact `NOT_FOUND` maps to HTTP 404 + stable `error=NOT_FOUND`.
 - unknown/unmapped runtime failures remain generic HTTP 400 `REQUEST_FAILED`.
 - unit regression `backend/staging/test/http-failure-mapping.test.mjs` added.
-- read-only Preview E2E verifier `backend/staging/scripts/verify-deleted-media-not-found.mjs` added for the two already-soft-deleted test media IDs.
-- commit `f79e11045a92c5dbe667c7860e74b61faf8073e5` CI `34642527599` SUCCESS.
-- verifier commit `1f276ac2f9d6c8b26f74ec40ee71ce6768a75a53` CI `34642626295` SUCCESS.
-- all related commits so far used `[CF-Pages-Skip]`; live Preview has not yet received this 404 mapping.
+- read-only Preview verifier `backend/staging/scripts/verify-deleted-media-not-found.mjs` added.
+- visible-input wrapper `backend/staging/scripts/run-deleted-media-not-found.ps1` added.
+- mapping/test/verifier CI passed before deployment.
+- single non-skip deployment trigger commit `a6556d46948ccc1a9936eacaea4867de97647a43` deployed successfully to Preview.
+
+Operator live Preview verification:
+
+```text
+SIGNED_SESSION=PASS
+DELETED_MEDIA_NOT_FOUND=PASS mediaId=M_32c63189358249c2844869a4 status=404 error=NOT_FOUND
+DELETED_MEDIA_NOT_FOUND=PASS mediaId=M_6132c51925d449b2b5b2e402 status=404 error=NOT_FOUND
+DELETED_MEDIA_NOT_FOUND_VERIFY=PASS
+REMOTE_MUTATION=NONE
+R2_OBJECT_WRITE=NONE
+```
+
+The 404 semantics defect is CLOSED PASS. No DB/R2/Production mutation occurred during verification.
+
+## Read-only STAGING latency measurement: PREPARED
+
+No performance threshold has been approved, so the next step is measurement only, not optimization or pass/fail target invention.
+
+Prepared under `[CF-Pages-Skip]`:
+
+- `backend/staging/scripts/benchmark-pages-staging-readonly.mjs`
+- `backend/staging/scripts/run-pages-staging-readonly-benchmark.ps1`
+
+Measurement contract:
+
+- stable Preview alias only;
+- authenticated STAGING session signed locally from the existing Preview `SESSION_SECRET`;
+- `bootstrap` read RPC: 3 warmups + 30 sequential measured runs;
+- `getSubmission` read RPC: 3 warmups + 30 sequential measured runs;
+- p50/p95/mean/min/max reported per action;
+- `PERFORMANCE_THRESHOLD=NOT_SET_MEASUREMENT_ONLY`;
+- `REMOTE_MUTATION=NONE`;
+- `R2_OBJECT_WRITE=NONE`.
 
 ## Local input preference
 
@@ -171,19 +202,30 @@ Do not use clipboard-dependent secret instructions and do not use hidden/SecureS
 - `MSG-20260912-0022`: CODING -> PLANNING APPLIED.
 - `MSG-20260912-0021`: superseded orchestrator-in-CODING order; DO NOT EXECUTE here.
 - `MSG-20260912-0024`: canonical ORCHESTRATOR-only work order; separate track/chat.
-- `MSG-20260912-0025`: PLANNING -> CODING P0 scope correction; consumed by this CURRENT/BATON update and should be marked APPLIED in Bus after durable refs are written.
+- `MSG-20260912-0025`: PLANNING -> CODING P0 scope correction APPLIED.
 
 ## NEXT_ATOMIC_ACTION
 
-1. Trigger exactly one controlled Preview deployment containing the `NOT_FOUND -> 404` mapping and its verifier. Do not alter Preview env/bindings or Production.
-2. After deployment SUCCESS, run the read-only deleted-media verifier against the stable Preview alias. It must prove both known soft-deleted media IDs return `HTTP 404 / error=NOT_FOUND` with `REMOTE_MUTATION=NONE / R2_OBJECT_WRITE=NONE`.
-3. If PASS, close this runtime-semantics defect and continue the existing runtime-backend stabilization queue. The next likely runnable technical item is same-action staging latency measurement (`p50/p95`), but do not promote or optimize before the 404 live verification is closed.
+Run the read-only Preview latency benchmark exactly once with the existing Preview `SESSION_SECRET` entered locally through the visible PowerShell prompt.
+
+Required evidence shape:
+
+```text
+SIGNED_SESSION=PASS
+bootstrapBackend=SUPABASE_STAGING
+BENCH_CASE=bootstrap ... p50_ms=... p95_ms=...
+BENCH_CASE=getSubmission ... p50_ms=... p95_ms=...
+STAGING_READONLY_LATENCY_BENCH=PASS cases=2
+REMOTE_MUTATION=NONE
+R2_OBJECT_WRITE=NONE
+```
+
+Do not optimize from assumptions. Record the measured numbers first, then decide the next runtime-backend stabilization action from the evidence.
 
 ## Other open items
 
 - npm audit: 3 high + 1 critical; separate dependency hardening, no blind `npm audit fix --force`.
 - stale source duplicate rows 501-512: separate Planning/data decision.
-- same-action p50/p95: eligible after current 404 verification.
 - Apps Script Drive root: `ROOT_EXCEPTION`; no copy/replacement.
 - Local Orchestrator: separate ORCHESTRATOR track only; not a CODING next action.
 
