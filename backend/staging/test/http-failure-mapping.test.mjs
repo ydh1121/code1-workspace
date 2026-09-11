@@ -11,6 +11,15 @@ test('NOT_FOUND maps to HTTP 404 with stable error code', async () => {
   });
 });
 
+test('DECK_WRITE_GATE_CLOSED maps to explicit read-only HTTP contract', async () => {
+  const response=failure(Error('DECK_WRITE_GATE_CLOSED'));
+  assert.equal(response.status,503);
+  assert.deepEqual(await response.json(),{
+    error:'DECK_WRITE_GATE_CLOSED',
+    message:'Deck 저장 전환 검증이 진행 중입니다. 읽기 전용 상태를 유지합니다.'
+  });
+});
+
 test('unknown runtime failures remain generic HTTP 400', async () => {
   const response=failure(Error('SOME_UNMAPPED_RUNTIME_FAILURE'));
   assert.equal(response.status,400);
