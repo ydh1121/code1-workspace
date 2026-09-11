@@ -1,7 +1,7 @@
 # CODE1 CODING CURRENT
 
-Updated: 2026-09-12 05:46 KST
-Status: SUPABASE STAGING + PRIVATE R2 EXTERNAL GATE PASS / NOT_FOUND 404 LIVE PASS / READONLY LATENCY BASELINE RECORDED / NPM SECURITY HARDENING PASS / PASSWORD LOGIN E2E IN PROGRESS
+Updated: 2026-09-12 05:52 KST
+Status: SUPABASE STAGING + PRIVATE R2 EXTERNAL GATE PASS / NOT_FOUND 404 LIVE PASS / READONLY LATENCY BASELINE RECORDED / NPM SECURITY HARDENING PASS / BROWSER PASSWORD LOGIN CLOSED PASS / DECK LEGACY-BRIDGE BLOCKED
 Branch: `coding/runtime-backend-staging`
 Base main: `a71a71eae73706862308e194110f4fcc2d25db01`
 Live cutover: NOT APPROVED
@@ -63,21 +63,12 @@ Interpretation: the typical and p95 distributions for both reads are approximate
 
 ## Dependency security hardening: CLOSED PASS
 
-Previous root audit reproduced `3 high + 1 critical`, which reduced to two dependency axes:
+Previous root audit reproduced `3 high + 1 critical`, reduced to two dependency axes and fixed:
 
-- direct production `jspdf` critical, fixed by `4.2.1`;
-- direct dev `wrangler` high plus transitive `miniflare`/`sharp`, fixed by `4.131.1` dependency graph.
+- `jspdf` -> `^4.2.1`;
+- `wrangler` -> `^4.131.1`, clearing transitive `miniflare`/`sharp` advisories.
 
-Validated upgrade was first tested in an ephemeral CI workspace, then applied atomically to `package.json` + `package-lock.json` by commit `2d7eb63374b61072ce2d132d4efe566508664aa2`.
-
-Current locked manifest:
-
-```text
-jspdf   ^4.2.1
-wrangler ^4.131.1
-```
-
-Strict CI now enforces the locked dependency audit without applying automatic fixes. Final evidence:
+Atomic manifest upgrade commit: `2d7eb63374b61072ce2d132d4efe566508664aa2`.
 
 ```text
 staging tests = 62/62 PASS (includes jsPDF runtime smoke)
@@ -87,32 +78,65 @@ known root baseline = exactly the same pre-existing 5 failures
 build = PASS
 ```
 
-The jsPDF major-version runtime smoke uses the actual `public/assets/RequestFont.ttf`, executes CODE1 `requestDocument()`, and verifies a non-trivial `%PDF-` document is produced under jsPDF 4.2.1. First smoke run failed only because the old CI order executed staging tests before `npm ci`; workflow order was corrected and final run `34644776006` is SUCCESS.
+Final dependency CI run `34644776006` = SUCCESS. Security/CI/docs hardening commits did not mutate Production.
 
-All dependency/security commits use `[CF-Pages-Skip]`; no Preview or Production deployment was caused by this hardening.
+## Browser password login E2E: CLOSED PASS
 
-## Password login E2E: IN PROGRESS
+Preview has a STAGING-only `PASSWORD_PEPPER`. No secret value is recorded in Git, Bus, docs, or chat.
 
-Supabase STAGING readback confirms both imported active accounts have valid password credentials:
+Supabase STAGING imported account credential state before reset:
 
 ```text
-OWNER / username=owner / role=SUPER_ADMIN / session_version=2
-U_c57fa35e82c240a0897da89a / username=art_67 / role=ADMIN / session_version=1
+OWNER / username=owner / role=SUPER_ADMIN / active
+U_c57fa35e82c240a0897da89a / username=art_67 / role=ADMIN / active
 scheme=pbkdf2-sha256-pepper-v1 / iterations=100000 / salt+hash present
 ```
 
-The Preview environment now has a STAGING-only `PASSWORD_PEPPER` Secret added by the operator. No value is recorded here. Because password hashes are pepper-bound, the imported OWNER credential will be replaced only in STAGING through the existing authenticated account-password path; Production and legacy Drive remain untouched.
-
-Prepared verification scripts:
+Operator bootstrap result against stable Preview:
 
 ```text
-backend/staging/scripts/bootstrap-owner-web-login-staging.mjs
-backend/staging/scripts/run-owner-web-login-bootstrap.ps1
+STAGING_OWNER_PASSWORD_RESET=PASS newSessionVersion=3
+PASSWORD_LOGIN=PASS account=OWNER sessionVersion=3
+SESSION_RESTORE=PASS googleEnabled=false
+AUTHENTICATED_BOOTSTRAP=PASS backend=SUPABASE_STAGING
+LOGOUT=PASS
+STAGING_WEB_LOGIN_E2E=PASS
+PRODUCTION_MUTATION=NONE
+LEGACY_DRIVE_MUTATION=NONE
+R2_OBJECT_WRITE=NONE
 ```
 
-The verifier uses the existing `/api/accounts` password-change path and then exercises real `/api/auth/password` login, session restore, authenticated bootstrap, and logout. Local secret/password prompts are visible plain-text input per operator preference; no values are written to Git or durable docs.
+Manual browser verification also PASS:
 
-This commit intentionally triggers exactly one new Preview deployment so the newly added Preview `PASSWORD_PEPPER` becomes active.
+- `owner` ID/password login opened the authenticated workspace.
+- SUPER_ADMIN identity and account-management navigation were visible.
+- Farm workspace loaded real Supabase STAGING farms/questions/submission data.
+- Question-policy management opened successfully.
+- F5 caused a short login-screen flash and then returned automatically to the authenticated workspace, confirming cookie/session restore succeeds in the real browser path.
+
+The brief login-screen flash is a UX defect, not an authentication failure. Current `public/assets/app.js` calls asynchronous `restoreSession()` after the login section is already visible in initial HTML. Do not conflate this with session loss. Route/fix only within the appropriate UI ownership or an explicit atomic coding task.
+
+## Deck integration blocker: PLANNING DECISION REQUIRED
+
+Manual browser verification reproduced `SETUP_REQUIRED` when opening the Aza Mall proposal deck.
+
+Root cause is explicit in `functions/api/rpc.js`:
+
+```text
+legacyDeckActions = deckAssets, deckBootstrap, saveDeck
+SUPABASE_STAGING + legacyDeckAction -> existing bridge(env, user, action, body)
+```
+
+The Preview environment intentionally has no `BRIDGE_URL` or `BRIDGE_SECRET`; therefore the deck fails closed with `SETUP_REQUIRED`.
+
+Do NOT copy Production `BRIDGE_URL/BRIDGE_SECRET` into Preview by assumption. Doing so could make STAGING Preview deck writes reach the live Apps Script/Sheet/Drive rollback source.
+
+Planning/architecture must choose one bounded path before CODING proceeds on Deck:
+
+1. approve a specifically isolated/read-only or staging-safe legacy bridge contract for Preview; or
+2. migrate Deck read/write runtime into Supabase STAGING/private staging storage before enabling it.
+
+Until that decision, farm/question/account/password flows continue on Supabase STAGING and Deck remains intentionally blocked.
 
 ## Known pre-existing root baseline
 
@@ -124,7 +148,7 @@ Five root-suite failures remain exactly unchanged from before this STAGING work:
 4. media shot-search expectation;
 5. legacy migration test fetch fixture.
 
-Do not opportunistically change these as part of backend hardening. UI-facing items require their owning track; legacy Apps Script/Drive changes require an explicit atomic task. Stale source duplicate rows 501-512 also remain a Planning/data decision.
+Do not opportunistically change these as part of backend hardening. UI-facing items require their owning track; legacy Apps Script/Drive changes require an explicit atomic task. Stale source duplicate rows 501-512 remain a Planning/data decision.
 
 ## Local input preference
 
@@ -132,16 +156,16 @@ Do not use hidden/SecureString prompts or clipboard-dependent secret instruction
 
 ## Cross-track sync
 
-- `MSG-20260912-0026`: CODING -> PLANNING consolidated implementation evidence, PENDING.
-- No newer PLANNING -> CODING instruction was present immediately after append/readback.
-- Password-login E2E is a continuation of the existing STAGING runtime verification scope; no new Planning policy decision is required.
+- `MSG-20260912-0026`: CODING -> PLANNING consolidated implementation evidence, PENDING at last readback.
+- `MSG-20260912-0025`: scope correction APPLIED; Local Orchestrator remains outside CODING.
+- Browser password-login/session-restore gate is now CLOSED PASS.
+- Deck legacy-bridge strategy now requires a Planning decision; CODING must not attach Preview to Production bridge values by assumption.
 
 ## NEXT_ATOMIC_ACTION
 
-1. Confirm the intentional Preview deployment from this commit succeeds on `coding/runtime-backend-staging`.
-2. Run `run-owner-web-login-bootstrap.ps1` with current Preview `SESSION_SECRET`, a new 12-128 character STAGING OWNER password, and current OWNER session version 2.
-3. Require password reset -> real `/api/auth/password` -> session restore -> authenticated bootstrap -> logout all PASS.
-4. Then perform one manual browser login as `owner` with the new STAGING-only password and verify refresh/session persistence and logout/re-login behavior.
-5. Production/main/legacy Drive remain untouched.
+1. Publish/route the browser-login CLOSED PASS plus Deck `SETUP_REQUIRED` blocker to Planning.
+2. Await an explicit Deck architecture decision: isolated staging-safe bridge vs Supabase STAGING deck migration.
+3. Keep Production/main/live Apps Script/Sheet/Drive unchanged while waiting.
+4. Auth-flash UX issue may be routed separately; do not mix it into the Deck architecture decision.
 
 ROLLBACK: Apps Script/Sheet/Drive remains live. Production has no R2 binding.
