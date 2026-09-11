@@ -7,7 +7,7 @@ Base main: `a71a71eae73706862308e194110f4fcc2d25db01`
 Live cutover: NOT APPROVED
 Production: PROHIBITED
 PLANNING_DELTA_SEQ_SEEN = 20260911-003
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0018
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0019
 
 ## Hard boundaries
 
@@ -125,7 +125,8 @@ No secret value is committed to Git or written to the Message Bus.
 
 - `MSG-20260912-0016`: CODING -> PLANNING, APPLIED at 2026-09-12 02:58.
 - `MSG-20260912-0017`: PLANNING -> UIUX, unrelated to CODING.
-- `MSG-20260912-0018`: CODING -> PLANNING PENDING evidence for branch-control exact PASS + Preview environment inventory PASS.
+- `MSG-20260912-0018`: CODING -> PLANNING, SUPERSEDED by 0019 after stable origin grounding.
+- `MSG-20260912-0019`: CODING -> PLANNING PENDING evidence for Preview origin PASS + approved core Preview runtime provisioning set.
 - current CODING inbound: 0.
 
 ## NEXT_ATOMIC_ACTION
