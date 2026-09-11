@@ -47,11 +47,11 @@ jobs:
           }
           if ($failed) { exit 1 }
 
-      - name: Run staging unit and contract tests
-        run: node --test backend/staging/test/*.test.mjs
-
       - name: Install locked workspace dependencies
         run: npm ci
+
+      - name: Run staging unit and contract tests
+        run: node --test backend/staging/test/*.test.mjs
 
       - name: Enforce clean npm audit without applying fixes
         shell: bash
