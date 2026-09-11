@@ -53,15 +53,31 @@ jobs:
       - name: Install workspace dependencies
         run: npm ci
 
-      - name: Report npm audit details without applying fixes
+      - name: Report current npm audit details without applying fixes
         shell: bash
         run: |
           set +e
-          npm audit --json > /tmp/code1-npm-audit.json
+          npm audit --json > /tmp/code1-npm-audit-before.json
           audit_status=$?
           set -e
-          node backend/staging/scripts/report-npm-audit.mjs /tmp/code1-npm-audit.json
-          echo "NPM_AUDIT_EXIT=$audit_status (nonzero means vulnerabilities were reported; no fix was applied)"
+          node backend/staging/scripts/report-npm-audit.mjs /tmp/code1-npm-audit-before.json
+          echo "NPM_AUDIT_BEFORE_EXIT=$audit_status (nonzero means vulnerabilities were reported; no fix was applied)"
+
+      - name: Validate targeted security dependency upgrade in ephemeral workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund jspdf@4.2.1 wrangler@4.131.1
+          node --test backend/staging/test/*.test.mjs
+          set +e
+          npm audit --json > /tmp/code1-npm-audit-after.json
+          audit_status=$?
+          set -e
+          node backend/staging/scripts/report-npm-audit.mjs /tmp/code1-npm-audit-after.json
+          if [ "$audit_status" -ne 0 ]; then
+            echo "Targeted dependency upgrade still reports npm audit findings" >&2
+            exit 1
+          fi
 
       - name: Compare root regression against known baseline
         shell: bash
@@ -72,5 +88,15 @@ jobs:
           set -e
           ROOT_TEST_EXIT=$test_status node backend/staging/scripts/check-root-baseline.mjs /tmp/code1-root-tests.log
 
-      - name: Build existing workspace
+      - name: Build upgraded workspace
         run: npm run build
+
+      - name: Upload validated dependency manifest artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: validated-dependency-security-upgrade
+          path: |
+            package.json
+            package-lock.json
+          if-no-files-found: error
+          retention-days: 1
