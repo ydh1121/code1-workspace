@@ -4,9 +4,9 @@ Updated: 2026-09-12 KST
 PLANNING_DELTA_SEQ_SEEN = 20260911-003
 CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0016
 
-LAST_VERIFIED_ACTION: operator read-only audit confirmed recent Preview deployments are only from `coding/runtime-backend-staging` (25/25 observed) and recent Production deployments are only from `main` (25/25 observed). Preview R2 binding `CODE1_MEDIA_BUCKET -> code1-staging-media` remains VERIFIED, Production R2 binding remains NONE, R2 remains private/empty, and Preview SUPABASE_STAGING runtime remains NOT_CONFIGURED. Unsupported Wrangler private-auth-module readback was retired; canonical audit runner `deb68234965cc38b404c2b08e5204896f742695d` now fails closed on explicit manual Dashboard verification. CI `34627805003` SUCCESS.
+LAST_VERIFIED_ACTION: operator pulled through `abcd5ea089a8717c20ed536df9f7d691db514d1d` and reran the canonical Cloudflare/R2 read-only audit successfully. Preview deployment observation is only `coding/runtime-backend-staging` (25/25 observed) with no unexpected branches; Production observation is only `main` (25/25 observed). Preview R2 binding `CODE1_MEDIA_BUCKET -> code1-staging-media` remains VERIFIED, Production R2 binding remains NONE, R2 remains private/empty, and remote mutation remained NONE. The canonical runner now reaches `MANUAL_DASHBOARD_VERIFICATION_REQUIRED` without any `workers-auth` resolution/import error, proving the unsupported private Wrangler auth dependency is removed from the operator path.
 
-CURRENT_WORK: close the configured Cloudflare Pages Preview branch-control gate before placing any Supabase service-role or other staging-only runtime secret into the project-wide Pages Preview environment.
+CURRENT_WORK: close the configured Cloudflare Pages Preview branch-control gate in Dashboard before placing any Supabase service-role or other staging-only runtime secret into the project-wide Pages Preview environment.
 
 ## Fixed boundaries
 
@@ -53,15 +53,21 @@ Staging login uses `CODE1_LOGIN_IP_SECRET`; do not reuse live Apps Script `BRIDG
 
 ## Current security gate
 
-Recent deployment observation is PASS:
+Recent deployment observation and canonical runner rerun are PASS:
 
 - Preview 25 observed deployments: only `coding/runtime-backend-staging`
 - unexpected Preview branches: none
 - Production 25 observed deployments: only `main`
+- Preview R2 binding: VERIFIED
+- Production R2 binding: NONE
+- R2 object count / size: 0 / 0 B
+- canonical audit result: `MANUAL_DASHBOARD_VERIFICATION_REQUIRED`
+- private `workers-auth` error: NONE
+- remote mutation: NONE
 
-Configured branch-control verification remains OPEN. Supported Wrangler Pages list/download commands do not expose configured source branch include/exclude controls. Private Wrangler OAuth/module import workarounds were attempted and retired because they depend on non-contractual installation internals.
+Configured branch-control verification remains OPEN. Supported Wrangler Pages list/download commands do not expose configured source branch include/exclude controls. Private Wrangler OAuth/module import workarounds are retired because they depend on non-contractual installation internals.
 
-Canonical audit runner commit `deb68234965cc38b404c2b08e5204896f742695d` is read-only and explicitly reports `MANUAL_DASHBOARD_VERIFICATION_REQUIRED`. CI `34627805003` SUCCESS. No Pages deployment, secret mutation, or R2 object mutation occurred from that commit.
+Canonical audit runner commit `deb68234965cc38b404c2b08e5204896f742695d` is read-only and explicitly fails closed on manual Dashboard verification. CI `34627805003` SUCCESS. No Pages deployment, secret mutation, or R2 object mutation occurred from that commit.
 
 Required Cloudflare Dashboard values:
 
@@ -72,7 +78,7 @@ previewBranchIncludes = ["coding/runtime-backend-staging"]
 previewBranchExcludes = []
 ```
 
-If any value differs, stop and correct branch controls before secrets. Do not infer this configuration from deployment history alone.
+If any value differs, stop before secrets. Do not infer this configuration from deployment history alone.
 
 ## Cross-track sync
 
@@ -84,23 +90,18 @@ If any value differs, stop and correct branch controls before secrets. Do not in
 
 ## NEXT_ATOMIC_ACTION
 
-Operator PC:
+Open Cloudflare Dashboard for Pages project `code1-workspace` and inspect branch controls only. Do not change secrets or environment variables.
 
-```powershell
-cd C:\Users\Administrator\Desktop\code1
-git pull --ff-only origin coding/runtime-backend-staging
-node backend/staging/scripts/audit-cloudflare-r2-readonly.mjs --bucket code1-staging-media
+Required UI state:
+
+```text
+Production branch = main
+Preview branch = Custom branches
+Include Preview branches = coding/runtime-backend-staging
+Exclude Preview branches = empty
 ```
 
-Expected new runner output:
-
-- Preview observed branch only `coding/runtime-backend-staging`
-- Production observed branch only `main`
-- `PAGES_PROJECT_SOURCE_BRANCH_CONTROLS = MANUAL_DASHBOARD_VERIFICATION_REQUIRED`
-- no `workers-auth` package-resolution error
-- branch filter gate remains blocked pending Dashboard verification
-
-Then inspect Cloudflare Dashboard `code1-workspace` branch controls without changing secrets and confirm the four required values above.
+If any value differs, stop before secret provisioning. Correct only branch-control configuration and report the resulting values.
 
 Do not rerun the Preview HTTP verifier yet. After explicit branch-control PASS, provision Preview-only Supabase/runtime vars and newly generated staging-only secrets, intentionally deploy one Preview, rerun read-only HTTP probes, then perform actual R2 PUT/multipart/HEAD/DB/private-GET/denial/retry integration tests.
 
