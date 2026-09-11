@@ -7,7 +7,7 @@ Base main: `a71a71eae73706862308e194110f4fcc2d25db01`
 Live cutover: NOT APPROVED
 Production: PROHIBITED
 PLANNING_DELTA_SEQ_SEEN = 20260911-003
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0016
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0017
 
 ## Hard boundaries
 
@@ -69,7 +69,8 @@ No variable, secret, R2 object, Production binding, or runtime-mode mutation was
 - `MSG-20260911-0009`: APPLIED
 - `MSG-20260911-0011`: APPLIED by Planning
 - `MSG-20260911-0015`: SUPERSEDED
-- `MSG-20260912-0016`: PENDING outbound; superseding checkpoint to be published for exact branch-control PASS
+- `MSG-20260912-0016`: SUPERSEDED
+- `MSG-20260912-0017`: PENDING outbound to Planning; exact branch-control PASS checkpoint
 - current CODING inbound: 0
 
 ## NEXT_ATOMIC_ACTION
