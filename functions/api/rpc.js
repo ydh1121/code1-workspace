@@ -4,7 +4,7 @@ import { useSupabaseStaging } from '../../backend/staging/src/runtime-mode.mjs';
 
 const actions = new Set([
   'bootstrap','saveSubmission','getSubmission','review','upload','linkDrive','reviewMedia','media','mediaBatch',
-  'deckAssets','deckBootstrap','saveDeck','questionPolicy.list','questionPolicy.save',
+  'deckAssets','deckBootstrap','saveDeck','deckMigration.importSource20260912','questionPolicy.list','questionPolicy.save',
   'mediaUpload.begin','mediaUpload.chunk','mediaUpload.finish','deleteMedia','mediaOrganizer.status','mediaOrganizer.repair',
   'factInbox.list','factInbox.create','factInbox.transition','executiveBrief.current'
 ]);
@@ -29,7 +29,7 @@ export async function onRequestPost({ request, env }) {
       // a missing staging action must fail instead of silently dual-writing to Sheets.
       data=await dispatchCode1Staging(env,user,action,body);
     }else{
-      // Deck editing remains on the existing isolated legacy domain for this phase.
+      // Deck editing remains on the existing isolated legacy domain until source import/readback closes.
       data=await bridge(env, user, action, body);
     }
     return json({ data });
