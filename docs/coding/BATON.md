@@ -2,7 +2,7 @@
 
 Updated: 2026-09-12 KST
 PLANNING_DELTA_SEQ_SEEN = 20260911-003
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260911-0015
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0016
 
 LAST_VERIFIED_ACTION: operator read-only audit confirmed recent Preview deployments are only from `coding/runtime-backend-staging` (25/25 observed) and recent Production deployments are only from `main` (25/25 observed). Preview R2 binding `CODE1_MEDIA_BUCKET -> code1-staging-media` remains VERIFIED, Production R2 binding remains NONE, R2 remains private/empty, and Preview SUPABASE_STAGING runtime remains NOT_CONFIGURED. Unsupported Wrangler private-auth-module readback was retired; canonical audit runner `deb68234965cc38b404c2b08e5204896f742695d` now fails closed on explicit manual Dashboard verification. CI `34627805003` SUCCESS.
 
@@ -78,7 +78,8 @@ If any value differs, stop and correct branch controls before secrets. Do not in
 
 - MSG-0009: APPLIED
 - MSG-0011: APPLIED
-- MSG-0015: PENDING outbound to Planning
+- MSG-0015: SUPERSEDED
+- MSG-0016: PENDING outbound to Planning
 - current CODING inbound: 0
 
 ## NEXT_ATOMIC_ACTION
