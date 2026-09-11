@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   isolated-node-checks:
@@ -50,33 +50,20 @@ jobs:
       - name: Run staging unit and contract tests
         run: node --test backend/staging/test/*.test.mjs
 
-      - name: Install workspace dependencies
+      - name: Install locked workspace dependencies
         run: npm ci
 
-      - name: Report current npm audit details without applying fixes
+      - name: Enforce clean npm audit without applying fixes
         shell: bash
         run: |
           set +e
-          npm audit --json > /tmp/code1-npm-audit-before.json
+          npm audit --json > /tmp/code1-npm-audit.json
           audit_status=$?
           set -e
-          node backend/staging/scripts/report-npm-audit.mjs /tmp/code1-npm-audit-before.json
-          echo "NPM_AUDIT_BEFORE_EXIT=$audit_status (nonzero means vulnerabilities were reported; no fix was applied)"
-
-      - name: Validate targeted security dependency upgrade in ephemeral workspace
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm install --no-audit --no-fund jspdf@4.2.1 wrangler@4.131.1
-          node --test backend/staging/test/*.test.mjs
-          set +e
-          npm audit --json > /tmp/code1-npm-audit-after.json
-          audit_status=$?
-          set -e
-          node backend/staging/scripts/report-npm-audit.mjs /tmp/code1-npm-audit-after.json
+          node backend/staging/scripts/report-npm-audit.mjs /tmp/code1-npm-audit.json
           if [ "$audit_status" -ne 0 ]; then
-            echo "Targeted dependency upgrade still reports npm audit findings" >&2
-            exit 1
+            echo "Locked dependency audit is not clean; no automatic fix was applied." >&2
+            exit "$audit_status"
           fi
 
       - name: Compare root regression against known baseline
@@ -88,19 +75,5 @@ jobs:
           set -e
           ROOT_TEST_EXIT=$test_status node backend/staging/scripts/check-root-baseline.mjs /tmp/code1-root-tests.log
 
-      - name: Build upgraded workspace
+      - name: Build existing workspace
         run: npm run build
-
-      - name: Commit validated dependency manifests atomically
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json package-lock.json
-          if git diff --cached --quiet; then
-            echo "Validated manifests already match branch; no commit needed."
-            exit 0
-          fi
-          git commit -m "[CF-Pages-Skip] chore(coding): upgrade vulnerable dependencies"
-          git push origin HEAD:coding/runtime-backend-staging
