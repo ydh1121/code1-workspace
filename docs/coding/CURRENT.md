@@ -1,170 +1,208 @@
 # CODE1 CODING CURRENT
 
-Updated: 2026-09-12 05:52 KST
-Status: SUPABASE STAGING + PRIVATE R2 EXTERNAL GATE PASS / NOT_FOUND 404 LIVE PASS / READONLY LATENCY BASELINE RECORDED / NPM SECURITY HARDENING PASS / BROWSER PASSWORD LOGIN CLOSED PASS / DECK LEGACY-BRIDGE BLOCKED
+Updated: 2026-09-12 06:28 KST
+Status: CORE STAGING GATES PASS / BROWSER AUTH PASS / DECK MIGRATION OPTION B / PHASE A SOURCE AUDIT PASS / PHASE B TARGET DESIGN ACTIVE
 Branch: `coding/runtime-backend-staging`
 Base main: `a71a71eae73706862308e194110f4fcc2d25db01`
 Live cutover: NOT APPROVED
 Production: PROHIBITED
-PLANNING_DELTA_SEQ_SEEN = 20260911-003
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0027
+PLANNING_DELTA_SEQ_SEEN = 20260912-004
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0028
 
 ## Hard boundaries
 
 - CODING/STAGING only. Do not modify `main`, CODE1 Production, live Public Frontend, formal Admin, Planning/UIUX SSOT, HOOOO, INDX, or IndiaDesk.
 - Apps Script/Sheet/Drive remains the live rollback source until separate cutover approval.
 - Supabase FIRST_IMPORT is complete; do not rerun it.
-- Do not migrate/delete the four legacy Drive media rows merely because R2 exists.
 - R2 remains private: no `r2.dev`, no custom R2 domain, no browser-visible credential.
 - Production variables/secrets/bindings remain READ_ONLY.
+- Never copy Production `BRIDGE_URL` / `BRIDGE_SECRET` into Preview by assumption.
+- No live Apps Script/Sheet/Drive mutation during Deck migration.
 - No secret value in Git, Message Bus, Drive documents, or chat.
-- Local Orchestrator is OUT OF SCOPE here. `MSG-20260912-0024` belongs only to the separate ORCHESTRATOR track; `MSG-20260912-0025` scope correction is APPLIED.
+- Local Orchestrator is OUT OF SCOPE here and remains in its separate ORCHESTRATOR track.
 
-## Durable STAGING state
+## Verified STAGING baseline — retained
 
-Supabase STAGING ref: `bsintmkyhptizrjoizfb` only. FIRST_IMPORT remains `VERIFIED_COMPLETE`.
-
-Pages Preview isolation is PASS:
+Supabase STAGING ref: `bsintmkyhptizrjoizfb`. FIRST_IMPORT remains `VERIFIED_COMPLETE`.
 
 ```text
-productionBranch = main
-previewDeploymentSetting = custom
-previewBranchIncludes = ["coding/runtime-backend-staging"]
-previewBranchExcludes = []
-Preview R2: CODE1_MEDIA_BUCKET -> code1-staging-media
-Production R2 binding: NONE
-Stable Preview: https://coding-runtime-backend-stagi.code1-workspace.pages.dev
+Preview branch = coding/runtime-backend-staging only
+Production branch = main
+Stable Preview = https://coding-runtime-backend-stagi.code1-workspace.pages.dev
+Preview R2 = CODE1_MEDIA_BUCKET -> code1-staging-media
+Production R2 = NONE
+R2_STAGING_INTEGRATION=PASS
+R2 intentional objects=2 / 11,665,408 bytes
+unexpected R2 objects=0
+soft-deleted media NOT_FOUND -> HTTP 404 LIVE PASS
+npm audit total=0
+staging tests=62/62 PASS before Deck migration work
+browser owner password login/session restore=PASS
+Production mutation=0
+legacy Drive migration=0
 ```
 
-Preview core runtime, actual private-R2 integration, Supabase readback, and independent R2 inventory all PASS. R2 currently contains exactly two intentional private test objects, 131072 bytes and 11534336 bytes, total 11665408 bytes. Unexpected objects = 0; Production mutation = 0; legacy Drive migration = 0. Do not rerun the upload integration merely to re-prove this gate.
-
-## Runtime semantics: CLOSED PASS
-
-Soft-deleted media now maps exact domain `NOT_FOUND` to `HTTP 404 / error=NOT_FOUND`; unknown runtime failures remain generic HTTP 400. Live Preview verification passed for both known soft-deleted test media IDs with `REMOTE_MUTATION=NONE` and `R2_OBJECT_WRITE=NONE`.
-
-Single live Preview trigger carrying this correction: `a6556d46948ccc1a9936eacaea4867de97647a43` -> SUCCESS.
-
-## STAGING read-only latency baseline: RECORDED
-
-Operator ran the stable-Preview read-only benchmark once: 3 warmups + 30 sequential measured requests per action.
+Recorded read-only latency baseline remains:
 
 ```text
-SIGNED_SESSION=PASS
-bootstrapBackend=SUPABASE_STAGING
-bootstrap:      p50=51.8ms  p95=64.3ms  mean=53.2ms  min=48.6ms  max=65.5ms
-getSubmission: p50=53.6ms  p95=67.5ms  mean=59.8ms  min=48.3ms  max=218.3ms
-STAGING_READONLY_LATENCY_BENCH=PASS
-REMOTE_MUTATION=NONE
-R2_OBJECT_WRITE=NONE
+bootstrap      n=30 p50=51.8ms p95=64.3ms
+getSubmission n=30 p50=53.6ms p95=67.5ms
 PERFORMANCE_THRESHOLD=NOT_SET_MEASUREMENT_ONLY
 ```
 
-Interpretation: the typical and p95 distributions for both reads are approximately 50-70 ms and closely aligned. With 30 samples and the project percentile implementation, p95 is the 29th ordered sample; therefore `getSubmission max=218.3ms` represents one sample above the 67.5 ms p95 boundary, not a sustained slow path. No performance threshold was approved, so no optimization is justified from this measurement alone.
+Do not rerun destructive/integration gates merely to re-prove them.
 
-## Dependency security hardening: CLOSED PASS
+## Planning decision — Deck Option B
 
-Previous root audit reproduced `3 high + 1 critical`, reduced to two dependency axes and fixed:
+`MSG-20260912-0028` / `WO-20260912-CODING-DECK-001` is the current P0 CODING work order. Planning accepted CODING evidence 0026/0027 and selected:
 
-- `jspdf` -> `^4.2.1`;
-- `wrangler` -> `^4.131.1`, clearing transitive `miniflare`/`sharp` advisories.
+> Migrate Preview Deck read/write to Supabase STAGING + existing private STAGING storage.
 
-Atomic manifest upgrade commit: `2d7eb63374b61072ce2d132d4efe566508664aa2`.
+Explicit prohibitions remain:
 
-```text
-staging tests = 62/62 PASS (includes jsPDF runtime smoke)
-npm ci = found 0 vulnerabilities
-npm audit = info 0 / low 0 / moderate 0 / high 0 / critical 0
-known root baseline = exactly the same pre-existing 5 failures
-build = PASS
-```
+- no Production bridge secret reuse;
+- no Preview Deck write to live Apps Script/Sheet/Drive;
+- no destructive source migration;
+- copy-first and reversible only;
+- exact current Deck contract/content must be preserved before Preview routing changes.
 
-Final dependency CI run `34644776006` = SUCCESS. Security/CI/docs hardening commits did not mutate Production.
+The F5 login-screen auth flash remains a separate defect after a safe Deck checkpoint.
 
-## Browser password login E2E: CLOSED PASS
+## Deck PHASE A — exact source/contract audit: CLOSED PASS
 
-Preview has a STAGING-only `PASSWORD_PEPPER`. No secret value is recorded in Git, Bus, docs, or chat.
+Immutable source manifest:
 
-Supabase STAGING imported account credential state before reset:
+`docs/coding/SOURCE_DECK_MANIFEST_20260912.md`
 
-```text
-OWNER / username=owner / role=SUPER_ADMIN / active
-U_c57fa35e82c240a0897da89a / username=art_67 / role=ADMIN / active
-scheme=pbkdf2-sha256-pepper-v1 / iterations=100000 / salt+hash present
-```
+Manifest commit: `eef7acda3fafa25cd4163e82ee8a455ce3e1757b`
 
-Operator bootstrap result against stable Preview:
+### Source access method
+
+The live Apps Script deployment was not invoked. A read-only Drive raw export exposed the project source JSON and embedded seed assets without executing live code.
 
 ```text
-STAGING_OWNER_PASSWORD_RESET=PASS newSessionVersion=3
-PASSWORD_LOGIN=PASS account=OWNER sessionVersion=3
-SESSION_RESTORE=PASS googleEnabled=false
-AUTHENTICATED_BOOTSTRAP=PASS backend=SUPABASE_STAGING
-LOGOUT=PASS
-STAGING_WEB_LOGIN_E2E=PASS
-PRODUCTION_MUTATION=NONE
-LEGACY_DRIVE_MUTATION=NONE
-R2_OBJECT_WRITE=NONE
+Apps Script Drive ID = 1AoMVWNQIsUxIQc7QjBoHkKPWGgPhOiLWdxFlTYnCWe2t8eFbtmHfavrb
+raw export bytes = 4,368,887
+raw export SHA-256 = 3d554e1b05d545c7f22e486c93d468cd8cfc3f53e181aa8648a67d460a62ad4a
+LIVE_APPS_SCRIPT_INVOCATION=0
+LIVE_SOURCE_MUTATION=0
 ```
 
-Manual browser verification also PASS:
+### Exact Deck source-of-record
 
-- `owner` ID/password login opened the authenticated workspace.
-- SUPER_ADMIN identity and account-management navigation were visible.
-- Farm workspace loaded real Supabase STAGING farms/questions/submission data.
-- Question-policy management opened successfully.
-- F5 caused a short login-screen flash and then returned automatically to the authenticated workspace, confirming cookie/session restore succeeds in the real browser path.
-
-The brief login-screen flash is a UX defect, not an authentication failure. Current `public/assets/app.js` calls asynchronous `restoreSession()` after the login section is already visible in initial HTML. Do not conflate this with session loss. Route/fix only within the appropriate UI ownership or an explicit atomic coding task.
-
-## Deck integration blocker: PLANNING DECISION REQUIRED
-
-Manual browser verification reproduced `SETUP_REQUIRED` when opening the Aza Mall proposal deck.
-
-Root cause is explicit in `functions/api/rpc.js`:
+Live rollback workbook:
 
 ```text
-legacyDeckActions = deckAssets, deckBootstrap, saveDeck
-SUPABASE_STAGING + legacyDeckAction -> existing bridge(env, user, action, body)
+Spreadsheet = 1WxKdITSdyysWM-eTqwww2JvcWvQGaQnTUyq9MwKVe8A
+Title = 04_CODE1 농가 기본정보·입점 검증 입력양식 v0.1
+shared=false
+owner=master.solly.art@gmail.com
 ```
 
-The Preview environment intentionally has no `BRIDGE_URL` or `BRIDGE_SECRET`; therefore the deck fails closed with `SETUP_REQUIRED`.
+Deck storage tabs:
 
-Do NOT copy Production `BRIDGE_URL/BRIDGE_SECRET` into Preview by assumption. Doing so could make STAGING Preview deck writes reach the live Apps Script/Sheet/Drive rollback source.
+```text
+15_DECKS         commit/version/hash/request metadata
+16_DECK_SLIDES   normalized slides
+17_DECK_ELEMENTS normalized elements
+18_DECK_HISTORY  exact serialized JSON chunks
+12_WEB_미디어큐  non-seed Deck media metadata
+```
 
-Planning/architecture must choose one bounded path before CODING proceeds on Deck:
+Canonical Deck ID: `CODE1_AZA_INTERNAL`.
 
-1. approve a specifically isolated/read-only or staging-safe legacy bridge contract for Preview; or
-2. migrate Deck read/write runtime into Supabase STAGING/private staging storage before enabling it.
+### Committed lineage frozen
 
-Until that decision, farm/question/account/password flows continue on Supabase STAGING and Deck remains intentionally blocked.
+Two committed revisions exist and are preserved as source lineage:
+
+```text
+v1 R_b0a1887f67b940f58c626669 / content_hash 9i5dZQvE_YRCUbRyDVY9p8lYVlyPJXVYDGKyxHpGIeM
+v2 R_82aeeccce12c4f4381934a7a / content_hash VeMG4FmTIMCr-jfNquPaC4tNhJLizzaS3mlwGvNT5gY
+```
+
+Both have 12 slides, 205 normalized elements, all slide backgrounds reference `asset_sky`, and both use the same 15 unique media refs.
+
+Current latest is v2; migration must preserve it exactly. It is not an editorial correction step.
+
+### Current asset dependency
+
+15 exact refs:
+
+- 14 embedded WebP seed assets under live `SEED_ASSETS_`;
+- 1 private uploaded Deck JPEG `M_35f86cfcbc9f4c93aa6870ac`.
+
+All 14 seed assets were extracted/read-only hashed from the Apps Script raw source. The referenced JPEG was independently downloaded/read-only and hashed. Exact byte counts, SHA-256 values, source lineage, ownership, rights/status notes, and Drive identity are frozen in the manifest.
+
+No unreferenced legacy Deck media is automatically included.
+
+### Legacy contract frozen
+
+Read path:
+
+- lazy `deckBootstrap` -> `{deck, assets, canEditDeck}`;
+- `deckAssets` -> same asset map contract;
+- committed history chunks are joined and verified against commit `content_hash` before parse;
+- incomplete/hash-mismatched revision fails closed.
+
+Save path:
+
+- request `{deck,baseVersion,newVersion,summary,requestId}`;
+- response `{version,versionLabel,savedAt}` (`versionLabel` optional on legacy retry fast-path);
+- exact optimistic concurrency on `baseVersion`;
+- idempotency by saved actor + requestId + COMMITTED state;
+- `deck_id` must be `CODE1_AZA_INTERNAL`;
+- all media refs must resolve to approved seed/deck-media identities;
+- each save increments version exactly once;
+- current browser/server `Code1Core.validateDeck` constraints must remain enforced;
+- current PDF/print path is browser-rendered Deck + asset resolution, not a separate canonical PDF/PPT source.
+
+Legacy write order uses normalized slide/element/history rows then a COMMITTED marker. STAGING must improve this to an atomic transaction/equivalent partial-failure guard rather than reproduce the Sheet partial-write risk.
+
+PHASE A close:
+
+```text
+DECK_SOURCE_ACCESS=PASS_READ_ONLY
+SOURCE_OF_RECORD=GROUNDED
+COMMITTED_REVISIONS=2
+LATEST_VERSION=2
+LATEST_SLIDES=12
+LATEST_ELEMENTS=205
+CURRENT_ASSET_REFS=15
+SEED_ASSET_BYTES_HASHED=14/14
+UPLOADED_REFERENCED_MEDIA_HASHED=1/1
+LIVE_BRIDGE_INVOCATION=0
+LIVE_SOURCE_MUTATION=0
+PRODUCTION_MUTATION=0
+PHASE_A_SOURCE_DECK_MANIFEST=PASS
+```
+
+## Browser auth and current Deck behavior
+
+Browser password/session E2E remains CLOSED PASS. F5 briefly displays initial login markup before async session restore; auth is not lost.
+
+Before migration, Aza Deck still fails closed with `SETUP_REQUIRED` because `functions/api/rpc.js` routes `deckAssets`, `deckBootstrap`, and `saveDeck` to legacy bridge while Preview intentionally has no bridge credentials. Do not alter this routing until the STAGING read path is built, imported, and independently verified.
 
 ## Known pre-existing root baseline
 
-Five root-suite failures remain exactly unchanged from before this STAGING work:
-
-1. deck text side-panel/toast fixture failure;
-2. legacy Drive media-organizer naming expectation;
-3. media upload UX grouped-card expectation;
-4. media shot-search expectation;
-5. legacy migration test fetch fixture.
-
-Do not opportunistically change these as part of backend hardening. UI-facing items require their owning track; legacy Apps Script/Drive changes require an explicit atomic task. Stale source duplicate rows 501-512 remain a Planning/data decision.
+Five root-suite failures remain unchanged from before this backend work: deck UI fixture, legacy media-organizer naming expectation, two media UX expectations, and legacy migration fetch fixture. Do not opportunistically mix those into the Deck backend migration unless the work order directly requires it.
 
 ## Local input preference
 
-Do not use hidden/SecureString prompts or clipboard-dependent secret instructions. If local secret entry is technically unavoidable, use ordinary visible input and never put the value in chat or durable project documents.
+No hidden/SecureString prompts and no clipboard-dependent secret workflow. Visible local input only if technically unavoidable; no secret in chat/durable docs.
 
 ## Cross-track sync
 
-- `MSG-20260912-0027`: CODING -> PLANNING architecture decision request, PENDING. Contains browser password/session CLOSED PASS plus Deck `SETUP_REQUIRED` legacy-bridge blocker and requests one of two bounded Deck directions: staging-safe isolated bridge or Supabase STAGING migration.
-- `MSG-20260912-0026`: earlier consolidated implementation evidence remains PENDING at last readback.
-- `MSG-20260912-0025`: scope correction APPLIED; Local Orchestrator remains outside CODING.
+- `MSG-20260912-0026`: CODING evidence accepted by Planning.
+- `MSG-20260912-0027`: Deck architecture request accepted; Planning selected Option B.
+- `MSG-20260912-0028`: P0 Deck migration work order received/read; PHASE A is complete and PHASE B is active.
+- Planning delta `20260912-004` is read/applied to CODING scope.
 
-## NEXT_ATOMIC_ACTION
+## NEXT_ATOMIC_ACTION — PHASE B
 
-1. Await Planning response to `MSG-20260912-0027` before enabling Deck in Preview.
-2. Do not copy Production bridge values into Preview while waiting.
-3. Keep Production/main/live Apps Script/Sheet/Drive unchanged.
-4. Auth-flash UX issue is separate from Deck architecture and may be routed/fixed under its appropriate ownership.
+1. Audit the currently applied Supabase STAGING schema and existing media/audit primitives.
+2. Design the minimum additive Deck schema/RPC contract for immutable revisions + current pointer, actor/request idempotency, optimistic concurrency, transactional commit, and append-only audit.
+3. Design private Deck asset mapping that preserves all 15 current `mediaRef` IDs and uses existing private STAGING storage without public exposure.
+4. Add schema/contract/preflight tests first. Do not apply DDL or copy R2 bytes until the PHASE B contract passes local/CI validation.
+5. Keep current Preview Deck legacy routing fail-closed until PHASE C read-copy verification succeeds.
 
 ROLLBACK: Apps Script/Sheet/Drive remains live. Production has no R2 binding.
