@@ -7,7 +7,7 @@ Base main: `a71a71eae73706862308e194110f4fcc2d25db01`
 Live cutover: NOT APPROVED
 Production: PROHIBITED
 PLANNING_DELTA_SEQ_SEEN = 20260911-003
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0026
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0027
 
 ## Hard boundaries
 
@@ -156,16 +156,15 @@ Do not use hidden/SecureString prompts or clipboard-dependent secret instruction
 
 ## Cross-track sync
 
-- `MSG-20260912-0026`: CODING -> PLANNING consolidated implementation evidence, PENDING at last readback.
+- `MSG-20260912-0027`: CODING -> PLANNING architecture decision request, PENDING. Contains browser password/session CLOSED PASS plus Deck `SETUP_REQUIRED` legacy-bridge blocker and requests one of two bounded Deck directions: staging-safe isolated bridge or Supabase STAGING migration.
+- `MSG-20260912-0026`: earlier consolidated implementation evidence remains PENDING at last readback.
 - `MSG-20260912-0025`: scope correction APPLIED; Local Orchestrator remains outside CODING.
-- Browser password-login/session-restore gate is now CLOSED PASS.
-- Deck legacy-bridge strategy now requires a Planning decision; CODING must not attach Preview to Production bridge values by assumption.
 
 ## NEXT_ATOMIC_ACTION
 
-1. Publish/route the browser-login CLOSED PASS plus Deck `SETUP_REQUIRED` blocker to Planning.
-2. Await an explicit Deck architecture decision: isolated staging-safe bridge vs Supabase STAGING deck migration.
-3. Keep Production/main/live Apps Script/Sheet/Drive unchanged while waiting.
-4. Auth-flash UX issue may be routed separately; do not mix it into the Deck architecture decision.
+1. Await Planning response to `MSG-20260912-0027` before enabling Deck in Preview.
+2. Do not copy Production bridge values into Preview while waiting.
+3. Keep Production/main/live Apps Script/Sheet/Drive unchanged.
+4. Auth-flash UX issue is separate from Deck architecture and may be routed/fixed under its appropriate ownership.
 
 ROLLBACK: Apps Script/Sheet/Drive remains live. Production has no R2 binding.
