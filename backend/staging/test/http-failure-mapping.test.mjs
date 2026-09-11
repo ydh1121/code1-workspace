@@ -11,6 +11,14 @@ test('NOT_FOUND maps to HTTP 404 with stable error code', async () => {
   });
 });
 
+test('Deck request reuse conflicts expose stable HTTP 409 codes', async()=>{
+  for(const code of ['REQUEST_ID_REUSE','UPLOAD_REQUEST_CONFLICT']){
+    const response=failure(Error(code));
+    assert.equal(response.status,409);
+    assert.equal((await response.json()).error,code);
+  }
+});
+
 test('DECK_WRITE_GATE_CLOSED keeps an explicit emergency read-only HTTP contract', async () => {
   const response=failure(Error('DECK_WRITE_GATE_CLOSED'));
   assert.equal(response.status,503);
