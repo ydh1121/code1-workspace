@@ -2,7 +2,7 @@
 
 Updated: 2026-09-12 02:51 KST
 PLANNING_DELTA_SEQ_SEEN = 20260911-003
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0016
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0017
 
 LAST_VERIFIED_ACTION: Cloudflare Pages branch-control gate was closed by explicit Dashboard configuration and re-open verification. `Production branch=main`, Preview=`Custom branches`, include exactly `coding/runtime-backend-staging`, exclude empty. The prior policy was `All non-Production branches`; only Branch control was changed. No Preview/Production variable or secret was changed, no R2 object was written, and Production binding/runtime was not mutated.
 
@@ -73,7 +73,8 @@ Do not decide Password/Google/Bridge values until the actual Preview inventory i
 - MSG-0009: APPLIED
 - MSG-0011: APPLIED
 - MSG-0015: SUPERSEDED
-- MSG-0016: PENDING outbound, to be superseded by exact branch-control PASS checkpoint
+- MSG-0016: SUPERSEDED
+- MSG-0017: PENDING outbound to Planning
 - current CODING inbound: 0
 
 ## NEXT_ATOMIC_ACTION
