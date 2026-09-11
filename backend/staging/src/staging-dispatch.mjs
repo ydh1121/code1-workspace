@@ -2,6 +2,7 @@ import {dispatchStagingRpc} from './rpc-adapter.mjs';
 import {dispatchPlanningApi} from './planning-api.mjs';
 import {dispatchMediaUpload,isMediaUploadAction} from './media-upload-runtime.mjs';
 import {deckBootstrap,deckAssets,saveDeck} from './deck-runtime.mjs';
+import {importDeckSource,DECK_IMPORT_ACTION} from './deck-import-runtime.mjs';
 
 const PLANNING_ACTIONS=new Set([
   'factInbox.list',
@@ -26,6 +27,7 @@ async function dispatchDeckAction(env,principal,action,payload,fetchImpl){
 }
 
 export async function dispatchCode1Staging(env,principal,action,payload={},fetchImpl=fetch){
+  if(action===DECK_IMPORT_ACTION)return importDeckSource(env,principal,payload,fetchImpl);
   if(PLANNING_ACTIONS.has(action))return dispatchPlanningApi(env,principal,action,payload,fetchImpl);
   if(DECK_ACTIONS.has(action))return dispatchDeckAction(env,principal,action,payload,fetchImpl);
   if(isMediaUploadAction(action,payload))return dispatchMediaUpload(env,principal,action,payload,fetchImpl);
@@ -34,3 +36,4 @@ export async function dispatchCode1Staging(env,principal,action,payload={},fetch
 
 export function isPlanningAction(action){return PLANNING_ACTIONS.has(action);}
 export function isDeckAction(action){return DECK_ACTIONS.has(action);}
+export function isDeckImportAction(action){return action===DECK_IMPORT_ACTION;}
