@@ -106,19 +106,30 @@ Applied STAGING migrations include:
 
 ## CI
 
-Latest PHASE E read-only verifier correction commit:
+Latest committed PHASE E verifier contract correction before the logout diagnostic:
 
 `90914bf39367eaca0e7f9c0e21dbd26d0318383f`
 
 CI run `34658583713`: SUCCESS across syntax, staging unit/contract tests, npm audit enforcement, accepted root baseline comparator, and build.
 
+## PHASE E read-only live evidence
+
+The repeatable no-mutation verifier reached the following live Preview checkpoints successfully:
+
+```text
+UNAUTHENTICATED_RUNTIME=PASS status=401
+PASSWORD_LOGIN=PASS account=OWNER sessionVersion=3
+SESSION_RESTORE=PASS configured=true authenticated=true googleEnabled=false
+DECK_BOOTSTRAP=PASS deck=CODE1_AZA_INTERNAL version=3 assets=15 canEditDeck=true
+PRIVATE_ASSET_READ_ALL=PASS count=15 bytes=1132992
+LOGOUT=PASS
+```
+
+The script then reported `LOGOUT_SESSION_INVALIDATION_FAILED status=200`. This is diagnosed as a verifier false negative, not a runtime logout failure: the script manually replayed the pre-logout `Cookie` header after calling logout. The runtime logout contract clears the browser cookie with `Set-Cookie: __Host-code1=; ... Max-Age=0`; a browser applies that response and no longer sends the cookie. Replaying an explicitly retained old signed cookie tests token replay semantics, not normal browser logout behavior.
+
+Do not rerun PHASE D write verification. The remaining PHASE E acceptance is the actual browser workflow.
+
 ## Remaining PHASE E gate
-
-A repeatable no-mutation verifier exists at:
-
-`backend/staging/scripts/verify-deck-phase-e-readonly-staging.mjs`
-
-It checks live Preview unauthenticated rejection, OWNER password login, `/api/session` restore, current Deck v3+, all 15 referenced private assets and exact 1,132,992 referenced bytes, logout, and post-logout rejection.
 
 Final manual browser evidence still required by the Work Order:
 
@@ -127,6 +138,7 @@ Final manual browser evidence still required by the Work Order:
 - edit/save via actual browser UI;
 - refresh/session restore shows saved state;
 - PDF/print path reaches current browser print/export gate without new Deck migration regression;
+- browser logout returns to unauthenticated UI;
 - no new page/console runtime errors.
 
 Role denial is covered by the existing Deck runtime/DOM tests; live STAGING currently has only OWNER + ADMIN accounts, both admin-equivalent for Deck permissions, so no existing authenticated viewless account is mutated merely to manufacture a live denial sample.
@@ -139,4 +151,4 @@ Live Apps Script/Sheet/Drive: READ-ONLY rollback source, mutation 0.
 FIRST_IMPORT: NOT RERUN.
 Local Orchestrator: separate track, out of scope.
 
-Next: run PHASE E read-only verifier, then complete the final browser workflow. Only after those pass should CODING publish final `IMPLEMENTATION_EVIDENCE` and mark this Work Order complete.
+Next: complete the final manual browser workflow. Only after that passes should CODING publish final `IMPLEMENTATION_EVIDENCE` and mark this Work Order complete.
