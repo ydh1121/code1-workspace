@@ -30,7 +30,7 @@ test('Deck current pointer and immutable revision lineage are relationally linke
   must(/content_hash text not null check \(content_hash ~ '\^\[A-Za-z0-9_-\]\{43\}\$'\)/);
 });
 
-test('Deck asset model preserves stable media refs and private R2 integrity metadata',()=>{
+test('Deck asset model preserves stable refs and private R2 integrity metadata',()=>{
   must(/asset_id text primary key/);
   must(/mime_type in \('image\/jpeg','image\/png','image\/webp'\)/);
   must(/file_size_bytes > 0 and file_size_bytes <= 8388608/);
@@ -40,11 +40,19 @@ test('Deck asset model preserves stable media refs and private R2 integrity meta
   must(/references deck_assets\(asset_id\) on delete restrict/);
 });
 
-test('Deck tables are RLS fail-closed and browser roles receive no direct table access',()=>{
+test('asset registration can safely bootstrap the empty Deck identity before revision import',()=>{
+  must(/create or replace function code1_register_deck_asset\(/);
+  must(/insert into deck_documents\(deck_id,current_version,version_label,status,updated_by,updated_at\)[\s\S]*values\(v_deck_id,0,'v0\.1','INTERNAL WORKING COPY'/);
+  must(/on conflict \(deck_id\) do nothing/);
+  must(/REQUEST_ID_REUSE/);
+  must(/v_existing\.source_kind=v_source_kind/);
+});
+
+test('Deck tables are RLS fail-closed and browser roles receive no direct access',()=>{
   for(const table of ['deck_documents','deck_assets','deck_revisions','deck_revision_assets']){
     must(new RegExp(`alter table ${table} enable row level security`));
   }
-  must(/revoke all on table deck_documents, deck_assets, deck_revisions, deck_revision_assets from anon, authenticated/);
+  must(/revoke all on table deck_documents, deck_assets, deck_revisions, deck_revision_assets from public, anon, authenticated/);
   must(/grant select, insert, update on table deck_documents, deck_assets to service_role/);
   must(/grant select, insert on table deck_revisions, deck_revision_assets to service_role/);
   mustNot(/create\s+policy/i);
@@ -54,14 +62,14 @@ test('runtime Deck save RPC enforces authorization, retry idempotency, concurren
   must(/create or replace function code1_save_deck\(/);
   must(/p_request_id !~ '\^\[a-f0-9\]\{32\}\$'/);
   must(/v_role not in \('SUPER_ADMIN','ADMIN'\).*permissions->>'deck'/s);
-  must(/source_kind='STAGING_SAVE'/);
-  must(/current_version <> p_base_version then raise exception 'CONFLICT'/);
+  must(/dr\.source_kind='STAGING_SAVE'/);
+  must(/v_doc\.current_version <> p_base_version then raise exception 'CONFLICT'/);
   must(/v_next:=v_doc\.current_version\+1/);
   must(/p_new_version,false\).*'v0\.'\|\|v_next::text/s);
-  must(/left join deck_assets a on a\.asset_id=x and a\.deck_id=p_deck_id and a\.state='ACTIVE'/);
+  must(/left join deck_assets da[\s\S]*da\.asset_id=refs\.asset_id and da\.deck_id=p_deck_id and da\.state='ACTIVE'/);
   must(/raise exception 'INVALID_DECK_MEDIA'/);
   must(/insert into deck_revision_assets/);
-  must(/update deck_documents\s+set current_revision_id=v_revision/s);
+  must(/update deck_documents dd[\s\S]*current_revision_id=v_revision/);
   must(/'deck\.save','DECK'/);
 });
 
@@ -73,13 +81,21 @@ test('Deck save/import verify exact serialized payload hash in Postgres',()=>{
   must(/'deck\.revision\.import','DECK'/);
 });
 
-test('legacy import is OWNER-only, idempotent by source revision and does not need live source writes',()=>{
+test('legacy import is OWNER-only, idempotent and can recover current pointer on retry',()=>{
   must(/create or replace function code1_import_deck_revision\(/);
   must(/v_actor\.role <> 'SUPER_ADMIN' or p_actor_id <> 'OWNER'/);
-  must(/where revision_id=p_revision_id/);
+  must(/where dr\.revision_id=p_revision_id/);
   must(/v_existing\.content_hash=p_content_hash/);
   must(/'LEGACY_IMPORT',p_revision_id,'COMMITTED'/);
-  must(/p_make_current/);
+  must(/if coalesce\(p_make_current,false\) then[\s\S]*update deck_documents dd/);
+});
+
+test('PLpgSQL table-column references that overlap RETURNS TABLE outputs are qualified',()=>{
+  must(/from deck_revisions dr\s+where dr\.revision_id=p_revision_id/);
+  must(/from deck_revisions dr\s+where dr\.deck_id=p_deck_id and dr\.version=p_version/);
+  must(/from deck_documents dd\s+where dd\.deck_id=p_deck_id\s+for update/);
+  mustNot(/from deck_revisions\s+where revision_id=p_revision_id/);
+  mustNot(/from deck_documents\s+where deck_id=p_deck_id\s+for update/);
 });
 
 test('Deck service RPCs are not browser executable',()=>{
