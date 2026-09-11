@@ -1,7 +1,7 @@
 # CODE1 CODING CURRENT
 
-Updated: 2026-09-12 05:33 KST
-Status: SUPABASE STAGING + PRIVATE R2 EXTERNAL GATE PASS / NOT_FOUND 404 LIVE PASS / READONLY LATENCY BASELINE RECORDED / NPM SECURITY HARDENING PASS
+Updated: 2026-09-12 05:46 KST
+Status: SUPABASE STAGING + PRIVATE R2 EXTERNAL GATE PASS / NOT_FOUND 404 LIVE PASS / READONLY LATENCY BASELINE RECORDED / NPM SECURITY HARDENING PASS / PASSWORD LOGIN E2E IN PROGRESS
 Branch: `coding/runtime-backend-staging`
 Base main: `a71a71eae73706862308e194110f4fcc2d25db01`
 Live cutover: NOT APPROVED
@@ -91,6 +91,29 @@ The jsPDF major-version runtime smoke uses the actual `public/assets/RequestFont
 
 All dependency/security commits use `[CF-Pages-Skip]`; no Preview or Production deployment was caused by this hardening.
 
+## Password login E2E: IN PROGRESS
+
+Supabase STAGING readback confirms both imported active accounts have valid password credentials:
+
+```text
+OWNER / username=owner / role=SUPER_ADMIN / session_version=2
+U_c57fa35e82c240a0897da89a / username=art_67 / role=ADMIN / session_version=1
+scheme=pbkdf2-sha256-pepper-v1 / iterations=100000 / salt+hash present
+```
+
+The Preview environment now has a STAGING-only `PASSWORD_PEPPER` Secret added by the operator. No value is recorded here. Because password hashes are pepper-bound, the imported OWNER credential will be replaced only in STAGING through the existing authenticated account-password path; Production and legacy Drive remain untouched.
+
+Prepared verification scripts:
+
+```text
+backend/staging/scripts/bootstrap-owner-web-login-staging.mjs
+backend/staging/scripts/run-owner-web-login-bootstrap.ps1
+```
+
+The verifier uses the existing `/api/accounts` password-change path and then exercises real `/api/auth/password` login, session restore, authenticated bootstrap, and logout. Local secret/password prompts are visible plain-text input per operator preference; no values are written to Git or durable docs.
+
+This commit intentionally triggers exactly one new Preview deployment so the newly added Preview `PASSWORD_PEPPER` becomes active.
+
 ## Known pre-existing root baseline
 
 Five root-suite failures remain exactly unchanged from before this STAGING work:
@@ -111,11 +134,14 @@ Do not use hidden/SecureString prompts or clipboard-dependent secret instruction
 
 - `MSG-20260912-0026`: CODING -> PLANNING consolidated implementation evidence, PENDING.
 - No newer PLANNING -> CODING instruction was present immediately after append/readback.
+- Password-login E2E is a continuation of the existing STAGING runtime verification scope; no new Planning policy decision is required.
 
 ## NEXT_ATOMIC_ACTION
 
-1. Await/consume Planning review of `MSG-20260912-0026` or a newer explicit PLANNING -> CODING work order.
-2. If no new CODING work order exists, hold the verified STAGING state. Do not invent a Production cutover or evidence-free performance optimization.
-3. Keep the five pre-existing root failures in their existing ownership buckets until explicitly routed.
+1. Confirm the intentional Preview deployment from this commit succeeds on `coding/runtime-backend-staging`.
+2. Run `run-owner-web-login-bootstrap.ps1` with current Preview `SESSION_SECRET`, a new 12-128 character STAGING OWNER password, and current OWNER session version 2.
+3. Require password reset -> real `/api/auth/password` -> session restore -> authenticated bootstrap -> logout all PASS.
+4. Then perform one manual browser login as `owner` with the new STAGING-only password and verify refresh/session persistence and logout/re-login behavior.
+5. Production/main/legacy Drive remain untouched.
 
 ROLLBACK: Apps Script/Sheet/Drive remains live. Production has no R2 binding.
