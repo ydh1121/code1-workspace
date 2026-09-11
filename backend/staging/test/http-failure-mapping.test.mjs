@@ -11,12 +11,18 @@ test('NOT_FOUND maps to HTTP 404 with stable error code', async () => {
   });
 });
 
-test('DECK_WRITE_GATE_CLOSED maps to explicit read-only HTTP contract', async () => {
+test('DECK_WRITE_GATE_CLOSED keeps an explicit emergency read-only HTTP contract', async () => {
   const response=failure(Error('DECK_WRITE_GATE_CLOSED'));
   assert.equal(response.status,503);
+  assert.equal((await response.json()).error,'DECK_WRITE_GATE_CLOSED');
+});
+
+test('DECK_DRIVE_LINK_DISABLED explicitly prevents runtime fallback to live Drive', async () => {
+  const response=failure(Error('DECK_DRIVE_LINK_DISABLED'));
+  assert.equal(response.status,503);
   assert.deepEqual(await response.json(),{
-    error:'DECK_WRITE_GATE_CLOSED',
-    message:'Deck 저장 전환 검증이 진행 중입니다. 읽기 전용 상태를 유지합니다.'
+    error:'DECK_DRIVE_LINK_DISABLED',
+    message:'STAGING Deck에서는 기존 Drive 파일 연결을 사용하지 않습니다. 이미지는 직접 업로드해 주세요.'
   });
 });
 
