@@ -4,15 +4,15 @@ import { useSupabaseStaging } from '../../backend/staging/src/runtime-mode.mjs';
 
 const actions = new Set([
   'bootstrap','saveSubmission','getSubmission','review','upload','linkDrive','reviewMedia','media','mediaBatch',
-  'deckAssets','deckBootstrap','saveDeck','deckMigration.importSource20260912','questionPolicy.list','questionPolicy.save',
+  'deckAssets','deckBootstrap','saveDeck','questionPolicy.list','questionPolicy.save',
   'mediaUpload.begin','mediaUpload.chunk','mediaUpload.finish','deleteMedia','mediaOrganizer.status','mediaOrganizer.repair',
   'factInbox.list','factInbox.create','factInbox.transition','executiveBrief.current'
 ]);
-const legacyDeckActions=new Set(['deckAssets','deckBootstrap','saveDeck']);
 
-function stagingOwns(action,payload){
-  if(legacyDeckActions.has(action))return false;
-  if((action==='upload'||action==='linkDrive')&&payload?.kind==='DECK')return false;
+function stagingOwns(){
+  // Once the isolated STAGING runtime flag is enabled, every accepted action stays inside
+  // the STAGING dispatcher. In particular Deck read/write/media actions must never fall back
+  // to the live Apps Script/Sheet/Drive rollback source.
   return true;
 }
 
@@ -25,11 +25,9 @@ export async function onRequestPost({ request, env }) {
     const body=payload||{};
     let data;
     if(useSupabaseStaging(env)&&stagingOwns(action,body)){
-      // No farm-runtime fallback here. Once the isolated staging flag is enabled,
-      // a missing staging action must fail instead of silently dual-writing to Sheets.
+      // No staging fallback to the live rollback source. Missing/unimplemented staging actions fail closed.
       data=await dispatchCode1Staging(env,user,action,body);
     }else{
-      // Deck editing remains on the existing isolated legacy domain until source import/readback closes.
       data=await bridge(env, user, action, body);
     }
     return json({ data });
