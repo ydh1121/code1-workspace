@@ -7,12 +7,13 @@ const credentialValid=c=>c&&/^[a-f0-9]{64}$/.test(c.hash||'')&&/^[a-f0-9]{32}$/.
 async function farmIdsFor(db,row){if(row.role!=='FARMER')return [];const r=await db.select('farm_access',`account_id=eq.${esc(row.account_id)}&select=farm_id`);return (r||[]).map(x=>x.farm_id);}
 export async function accountSelf(env,principal,fetchImpl=fetch){const db=createDb(env,fetchImpl),a=await loadActor(db,principal);return a.user;}
 export async function accountCredential(env,principal,fetchImpl=fetch){const db=createDb(env,fetchImpl),a=await loadActor(db,principal);const r=a.row;return r.password_hash?{salt:r.password_salt,hash:r.password_hash,iterations:Number(r.password_iterations),scheme:r.password_scheme}:null;}
-export async function accountList(env,principal,fetchImpl=fetch){const db=createDb(env,fetchImpl),actor=await loadActor(db,principal);assertAdmin(actor);const [rows,farms]=await Promise.all([db.select('workspace_accounts','order=created_at.asc&select=*'),db.select('farms','order=farm_id.asc&select=farm_id,internal_name,public_name')]);const accounts=[];for(const r of rows||[])accounts.push(publicAccount(r,await farmIdsFor(db,r)));return {accounts,farms:(farms||[]).map(f=>({id:f.farm_id,name:f.internal_name||f.public_name||f.farm_id}))};}
+export async function accountList(env,principal,fetchImpl=fetch){const db=createDb(env,fetchImpl),actor=await loadActor(db,principal);assertAdmin(actor);const [rows,farms]=await Promise.all([db.select('workspace_accounts','archived_at=is.null&order=created_at.asc&select=*'),db.select('farms','order=farm_id.asc&select=farm_id,internal_name,public_name')]);const accounts=[];for(const r of rows||[])accounts.push(publicAccount(r,await farmIdsFor(db,r)));return {accounts,farms:(farms||[]).map(f=>({id:f.farm_id,name:f.internal_name||f.public_name||f.farm_id}))};}
 
 export async function accountSave(env,principal,p,fetchImpl=fetch){
   const db=createDb(env,fetchImpl),actor=await loadActor(db,principal);assertAdmin(actor);
   const id=String(p?.id||''),rows=id?await db.select('workspace_accounts',`account_id=eq.${esc(id)}&select=*`):[],old=rows?.[0]||null;
   if(id&&!old)throw Error('NOT_FOUND');
+  if(old?.archived_at)throw Error('FORBIDDEN');
   if(old&&(old.account_id==='OWNER'||old.account_id===actor.row.account_id))throw Error('FORBIDDEN');
   if(actor.row.role!=='SUPER_ADMIN'&&((old&&old.role!=='FARMER')||p.role!=='FARMER'))throw Error('FORBIDDEN');
   if(!['ADMIN','FARMER'].includes(p.role)||!['active','disabled'].includes(p.status))throw Error('INVALID_ACCOUNT');
