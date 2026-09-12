@@ -27,8 +27,13 @@
         <button type="button" data-filter="failed">실패</button>
         <button type="button" data-filter="done">완료</button>
       </div>
-      <button type="button" id="refresh">새로고침</button>
+      <div class="qa-actions" role="group" aria-label="OWNER QA fixture">
+        <button type="button" id="qa-create">QA 이벤트 준비</button>
+        <button type="button" id="qa-cleanup">QA 이벤트 정리</button>
+        <button type="button" id="refresh">새로고침</button>
+      </div>
     </section>
+    <p class="qa-note">QA 이벤트는 STAGING의 고정 합성 데이터만 생성하며 실제 농가·계정·운영 데이터를 변경하지 않습니다.</p>
     <p id="status" role="status" class="status">이벤트를 불러오는 중입니다.</p>
     <section class="workspace">
       <div id="event-list" class="event-list" aria-live="polite"></div>
