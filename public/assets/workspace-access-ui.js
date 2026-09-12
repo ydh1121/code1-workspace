@@ -33,11 +33,10 @@
   function applyAccess(){
     const inputPolicyVisible=can('PAGE_INPUT_POLICY');
     document.querySelectorAll('button,a').forEach(node=>{if((node.textContent||'').trim()==='입력 항목 관리')node.hidden=!inputPolicyVisible;});
-
     const farmEdit=can('FARM_EDIT'),farmReview=can('FARM_REVIEW'),deckEdit=can('DECK_EDIT'),deckExport=can('DECK_EXPORT'),accountManage=can('ACCOUNT_MANAGE');
     if(boot?.user?.role!=='FARMER')setHidden('new-farm',!farmEdit);
-    setHidden('link-drive',!farmEdit);
-    setHidden('review-panel',!farmReview||document.getElementById('review-panel')?.hidden===true);
+    if(!farmEdit)setHidden('link-drive',true);
+    if(!farmReview)setHidden('review-panel',true);
     setHidden('account-management',!accountManage);
     setHidden('add-account',!accountManage);
     for(const id of ['edit-mode','deck-save','version-save','undo','redo','add-text','add-image','deck-drive-image','duplicate-slide','delete-slide','background-edit','delete-element'])setDisabled(id,!deckEdit,'이 계정에는 제안서 편집 권한이 없습니다.');
@@ -46,9 +45,10 @@
 
   window.Code1Access={can,current:()=>({access:{...access,allowed:[...(access.allowed||[])]},permissions,boot}),refresh:applyAccess};
 
-  let scheduled=false;const observer=new MutationObserver(()=>{if(!boot||scheduled)return;scheduled=true;requestAnimationFrame(()=>{scheduled=false;applyAccess();});});
-  observer.observe(document.documentElement,{childList:true,subtree:true});
-  window.addEventListener('code1-ready',()=>{resolveGate(true);applyAccess();});
+  let scheduled=false;const schedule=()=>{if(!boot||scheduled)return;scheduled=true;requestAnimationFrame(()=>{scheduled=false;applyAccess();});};
+  const observer=new MutationObserver(schedule);
+  observer.observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['hidden','disabled']});
+  window.addEventListener('code1-ready',()=>{resolveGate(true);queueMicrotask(applyAccess);});
 
   // app.js performs the authoritative restore/bootstrap. This early read only prevents
   // an authenticated refresh from painting the login form while that restore is pending.
