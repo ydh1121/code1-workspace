@@ -1,5 +1,7 @@
 import {createDb} from './db.mjs';
 import {loadActor} from './authz.mjs';
+import {cleanString} from './core.mjs';
+import {ACCESS_CAPABILITIES,resolveWorkspaceAccess,publicAccess} from './workspace-access.mjs';
 
 const esc=encodeURIComponent;
 const requestId=value=>/^[a-f0-9]{32}$/.test(String(value||''));
@@ -47,20 +49,19 @@ export async function opsSaveAdminAccessProfile(env,principal,payload={},fetchIm
   const db=createDb(env,fetchImpl),actor=await ownerActor(db,principal);
   const id=String(payload.id||''),rid=String(payload.requestId||'');
   const capabilities=[...new Set((payload.capabilities||[]).map(String))];
-  if(!validId(id)||!requestId(rid))throw Error('INVALID_REQUEST');
-  const rows=await db.rpc('code1_ops_set_account_capabilities',{p_actor_id:actor.row.account_id,p_account_id:id,p_capabilities:capabilities,p_request_id:rid});
-  const wrapped=Array.isArray(rows)?rows[0]:rows;
-  const result=wrapped?.entity||wrapped?.result?.entity||wrapped;
+  if(!validId(id)||!requestId(rid)||capabilities.some(x=>!ACCESS_CAPABILITIES.includes(x)))throw Error('INVALID_REQUEST');
+  await db.rpc('code1_ops_set_account_capabilities',{p_actor_id:actor.row.account_id,p_account_id:id,p_capabilities:capabilities,p_request_id:rid});
   const row=(await db.select('workspace_accounts',`account_id=eq.${esc(id)}&archived_at=is.null&select=*`))?.[0];
   if(!row)throw Error('NOT_FOUND');
-  return {...accountLabel(row),access:{capabilities:result?.capabilities||capabilities}};
+  const profile=await resolveWorkspaceAccess(db,{row});
+  return {...accountLabel(row),access:publicAccess(profile)};
 }
 
 export async function opsDeleteEmptyFarm(env,principal,payload={},fetchImpl=fetch){
   const db=createDb(env,fetchImpl),actor=await ownerActor(db,principal);
   const id=String(payload.id||''),rid=String(payload.requestId||'');
   if(!validId(id)||!requestId(rid))throw Error('INVALID_REQUEST');
-  const rows=await db.rpc('code1_ops_delete_empty_farm',{p_actor_id:actor.row.account_id,p_farm_id:id,p_reason:String(payload.reason||'최고 관리자 삭제').slice(0,500),p_request_id:rid});
+  const rows=await db.rpc('code1_ops_delete_empty_farm',{p_actor_id:actor.row.account_id,p_farm_id:id,p_reason:cleanString(payload.reason||'최고 관리자 삭제',500),p_request_id:rid});
   const wrapped=Array.isArray(rows)?rows[0]:rows;
   return wrapped?.entity||wrapped||{farm_id:id,deleted:true};
 }
@@ -69,7 +70,7 @@ export async function opsArchiveAccount(env,principal,payload={},fetchImpl=fetch
   const db=createDb(env,fetchImpl),actor=await ownerActor(db,principal);
   const id=String(payload.id||''),rid=String(payload.requestId||'');
   if(!validId(id)||!requestId(rid))throw Error('INVALID_REQUEST');
-  const rows=await db.rpc('code1_ops_archive_account',{p_actor_id:actor.row.account_id,p_account_id:id,p_reason:String(payload.reason||'최고 관리자 삭제').slice(0,500),p_request_id:rid});
+  const rows=await db.rpc('code1_ops_archive_account',{p_actor_id:actor.row.account_id,p_account_id:id,p_reason:cleanString(payload.reason||'최고 관리자 삭제',500),p_request_id:rid});
   const wrapped=Array.isArray(rows)?rows[0]:rows;
   return wrapped?.entity||wrapped;
 }

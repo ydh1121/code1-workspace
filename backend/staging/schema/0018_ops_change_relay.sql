@@ -85,7 +85,7 @@ language sql
 immutable
 set search_path = public, pg_temp
 as $$
-  select encode(digest(convert_to(coalesce(p_value,'null'::jsonb)::text,'UTF8'),'sha256'),'hex')
+  select encode(sha256(convert_to(coalesce(p_value,'null'::jsonb)::text,'UTF8')),'hex')
 $$;
 
 create or replace function public.code1_ops_assert_safe_evidence(p_refs jsonb)
