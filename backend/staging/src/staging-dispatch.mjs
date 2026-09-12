@@ -13,7 +13,10 @@ const PLANNING_ACTIONS=new Set([
   'planning.document.current',
   'planning.document.save',
   'planning.feedback.add',
-  'planning.feedback.resolve'
+  'planning.feedback.resolve',
+  'planning.profit.list',
+  'planning.profit.save',
+  'planning.profit.archive'
 ]);
 
 const ADMIN_ACTIONS=new Set([
