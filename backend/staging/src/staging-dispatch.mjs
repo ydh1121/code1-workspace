@@ -1,5 +1,6 @@
 import {dispatchStagingRpc} from './rpc-adapter.mjs';
 import {dispatchPlanningApi} from './planning-api.mjs';
+import {dispatchAdminOps} from './admin-ops.mjs';
 import {dispatchMediaUpload,isMediaUploadAction} from './media-upload-runtime.mjs';
 import {deckBootstrap,deckAssets,saveDeck} from './deck-runtime.mjs';
 import {uploadDeckAsset,getDeckMediaMaybe} from './deck-media-runtime.mjs';
@@ -9,6 +10,13 @@ const PLANNING_ACTIONS=new Set([
   'factInbox.create',
   'factInbox.transition',
   'executiveBrief.current'
+]);
+
+const ADMIN_ACTIONS=new Set([
+  'admin.overview',
+  'admin.audit',
+  'admin.farm.delete',
+  'admin.account.delete'
 ]);
 
 const DECK_ACTIONS=new Set([
@@ -46,6 +54,7 @@ export async function dispatchCode1Staging(env,principal,action,payload={},fetch
     const deckMedia=await getDeckMediaMaybe(env,principal,payload,fetchImpl);
     if(deckMedia)return deckMedia;
   }
+  if(ADMIN_ACTIONS.has(action))return dispatchAdminOps(env,principal,action,payload,fetchImpl);
   if(PLANNING_ACTIONS.has(action))return dispatchPlanningApi(env,principal,action,payload,fetchImpl);
   if(DECK_ACTIONS.has(action))return dispatchDeckAction(env,principal,action,payload,fetchImpl);
   if(isMediaUploadAction(action,payload))return dispatchMediaUpload(env,principal,action,payload,fetchImpl);
@@ -53,6 +62,7 @@ export async function dispatchCode1Staging(env,principal,action,payload={},fetch
 }
 
 export function isPlanningAction(action){return PLANNING_ACTIONS.has(action);}
+export function isAdminAction(action){return ADMIN_ACTIONS.has(action);}
 export function isDeckAction(action){return DECK_ACTIONS.has(action);}
 export function isDeckUploadAction(action,payload={}){return isDeckUpload(action,payload);}
 export function isDeckDriveLinkAction(action,payload={}){return isDeckDriveLink(action,payload);}
