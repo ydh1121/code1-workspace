@@ -7,6 +7,7 @@ const esc=encodeURIComponent;
 const clean=(value,max=4000)=>String(value??'').trim().slice(0,max);
 const validId=value=>/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/.test(String(value||''));
 const requestId=value=>/^[a-f0-9]{32}$/.test(String(value||''));
+const nonNegative=(value,field)=>{const n=Number(value??0);if(!Number.isFinite(n)||n<0)throw Error(`INVALID_${field}`);return n;};
 
 export async function hasPlanningCapability(db,actor,capability){
   if(!Object.values(PLANNING_CAPABILITIES).includes(capability))return false;
@@ -134,6 +135,41 @@ export async function resolvePlanningFeedback(env,principal,payload={},fetchImpl
   return documentBundle(db,actor,profile,row.document_id);
 }
 
+async function productProfitBundle(db,profile){
+  const rows=await db.select('planning_product_profit_models','status=eq.ACTIVE&order=updated_at.desc&select=model_id,product_name,unit_name,sales_channel,sale_price,purchase_cost,package_cost,shipping_cost,sales_fee,other_cost,monthly_units,note,current_revision,created_at,updated_at');
+  return {models:rows||[],access:{canEdit:accessHas(profile,'PLANNING_EDIT')}};
+}
+
+export async function listProductProfitModels(env,principal,payload={},fetchImpl=fetch){
+  const {db,profile}=await planningContext(env,principal,fetchImpl);
+  return productProfitBundle(db,profile);
+}
+
+export async function saveProductProfitModel(env,principal,payload={},fetchImpl=fetch){
+  const {db,actor,profile}=await planningContext(env,principal,fetchImpl,'PLANNING_EDIT');
+  const rid=String(payload.requestId||''),modelId=clean(payload.id,160),productName=clean(payload.productName,160);
+  const baseRevision=Number(payload.baseRevision??0),monthlyUnits=nonNegative(payload.monthlyUnits,'PRODUCT_PROFIT');
+  if(!requestId(rid)||!productName||!Number.isInteger(baseRevision)||baseRevision<0||!Number.isInteger(monthlyUnits))throw Error('INVALID_PRODUCT_PROFIT');
+  if(modelId&&!validId(modelId))throw Error('INVALID_PRODUCT_PROFIT');
+  await db.rpc('code1_save_product_profit_model',{
+    p_actor_id:actor.row.account_id,p_model_id:modelId||null,p_base_revision:baseRevision,
+    p_product_name:productName,p_unit_name:clean(payload.unitName,80),p_sales_channel:clean(payload.salesChannel,160),
+    p_sale_price:nonNegative(payload.salePrice,'PRODUCT_PROFIT'),p_purchase_cost:nonNegative(payload.purchaseCost,'PRODUCT_PROFIT'),
+    p_package_cost:nonNegative(payload.packageCost,'PRODUCT_PROFIT'),p_shipping_cost:nonNegative(payload.shippingCost,'PRODUCT_PROFIT'),
+    p_sales_fee:nonNegative(payload.salesFee,'PRODUCT_PROFIT'),p_other_cost:nonNegative(payload.otherCost,'PRODUCT_PROFIT'),
+    p_monthly_units:monthlyUnits,p_note:clean(payload.note,4000),p_request_id:rid
+  });
+  return productProfitBundle(db,profile);
+}
+
+export async function archiveProductProfitModel(env,principal,payload={},fetchImpl=fetch){
+  const {db,actor,profile}=await planningContext(env,principal,fetchImpl,'PLANNING_EDIT');
+  const id=clean(payload.id,160),rid=String(payload.requestId||'');
+  if(!validId(id)||!requestId(rid))throw Error('INVALID_PRODUCT_PROFIT');
+  await db.rpc('code1_archive_product_profit_model',{p_actor_id:actor.row.account_id,p_model_id:id,p_request_id:rid});
+  return productProfitBundle(db,profile);
+}
+
 export async function dispatchPlanningApi(env,principal,action,payload={},fetchImpl=fetch){
   switch(action){
     case 'factInbox.list':return listFactInbox(env,principal,payload,fetchImpl);
@@ -144,6 +180,9 @@ export async function dispatchPlanningApi(env,principal,action,payload={},fetchI
     case 'planning.document.save':return savePlanningDocument(env,principal,payload,fetchImpl);
     case 'planning.feedback.add':return addPlanningFeedback(env,principal,payload,fetchImpl);
     case 'planning.feedback.resolve':return resolvePlanningFeedback(env,principal,payload,fetchImpl);
+    case 'planning.profit.list':return listProductProfitModels(env,principal,payload,fetchImpl);
+    case 'planning.profit.save':return saveProductProfitModel(env,principal,payload,fetchImpl);
+    case 'planning.profit.archive':return archiveProductProfitModel(env,principal,payload,fetchImpl);
     default:throw Error('PLANNING_ACTION_NOT_IMPLEMENTED');
   }
 }
