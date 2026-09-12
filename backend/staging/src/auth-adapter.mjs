@@ -29,7 +29,7 @@ export async function stagingAuthFast(env,payload={},fetchImpl=fetch){
 
   await db.rpc('code1_auth_throttle',{p_username:username,p_ip_key:ipKey});
   const row=(await db.select('workspace_accounts',`username=eq.${esc(username)}&select=*`))?.[0]||null;
-  if(!row||row.status!=='active'||!['SUPER_ADMIN','ADMIN','FARMER'].includes(row.role)){
+  if(!row||row.archived_at||row.status!=='active'||!['SUPER_ADMIN','ADMIN','FARMER'].includes(row.role)){
     return {credential:null,user:null,bootstrap:null};
   }
   if(row.role==='SUPER_ADMIN'&&row.account_id!=='OWNER')throw Error('FORBIDDEN');
@@ -62,7 +62,7 @@ export async function stagingGoogleIdentity(env,email,fetchImpl=fetch){
   const normalized=String(email||'').trim().toLowerCase();
   if(!normalized)throw Error('FORBIDDEN');
   const row=(await db.select('workspace_accounts','account_id=eq.OWNER&select=*'))?.[0];
-  if(!row||row.role!=='SUPER_ADMIN'||row.status!=='active'||String(row.email||'').trim().toLowerCase()!==normalized)throw Error('FORBIDDEN');
+  if(!row||row.archived_at||row.role!=='SUPER_ADMIN'||row.status!=='active'||String(row.email||'').trim().toLowerCase()!==normalized)throw Error('FORBIDDEN');
   return publicAccount(row,[]);
 }
 
