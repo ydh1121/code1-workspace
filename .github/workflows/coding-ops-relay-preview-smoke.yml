@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      OPS_RELAY_PREVIEW_ORIGIN: https://0b099d98.code1-workspace.pages.dev
+      OPS_RELAY_PREVIEW_ORIGIN: https://coding-runtime-backend-stagi.code1-workspace.pages.dev
     steps:
       - uses: actions/checkout@v4
       - name: Runtime version
