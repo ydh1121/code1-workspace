@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>CODE1 OPS Change Relay · STAGING</title>
+  <link rel="stylesheet" href="/assets/ops-relay.css">
+</head>
+<body>
+  <header class="ops-header">
+    <div><p class="eyebrow">CODE1 / STAGING ONLY</p><h1>OPS Change Relay</h1><p class="muted">운영 변경 → Planning 검토 상태를 추적합니다. 이 화면은 Planning SSOT가 아닙니다.</p></div>
+    <div class="header-actions"><span class="stage-badge">STAGING</span><a class="button" href="/">작업공간으로 돌아가기</a></div>
+  </header>
+  <main>
+    <section class="summary" aria-label="Relay 요약">
+      <article><span>Relay</span><strong id="relay-state">확인 중</strong><small id="relay-note"></small></article>
+      <article><span>Planning 필요</span><strong id="count-planning">0</strong></article>
+      <article><span>Incident</span><strong id="count-incident">0</strong></article>
+      <article><span>실패·재시도</span><strong id="count-failed">0</strong></article>
+    </section>
+    <section class="toolbar">
+      <div class="filters" role="group" aria-label="이벤트 필터">
+        <button type="button" data-filter="all" class="active">전체</button>
+        <button type="button" data-filter="planning">Planning 필요</button>
+        <button type="button" data-filter="incident">Incident</button>
+        <button type="button" data-filter="failed">실패</button>
+        <button type="button" data-filter="done">완료</button>
+      </div>
+      <button type="button" id="refresh">새로고침</button>
+    </section>
+    <p id="status" role="status" class="status">이벤트를 불러오는 중입니다.</p>
+    <section class="workspace">
+      <div id="event-list" class="event-list" aria-live="polite"></div>
+      <aside id="detail" class="detail" aria-label="이벤트 상세"><div class="empty">왼쪽에서 이벤트를 선택하세요.</div></aside>
+    </section>
+  </main>
+  <script src="/assets/ops-relay.js" defer></script>
+</body>
+</html>
