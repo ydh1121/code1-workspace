@@ -91,7 +91,7 @@ These durations are a Coding proposal for Planning/user review. They are not fro
 
 ## Security / RBAC checkpoint
 
-Migration 0020 applied successfully to STAGING only.
+Migration `ops_retention_capacity_guard_0020` applied successfully to STAGING only.
 
 Post-migration privilege readback:
 
@@ -102,9 +102,36 @@ Post-migration privilege readback:
 
 A direct capacity-function call from that read-only SQL identity returned `permission denied`, confirming that the migration-owner/read-only connector was not used as a service-role bypass.
 
+RLS remains enabled on both OPS tables. Catalog inspection found zero destructive tokens in the three new function definitions. Current dry-run-equivalent candidate counts are all zero.
+
+Post-migration readback remained:
+
+- `ops_change_events=0`
+- `ops_outbox=0`
+- `OWNER_QA_FIXTURE residue=0`
+- relation sizes unchanged at 147,456 + 98,304 bytes
+
+The database itself increased only by function/catalog metadata to `13,585,555 bytes`; no OPS row was created by this Work Order.
+
+## CI / Preview deployment checkpoint
+
+Implementation/test head before deployment marker: `3993d50be6d388ddd5391e4035aab4d9d781a000` — isolated-node checks SUCCESS.
+
+Preview deployment marker: `5cc9d7b467b5ec0f974e35a513f2e605fb4d7500`.
+
+Cloudflare Pages deployment: SUCCESS.
+
+- atomic Preview: `https://bff5b428.code1-workspace.pages.dev`
+- stable branch Preview: `https://coding-runtime-backend-stagi.code1-workspace.pages.dev`
+- isolated-node checks: SUCCESS
+
 ## Pending final evidence
 
-- Cloudflare Preview deployment readback for the deployment marker
-- stable Preview unauthenticated fail-closed smoke for both new report actions
-- final post-deploy STAGING zero-residue/read-only readback
-- final Git / CI checkpoint and Planning Bus report
+This commit triggers the credential-free stable-Preview smoke using the updated script. The smoke verifies both new report actions fail closed with `401 UNAUTHENTICATED` before any application data path is reached. No remote mutation is performed.
+
+After smoke completion, final evidence must still record:
+
+- smoke run/job PASS
+- final post-smoke zero-residue readback
+- durable CURRENT/BATON checkpoint
+- CODING -> PLANNING IMPLEMENTATION_EVIDENCE
