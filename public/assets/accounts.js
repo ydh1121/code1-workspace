@@ -2,9 +2,12 @@
   'use strict';
   const $=id=>document.getElementById(id),roles={SUPER_ADMIN:'최고 관리자',ADMIN:'서브 관리자',FARMER:'농가 계정'};
   let me=null,accounts=[],farms=[],editing=null;
-  const admin=()=>['SUPER_ADMIN','ADMIN'].includes(me?.role);
+  const admin=()=>['SUPER_ADMIN','ADMIN'].includes(me?.role),uid=()=>crypto.randomUUID().replace(/-/g,'');
   function node(tag,text,cls){const n=document.createElement(tag);n.textContent=text||'';if(cls)n.className=cls;return n;}
   async function call(payload){const r=await fetch('/api/accounts',payload?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}:{}),body=await r.json();if(!r.ok)throw Error(body.message||'계정 정보를 불러오지 못했습니다.');return body.data;}
+  async function adminCall(action,payload={}){const r=await fetch('/api/rpc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,payload})}),body=await r.json();if(!r.ok||body.error)throw Error(body.message||body.error||'관리 작업을 완료하지 못했습니다.');return body.data;}
+  function loadExecutiveModule(){if(document.querySelector('script[data-code1-admin-ops]'))return;const s=document.createElement('script');s.src='/assets/admin-ops.js';s.async=false;s.dataset.code1AdminOps='1';document.head.append(s);}
+  loadExecutiveModule();
   function myInfo(){
     $('accounts-title').textContent=admin()?'계정 관리':'내 계정';
     $('my-account-description').textContent=`${me.displayName} · ${roles[me.role]} · 로그인 아이디: ${me.username}`;
@@ -13,6 +16,13 @@
   }
   window.addEventListener('code1-ready',e=>{me=e.detail.user;accounts=[];farms=[];$('account-list').replaceChildren();$('account-farms').replaceChildren();myInfo();});
   window.addEventListener('code1-accounts-open',()=>{if(admin())load().catch(e=>$('account-list').textContent=e.message);});
+  async function removeAccount(account,button){
+    if(me?.role!=='SUPER_ADMIN'||account.id===me.id||account.role==='SUPER_ADMIN')return;
+    if(!confirm(`${account.displayName} (${account.username}) 계정을 삭제할까요?\n\n로그인이 즉시 차단되고 담당 농가 권한이 해제됩니다. 기존 감사·작업 이력은 보존됩니다.`))return;
+    button.disabled=true;
+    try{await adminCall('admin.account.delete',{id:account.id,reason:'최고 관리자 웹 삭제',requestId:uid()});await load();}
+    catch(error){alert(error.message);button.disabled=false;}
+  }
   async function load(){
     const data=await call();accounts=data.accounts;farms=data.farms;
     $('account-list').replaceChildren(...accounts.map(a=>{
@@ -20,10 +30,14 @@
       desc.append(node('h3',a.displayName),node('p',`${a.username} · ${roles[a.role]} · ${a.status==='active'?'사용 가능':'접근 중지'}`));
       const p=a.permissions,names=farms.filter(f=>p.farmIds.includes(f.id)).map(f=>f.name).join(', ');
       desc.append(node('p',p.allFarms?'모든 농가 · 제안서 · 검토':`농가 자료: ${p.farm==='none'?'숨김':p.farm==='view'?'보기만':'입력 가능'} / 제안서: ${p.deck==='none'?'숨김':p.deck==='view'?'보기만':'편집 가능'}${names?' / 담당 농가: '+names:''}`,'muted'));
-      card.append(desc);
+      card.append(desc);const actions=node('div','','account-actions');
       if(a.id!==me.id&&a.role!=='SUPER_ADMIN'&&(me.role==='SUPER_ADMIN'||a.role==='FARMER')){
-        const b=node('button','권한·계정 수정');b.type='button';b.addEventListener('click',()=>open(a));card.append(b);
+        const b=node('button','권한·계정 수정');b.type='button';b.addEventListener('click',()=>open(a));actions.append(b);
       }
+      if(me.role==='SUPER_ADMIN'&&a.id!==me.id&&a.role!=='SUPER_ADMIN'){
+        const d=node('button','계정 삭제','danger');d.type='button';d.addEventListener('click',()=>removeAccount(a,d));actions.append(d);
+      }
+      if(actions.childNodes.length)card.append(actions);
       return card;
     }));
   }
