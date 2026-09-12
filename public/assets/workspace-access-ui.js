@@ -8,6 +8,11 @@
   const requestUrl=input=>typeof input==='string'?input:(input&&input.url)||'';
   const rpcBody=init=>{try{return String(init?.method||'GET').toUpperCase()==='POST'&&typeof init?.body==='string'?JSON.parse(init.body):null;}catch{return null;}};
 
+  function loadPlanningExtension(){
+    if(!document.querySelector('link[data-code1-profit]')){const l=document.createElement('link');l.rel='stylesheet';l.href='/assets/planning-profit.css';l.dataset.code1Profit='1';document.head.append(l);}
+    if(!document.querySelector('script[data-code1-profit]')){const s=document.createElement('script');s.src='/assets/planning-profit.js';s.defer=true;s.dataset.code1Profit='1';document.head.append(s);}
+  }
+
   function captureBootstrap(data){
     if(!data?.user)return;
     boot=data;access=data.access||access;permissions=data.permissions||data.user.permissions||null;
@@ -50,6 +55,7 @@
   observer.observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['hidden','disabled']});
   window.addEventListener('code1-ready',()=>{resolveGate(true);queueMicrotask(applyAccess);});
 
+  loadPlanningExtension();
   // app.js performs the authoritative restore/bootstrap. This early read only prevents
   // an authenticated refresh from painting the login form while that restore is pending.
   neutralGate(true);
