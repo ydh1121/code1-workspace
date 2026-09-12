@@ -2,20 +2,17 @@
 
 Updated: 2026-09-12 KST
 PLANNING_DELTA_SEQ_SEEN = 20260912-008
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0063
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0064
 LAST_PLANNING_INBOUND_CONSUMED = MSG-20260912-0063
-LAST_CODING_OUTBOUND = MSG-20260912-0061
+LAST_CODING_OUTBOUND = MSG-20260912-0064
 
-LAST_VERIFIED_ACTION: Planning `MSG-20260912-0063` dispatched `WO-20260912-CODING-OPS-RETENTION-001`. CODING measured the actual STAGING OPS footprint, applied report-only migration `ops_retention_capacity_guard_0020`, deployed the guarded server actions, passed CI and credential-free Preview smoke, and independently read back zero OPS/QA residue. TTL values remain `PROPOSAL_NOT_FROZEN`; `AUTO_PURGE=FALSE`.
+LAST_VERIFIED_ACTION: Planning `MSG-20260912-0063` dispatched `WO-20260912-CODING-OPS-RETENTION-001`. CODING measured the actual STAGING OPS footprint, applied report-only migration `ops_retention_capacity_guard_0020`, deployed and smoke-tested the guarded server actions, verified zero residue, and published consolidated evidence as `MSG-20260912-0064`. TTL values remain `PROPOSAL_NOT_FROZEN`; `AUTO_PURGE=FALSE`.
 
 ## Current Work Order
 
-`WO-20260912-CODING-OPS-RETENTION-001` — technical/STAGING evidence PASS from CODING perspective; final Planning report/acceptance pending.
+`WO-20260912-CODING-OPS-RETENTION-001` — technical/STAGING evidence PASS from CODING perspective; `MSG-0064` is pending Planning acceptance/policy decision.
 
-Parent OPS Relay WOs remain closed:
-
-- `WO-20260912-CODING-OPS-QA-001` = COMPLETE / CLOSED
-- `WO-20260912-CODING-OPS-001` = COMPLETE / CLOSED
+Parent OPS Relay WOs remain COMPLETE/CLOSED.
 
 ## Durable refs
 
@@ -25,6 +22,7 @@ Parent OPS Relay WOs remain closed:
 - live smoke/test head: `bfae31df267943d86dd3d02f170f048b6112dd43`
 - evidence: `docs/coding/OPS_RETENTION_CAPACITY_EVIDENCE_20260912.md`
 - migration: `ops_retention_capacity_guard_0020`
+- final Bus report: `MSG-20260912-0064`
 
 ## Actual STAGING measurements
 
@@ -38,43 +36,22 @@ database bytes=13569171
 OWNER_QA residue=0
 ```
 
-All 11 OPS indexes were present. There were no retained rows, so actual average row size and time-based growth rate could not be measured.
+All 11 OPS indexes were present. No retained rows existed, so actual average row size and time-based growth rate were unavailable.
 
-SELECT-only representative datum sizing, with no insert:
-
-```text
-event row=808 bytes
-outbox row=224 bytes
-combined heap datum=1032 bytes
-```
-
-Conservative planning model = 4 KiB/logical event+outbox pair:
-
-```text
-1k   ~= 4.14 MiB
-10k  ~= 39.30 MiB
-100k ~= 390.86 MiB
-1M   ~= 3.815 GiB
-```
+SELECT-only representative datum: event 808 bytes + outbox 224 bytes = 1,032 bytes. Conservative planning model = 4 KiB per logical pair: 1k ~4.14 MiB; 10k ~39.30 MiB; 100k ~390.86 MiB; 1M ~3.815 GiB.
 
 ## Implemented guard
 
-Service-role/OWNER-only report functions:
-
-- `code1_ops_retention_policy_proposal`
-- `code1_ops_capacity_report`
-- `code1_ops_retention_dry_run`
-
-Server actions:
+Service-role/OWNER-only report functions back two STAGING-only fixed-payload actions:
 
 - `admin.ops.capacity.report`
 - `admin.ops.retention.dryRun`
 
-They are STAGING-only and fixed-empty-payload. anon/authenticated EXECUTE=false; service_role=true. Direct invocation from the read-only SQL connector was denied. RLS remains enabled.
+anon/authenticated EXECUTE=false; service_role=true; direct read-only connector execution denied; RLS stays enabled.
 
-No purge executor, DELETE/TRUNCATE/DROP path, trigger, scheduler, pg_cron, paid-resource activation, archive destination, credential provisioning, or Production mutation exists.
+No purge executor, DELETE/TRUNCATE/DROP path, trigger, scheduler/pg_cron, paid resource, archive destination, arbitrary SQL/debug path, credential provisioning or Production mutation exists.
 
-When configured DB limit is absent, the capacity state is `WATCH / CONFIGURED_LIMIT_UNKNOWN`, not an invented quota.
+Unknown configured DB quota reports `WATCH / CONFIGURED_LIMIT_UNKNOWN` rather than assuming a plan.
 
 ## Retention proposal awaiting Planning/user decision
 
@@ -93,19 +70,9 @@ Status = `PROPOSAL_NOT_FROZEN`.
 
 Cloudflare Preview deployment for `5cc9d7b...` = SUCCESS.
 
-Smoke run `34677990898`, job `103511206750` = SUCCESS:
+Smoke run `34677990898`, job `103511206750` = SUCCESS: unauth capacity report 401, unauth retention dryRun 401, remoteMutation NONE.
 
-- static OPS Relay routes 200
-- unauth capacity report 401
-- unauth retention dryRun 401
-- remoteMutation NONE
-
-CI on `bfae31d...`:
-
-- STAGING 162/162 PASS
-- npm audit 0
-- build PASS
-- root baseline same five known pre-existing failures / new failures 0
+CI on `bfae31d...`: STAGING 162/162 PASS; npm audit 0; build PASS; root baseline same five known pre-existing failures / new failures 0.
 
 Final STAGING readback:
 
@@ -129,8 +96,7 @@ database bytes=13585555
 
 ## NEXT HANDOFF
 
-1. Fresh-read Bus tail immediately before publishing final CODING evidence.
-2. Publish one `CODING -> PLANNING / IMPLEMENTATION_EVIDENCE` for the retention/capacity WO.
-3. Update TRACK_STATE from live readback and verify the appended Bus row.
-4. Wait for Planning acceptance / retention-policy decision.
-5. Do not self-start Productionization or Platform Reuse.
+1. Fresh-read CURRENT and latest Planning -> CODING inbound.
+2. Await Planning disposition on `MSG-0064` and the TTL proposal.
+3. Do not self-start Productionization or Platform Reuse.
+4. Do not freeze TTLs or activate purge/archive without explicit Planning/user authority.
