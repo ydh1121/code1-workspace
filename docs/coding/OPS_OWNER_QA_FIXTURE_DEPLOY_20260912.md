@@ -5,20 +5,85 @@ Planning dispatch: `MSG-20260912-0059`
 Target: `coding/runtime-backend-staging` only
 Predeploy validated source head: `59dc7fa33ebdd8fbe76c229a6985a776dbe3e7a8`
 Deployment marker: `b7c949ba6999ee8e37da4ce33f443fe8b59a6f6d`
+Live-smoke trigger head: `d31d5bd7f1ca110985795e46e189c40707bc5d63`
 
-This deployment publishes the narrow authenticated OWNER-only STAGING QA fixture create/cleanup capability for `/ops-relay.html`.
+## Implemented capability
 
-Security constraints remain:
+The deployed `/ops-relay.html` now exposes two authenticated OWNER controls only:
 
-- fixed synthetic template only
-- no real business entity mutation
-- no browser service-role material
-- no database RBAC widening
-- no credential read/reset/synthesis
-- no Production/main/live Google mutation
-- no arbitrary debug/event endpoint
-- no fake DONE or direct worker command
+- `QA 이벤트 준비` -> `admin.ops.qa.fixture.create`
+- `QA 이벤트 정리` -> `admin.ops.qa.fixture.cleanup`
 
-A separate `[CF-Pages-Skip]` commit triggers the repository read-only Preview smoke after the deployment marker. That smoke may only GET static/session routes and issue unauthenticated RPC probes that must return 401; it performs no remote mutation.
+The server contract is deliberately narrow:
 
-Final OWNER visual/click QA remains a distinct user-authorized step after live smoke PASS.
+- fixed synthetic template only; arbitrary payload fields are rejected
+- entity namespace `OWNER_QA_FIXTURE / WO-20260912-CODING-OPS-QA-001`
+- source class `OPS_DATA_ONLY`, `mutationApplied:false`
+- fixed PII-free safe evidence reference
+- deterministic source idempotency key: at most one active root fixture
+- `기획 검토 필요` on the QA root uses the existing canonical review RPC and a deterministic review idempotency key, creating only one causal `PLANNING_IMPACT` child
+- cleanup validates the exact root/child lineage and refuses unexpected rows before deleting
+- deleting the fixed event lineage cascades only its `ops_outbox` rows through the existing FK
+- OWNER authorization and same-origin/session gates are reused
+- QA create/cleanup hard-fail when runtime is not `SUPABASE_STAGING`; they never fall through to the legacy bridge
+
+No new DB migration, browser DB privilege, generic debug endpoint, service-role exposure, credential operation, Production/main mutation or live legacy Google mutation was introduced.
+
+## CI acceptance
+
+After one test-fixture-only correction, the complete staging CI is green. The correction changed a negative test from invalid role `EDITOR` to valid non-OWNER role `ADMIN`; implementation code was not weakened.
+
+Final predeploy source CI at `59dc7fa33ebdd8fbe76c229a6985a776dbe3e7a8` and deployment-marker CI at `b7c949ba6999ee8e37da4ce33f443fe8b59a6f6d` both passed:
+
+- staging/Cloudflare syntax checks
+- Windows PowerShell parse checks
+- all staging unit + contract tests
+- locked dependency install
+- npm audit with 0 vulnerabilities
+- root regression baseline comparator
+- existing workspace build
+
+Acceptance coverage includes OWNER-only authorization, fixed-template enforcement, non-STAGING fail-closed, deterministic create/review idempotency, namespace-conflict cleanup refusal, no arbitrary browser payload surface, and no browser secret material.
+
+## Live Preview read-only acceptance
+
+Workflow run `34676193695`, job `103506377060` = PASS against the stable branch Preview:
+
+```text
+PASS GET /ops-relay.html 200
+PASS GET /assets/ops-relay.js 200
+PASS GET /assets/ops-relay.css 200
+PASS GET /api/session configured=true authenticated=false
+PASS POST /api/rpc admin.ops.events -> 401 UNAUTHENTICATED
+PASS POST /api/rpc admin.ops.qa.fixture.create -> 401 UNAUTHENTICATED
+PASS POST /api/rpc admin.ops.qa.fixture.cleanup -> 401 UNAUTHENTICATED
+remoteMutation = NONE
+```
+
+This proves the deployed static surface contains the new QA controls and that all QA write actions still fail closed without an authenticated session. It does not claim authenticated OWNER click acceptance.
+
+## Pre-user-QA STAGING residue
+
+Read-only Supabase read-back after deployment/smoke:
+
+```text
+ops_change_events = 0
+ops_outbox = 0
+OWNER_QA_FIXTURE residue = 0
+```
+
+The capability is therefore deployed and clean. No synthetic event exists until the user clicks `QA 이벤트 준비` from the already-authorized OWNER browser session.
+
+## Remaining closure sequence
+
+Actual OWNER visual/click QA remains required:
+
+1. Refresh `/ops-relay.html` in the existing authorized OWNER session.
+2. Click `QA 이벤트 준비`.
+3. Select `OWNER_QA_FIXTURE · WO-20260912-CODING-OPS-QA-001` and verify detail, correlation and outbox state.
+4. Click `기획 검토 필요`.
+5. Verify one causal `PLANNING_IMPACT` child, correlation preserved and causation pointing to the root; no direct UIUX/CODING command and no fake `DONE`.
+6. Click `QA 이벤트 정리` only after visual/click evidence is captured.
+7. CODING must independently read back QA event/outbox residue = 0 and report final evidence to Planning.
+
+`WO-20260912-CODING-OPS-001` remains open until this user-authorized QA and cleanup are accepted. Productionization and Platform Reuse remain NOT_DISPATCHED.
