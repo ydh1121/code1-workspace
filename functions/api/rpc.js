@@ -10,9 +10,11 @@ const actions = new Set([
   'planning.document.current','planning.document.save','planning.feedback.add','planning.feedback.resolve',
   'planning.profit.list','planning.profit.save','planning.profit.archive',
   'admin.overview','admin.audit','admin.access.list','admin.access.save','admin.farm.delete','admin.account.delete',
-  'admin.ops.events','admin.ops.review','admin.ops.qa.fixture.create','admin.ops.qa.fixture.cleanup'
+  'admin.ops.events','admin.ops.review','admin.ops.capacity.report','admin.ops.retention.dryRun','admin.ops.qa.fixture.create','admin.ops.qa.fixture.cleanup'
 ]);
-const stagingOnlyActions=new Set(['admin.ops.qa.fixture.create','admin.ops.qa.fixture.cleanup']);
+const stagingOnlyActions=new Set([
+  'admin.ops.capacity.report','admin.ops.retention.dryRun','admin.ops.qa.fixture.create','admin.ops.qa.fixture.cleanup'
+]);
 
 function stagingOwns(){
   // Once the isolated STAGING runtime flag is enabled, every accepted action stays inside
@@ -28,7 +30,7 @@ export async function onRequestPost({ request, env }) {
     const raw = await request.text(); if (raw.length > 12000000) return json({error:'TOO_LARGE'},413);
     const { action, payload } = JSON.parse(raw); if (!actions.has(action)) return json({error:'UNKNOWN_ACTION'},400);
     const body=payload||{};
-    if(stagingOnlyActions.has(action)&&!useSupabaseStaging(env))throw Error('OWNER_QA_STAGING_ONLY');
+    if(stagingOnlyActions.has(action)&&!useSupabaseStaging(env))throw Error(action.startsWith('admin.ops.qa.')?'OWNER_QA_STAGING_ONLY':'OPS_RETENTION_STAGING_ONLY');
     let data;
     if(useSupabaseStaging(env)&&stagingOwns(action,body)){
       // No farm-runtime fallback here. Missing/unimplemented STAGING actions fail closed instead of reaching the live rollback source.
