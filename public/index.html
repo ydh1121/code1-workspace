@@ -65,7 +65,7 @@
   <dialog id="request-dialog" class="no-print wide-dialog"><div class="dialog-heading"><h2>농가에 부탁할 자료</h2><button id="close-request" aria-label="요청 목록 닫기">닫기</button></div><p>아직 받지 못한 자료만 모았습니다. 이번에 부탁할 항목을 골라 주세요.</p><div class="request-options"><label>보내주실 날짜 (선택)<input id="request-date" type="date"></label><label>연락처 (선택)<input id="request-contact" type="text" maxlength="100" placeholder="자료를 보낼 담당자 연락처"></label></div><label>덧붙일 말씀 (선택)<textarea id="request-note" maxlength="1000" placeholder="예: 사진은 휴대폰으로 찍어 보내주셔도 됩니다."></textarea></label><div class="request-controls"><button id="request-select-all">모두 선택</button><button id="request-select-none">선택 해제</button><span id="request-count" role="status"></span></div><div id="request-items"></div><div class="dialog-actions"><button id="request-download" class="primary">선택한 자료 PDF 다운로드</button></div></dialog>
   <div id="print-deck" aria-hidden="true"></div><div id="toast" role="status" aria-live="polite" hidden></div>
   <script src="/assets/core.js" defer></script><script src="/assets/farm-model.js" defer></script><script src="/assets/question-help.js" defer></script><script src="/assets/pdf.bundle.js" defer></script>
-  <script src="/assets/accounts.js" defer></script><script src="/assets/media-lifecycle.js" defer></script>
+  <script src="/assets/accounts.js" defer></script><script data-code1-admin-ops src="/assets/admin-ops.js" defer></script><script src="/assets/media-lifecycle.js" defer></script>
   <script src="/assets/app.js" defer></script><script src="/assets/media-ux.js" defer></script><script src="/assets/print-controls.js" defer></script>
 </body>
 </html>
