@@ -14,9 +14,19 @@ test('temporary OPS Admin exposes required history, filters, status, detail and 
   assert.match(js,/correlationId/);assert.match(js,/lastErrorCode/);assert.match(js,/attemptCount/);
 });
 
+test('OWNER QA closure controls expose only fixed create and cleanup actions without arbitrary payload input',async()=>{
+  const [html,js]=await Promise.all([readFile(htmlUrl,'utf8'),readFile(jsUrl,'utf8')]);
+  assert.match(html,/id="qa-create"/);assert.match(html,/id="qa-cleanup"/);
+  assert.match(html,/QA 이벤트 준비/);assert.match(html,/QA 이벤트 정리/);assert.match(html,/실제 농가·계정·운영 데이터를 변경하지 않습니다/);
+  assert.match(js,/admin\.ops\.qa\.fixture\.create/);assert.match(js,/admin\.ops\.qa\.fixture\.cleanup/);
+  assert.doesNotMatch(html,/<input|<textarea|contenteditable/i);
+  assert.match(js,/rpc\(action,\{\}\)/);
+});
+
 test('temporary OPS Admin carries no service-role/R2 credential material and remains responsive',async()=>{
   const [html,js,css]=await Promise.all([readFile(htmlUrl,'utf8'),readFile(jsUrl,'utf8'),readFile(cssUrl,'utf8')]);
   assert.doesNotMatch(html+js,/SERVICE_ROLE|CODE1_SUPABASE_SERVICE_ROLE_KEY|R2_ACCESS|AWS_SECRET|BRIDGE_SECRET/i);
   assert.match(css,/@media\(max-width:900px\)/);assert.match(css,/@media\(max-width:560px\)/);
   assert.match(html,/STAGING ONLY/);assert.match(html,/Planning SSOT가 아닙니다/);
+  assert.match(css,/\.qa-actions/);
 });
