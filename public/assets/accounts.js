@@ -1,25 +1,31 @@
 (() => {
   'use strict';
   const $=id=>document.getElementById(id),roles={SUPER_ADMIN:'최고 관리자',ADMIN:'서브 관리자',FARMER:'농가 계정'};
-  let me=null,accounts=[],farms=[],editing=null;
+  let me=null,accounts=[],farms=[],editing=null,executiveReloaded=false;
   const admin=()=>['SUPER_ADMIN','ADMIN'].includes(me?.role),uid=()=>crypto.randomUUID().replace(/-/g,'');
   function node(tag,text,cls){const n=document.createElement(tag);n.textContent=text||'';if(cls)n.className=cls;return n;}
   async function call(payload){const r=await fetch('/api/accounts',payload?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}:{}),body=await r.json();if(!r.ok)throw Error(body.message||'계정 정보를 불러오지 못했습니다.');return body.data;}
   async function adminCall(action,payload={}){const r=await fetch('/api/rpc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,payload})}),body=await r.json();if(!r.ok||body.error)throw Error(body.message||body.error||'관리 작업을 완료하지 못했습니다.');return body.data;}
-  function loadExecutiveModule(){
-    if(document.querySelector('script[data-code1-admin-ops]'))return;
-    const s=document.createElement('script');s.src='/assets/admin-ops.js';s.async=false;s.dataset.code1AdminOps='1';
+  function loadExecutiveModule(force=false){
+    const existing=document.querySelector('script[data-code1-admin-ops]');
+    if(existing&&!force)return;
+    const s=document.createElement('script');s.src='/assets/admin-ops.js'+(force?`?owner-reinit=${Date.now()}`:'');s.async=false;s.dataset.code1AdminOps='1';
     s.addEventListener('load',()=>{if(me)window.dispatchEvent(new CustomEvent('code1-ready',{detail:{user:me}}));},{once:true});
     document.head.append(s);
   }
   loadExecutiveModule();
+  function ensureExecutiveModule(){
+    if(me?.role!=='SUPER_ADMIN'||me?.id!=='OWNER'||$('admin-ops-nav')||executiveReloaded)return;
+    executiveReloaded=true;
+    setTimeout(()=>{if(!$('admin-ops-nav'))loadExecutiveModule(true);},0);
+  }
   function myInfo(){
     $('accounts-title').textContent=admin()?'계정 관리':'내 계정';
     $('my-account-description').textContent=`${me.displayName} · ${roles[me.role]} · 로그인 아이디: ${me.username}`;
     $('current-password-label').hidden=!me.hasPassword;$('current-password').required=false;
     $('account-management').hidden=!admin();
   }
-  window.addEventListener('code1-ready',e=>{me=e.detail.user;accounts=[];farms=[];$('account-list').replaceChildren();$('account-farms').replaceChildren();myInfo();});
+  window.addEventListener('code1-ready',e=>{me=e.detail.user;accounts=[];farms=[];$('account-list').replaceChildren();$('account-farms').replaceChildren();myInfo();ensureExecutiveModule();});
   window.addEventListener('code1-accounts-open',()=>{if(admin())load().catch(e=>$('account-list').textContent=e.message);});
   async function removeAccount(account,button){
     if(me?.role!=='SUPER_ADMIN'||account.id===me.id||account.role==='SUPER_ADMIN')return;
