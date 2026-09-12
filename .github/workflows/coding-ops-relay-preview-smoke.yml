@@ -1,0 +1,23 @@
+name: CODE1 OPS relay Preview smoke
+
+on:
+  push:
+    branches:
+      - coding/runtime-backend-staging
+
+permissions:
+  contents: read
+
+jobs:
+  readonly-preview-smoke:
+    if: contains(github.event.head_commit.message, 'OPS_RELAY_PREVIEW_SMOKE')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      OPS_RELAY_PREVIEW_ORIGIN: https://0b099d98.code1-workspace.pages.dev
+    steps:
+      - uses: actions/checkout@v4
+      - name: Runtime version
+        run: node --version
+      - name: Verify deployed OPS Relay without credentials or mutation
+        run: node backend/staging/scripts/verify-ops-relay-preview-readonly.mjs
