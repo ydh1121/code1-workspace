@@ -26,9 +26,24 @@ async function ownerActor(db,principal){
 function assertOwnerQaStaging(env){
   if(!useSupabaseStaging(env))throw Error('OWNER_QA_STAGING_ONLY');
 }
+function assertOpsRetentionStaging(env){
+  if(!useSupabaseStaging(env))throw Error('OPS_RETENTION_STAGING_ONLY');
+}
 function assertFixedQaPayload(payload){
   if(payload&&typeof payload==='object'&&Object.keys(payload).length===0)return;
   throw Error('OWNER_QA_FIXED_TEMPLATE_ONLY');
+}
+function assertEmptyReportPayload(payload){
+  if(payload&&typeof payload==='object'&&Object.keys(payload).length===0)return;
+  throw Error('OPS_RETENTION_REPORT_FIXED_PAYLOAD_ONLY');
+}
+function configuredOpsDbLimitBytes(env){
+  const raw=String(env?.OPS_DB_CONFIGURED_LIMIT_BYTES??'').trim();
+  if(!raw)return null;
+  if(!/^[1-9][0-9]{0,15}$/.test(raw))throw Error('OPS_DB_LIMIT_INVALID');
+  const value=Number(raw);
+  if(!Number.isSafeInteger(value)||value<=0)throw Error('OPS_DB_LIMIT_INVALID');
+  return value;
 }
 function isOwnerQaRoot(row){
   return !!row&&row.entity_type===OWNER_QA_FIXTURE.entityType&&row.entity_id===OWNER_QA_FIXTURE.entityId&&row.action===OWNER_QA_FIXTURE.action&&row.actor_ref==='OWNER';
@@ -53,6 +68,27 @@ export async function opsEvents(env,principal,payload={},fetchImpl=fetch){
   const boxes=ids.length?await db.select('ops_outbox',`${db.inList('event_id',ids)}&select=outbox_id,event_id,delivery_state,attempt_count,available_at,claimed_at,delivered_at,consumer_version,last_error_code`):[];
   const byEvent=new Map((boxes||[]).map(x=>[x.event_id,x]));
   return {events:(rows||[]).map(x=>eventView(x,byEvent.get(x.event_id))),relay:{connected:false,state:'PENDING_RELAY',note:'Orchestrator STAGING credentials are not provisioned; status remains source-of-truth only.'}};
+}
+
+export async function opsCapacityReport(env,principal,payload={},fetchImpl=fetch){
+  assertOpsRetentionStaging(env);assertEmptyReportPayload(payload);
+  const db=createDb(env,fetchImpl),actor=await ownerActor(db,principal);
+  const rows=await db.rpc('code1_ops_capacity_report',{
+    p_actor_id:actor.row.account_id,
+    p_configured_limit_bytes:configuredOpsDbLimitBytes(env)
+  });
+  const report=Array.isArray(rows)?rows[0]:rows;
+  if(!report||report.mode!=='REPORT_ONLY'||report.autoPurge!==false)throw Error('OPS_CAPACITY_REPORT_INVALID');
+  return report;
+}
+
+export async function opsRetentionDryRun(env,principal,payload={},fetchImpl=fetch){
+  assertOpsRetentionStaging(env);assertEmptyReportPayload(payload);
+  const db=createDb(env,fetchImpl),actor=await ownerActor(db,principal);
+  const rows=await db.rpc('code1_ops_retention_dry_run',{p_actor_id:actor.row.account_id});
+  const report=Array.isArray(rows)?rows[0]:rows;
+  if(!report||report.mode!=='DRY_RUN'||report.executionMode!=='REPORT_ONLY'||report.autoPurge!==false||report.mutationApplied!==false)throw Error('OPS_RETENTION_DRY_RUN_INVALID');
+  return report;
 }
 
 export async function opsCreateOwnerQaFixture(env,principal,payload={},fetchImpl=fetch){
@@ -141,6 +177,8 @@ export async function dispatchOpsChangeRelay(env,principal,action,payload={},fet
   switch(action){
     case 'admin.ops.events':return opsEvents(env,principal,payload,fetchImpl);
     case 'admin.ops.review':return opsRequestPlanningReview(env,principal,payload,fetchImpl);
+    case 'admin.ops.capacity.report':return opsCapacityReport(env,principal,payload,fetchImpl);
+    case 'admin.ops.retention.dryRun':return opsRetentionDryRun(env,principal,payload,fetchImpl);
     case 'admin.ops.qa.fixture.create':return opsCreateOwnerQaFixture(env,principal,payload,fetchImpl);
     case 'admin.ops.qa.fixture.cleanup':return opsCleanupOwnerQaFixture(env,principal,payload,fetchImpl);
     case 'admin.access.save':return opsSaveAdminAccessProfile(env,principal,payload,fetchImpl);
@@ -151,5 +189,5 @@ export async function dispatchOpsChangeRelay(env,principal,action,payload={},fet
 }
 
 export function isOpsChangeRelayAction(action){
-  return ['admin.ops.events','admin.ops.review','admin.ops.qa.fixture.create','admin.ops.qa.fixture.cleanup','admin.access.save','admin.farm.delete','admin.account.delete'].includes(action);
+  return ['admin.ops.events','admin.ops.review','admin.ops.capacity.report','admin.ops.retention.dryRun','admin.ops.qa.fixture.create','admin.ops.qa.fixture.cleanup','admin.access.save','admin.farm.delete','admin.account.delete'].includes(action);
 }
