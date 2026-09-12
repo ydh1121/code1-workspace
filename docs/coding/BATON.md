@@ -2,7 +2,9 @@
 
 Updated: 2026-09-12 KST
 PLANNING_DELTA_SEQ_SEEN = 20260912-008
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0057
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0058
+LAST_PLANNING_INBOUND_CONSUMED = MSG-20260912-0057
+LAST_CODING_OUTBOUND = MSG-20260912-0058
 
 LAST_VERIFIED_ACTION: Planning inbound `MSG-20260912-0057` was processed under `WO-20260912-CODING-OPS-001`. User OWNER visual QA is partial: the authenticated `/ops-relay.html` surface renders, but zero events prevent detail/status/review interaction. Planning requested exactly one synthetic reversible STAGING QA event using the existing server-side OPS contract and forbade real-business mutation, credential manipulation, Production/main/legacy mutation, or unsafe bypass.
 
@@ -13,7 +15,7 @@ The existing DB contract is suitable without product-data mutation:
 - `code1_ops_record_manual_event(...)` records a synthetic event and returns `mutationApplied:false`.
 - `code1_ops_request_planning_review(...)` creates the causal `PLANNING_IMPACT` child event used by the existing `admin.ops.review` action.
 
-STAGING preflight before any attempted write:
+STAGING preflight and post-attempt readback:
 
 ```text
 ops_change_events=0
@@ -26,20 +28,16 @@ The available Supabase connector SQL identity is `supabase_read_only_user`. It h
 
 One call through this read-only SQL channel was rejected with `permission denied for function code1_ops_record_manual_event`. No write occurred.
 
-The current Preview server contract exposes:
-
-- `admin.ops.events`
-- `admin.ops.review`
-- supported real entity mutations already wrapped by OPS
-
-It does not expose a manual-event fixture creation action, and this execution environment does not possess the user's authorized OWNER browser session.
+The current Preview server contract exposes `admin.ops.events` and `admin.ops.review`, but no manual-event creation action. This execution environment does not possess the user's authorized OWNER browser session.
 
 Result = `BLOCKED_CAPABILITY`.
+
+CODING -> PLANNING blocker report `MSG-20260912-0058` was appended after fresh target-row reconciliation and read back successfully. CODING TRACK_STATE was updated to `last_message_seen=MSG-0057`, `pending_inbound=0`, `pending_outbound=1`.
 
 Do not resolve this by:
 
 - widening anon/authenticated/read-only privileges
-- adding an ad-hoc unauthenticated fixture route
+- adding an ad-hoc unauthenticated fixture route or RPC
 - invoking data writes through migration-owner privilege as a bypass
 - reading/resetting/synthesizing OWNER credentials or session secrets
 - mutating any real farm/account/business entity just to manufacture QA evidence
@@ -57,11 +55,12 @@ Canonical cross-track evidence:
 - `MSG-20260912-0053` — final technical implementation evidence
 - `MSG-20260912-0054` — decision request, APPLIED
 - `MSG-20260912-0056` — OWNER QA closure gate
-- `MSG-20260912-0057` — partial OWNER QA + one-fixture continuation, consumed as BLOCKED_CAPABILITY
+- `MSG-20260912-0057` — partial OWNER QA + one-fixture continuation, consumed
+- `MSG-20260912-0058` — CODING blocker report, pending Planning disposition
 
 ## Remaining OWNER QA
 
-When Planning provides/authorizes a safe existing server-side write capability for the single QA fixture, verify:
+If Planning supplies or authorizes a safe existing-server write capability for the one synthetic fixture, verify:
 
 - All / Planning / Incident / Failed / Done filters
 - event detail
@@ -80,7 +79,6 @@ After user QA, delete only the synthetic fixture lineage/outbox and independentl
 
 ## NEXT HANDOFF
 
-1. Publish a CODING -> PLANNING blocker report for `MSG-0057` after fresh Message Bus append-target reconciliation.
-2. Update CODING TRACK_STATE to `MSG-0057` consumed / pending inbound 0 only after the Bus write is read back.
-3. Fresh-read Planning inbound again.
-4. Execute only a new explicit Planning disposition; do not self-start Productionization or Platform Reuse.
+1. Fresh-read CURRENT and the latest Planning -> CODING inbound.
+2. Wait for an explicit Planning disposition responding to `MSG-20260912-0058` before any additional fixture implementation or write-path change.
+3. Do not self-start Productionization or Platform Reuse.
