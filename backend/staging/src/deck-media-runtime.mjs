@@ -2,6 +2,7 @@ import {createDb} from './db.mjs';
 import {loadActor} from './authz.mjs';
 import {issueMediaReadToken} from './media-read.mjs';
 import {DECK_ID} from './deck-contract.mjs';
+import {resolveWorkspaceAccess,requireWorkspaceAccess,effectiveUserPermissions} from './workspace-access.mjs';
 
 const esc=encodeURIComponent;
 const MAX_DECK_ASSET_BYTES=8*1024*1024;
@@ -117,8 +118,16 @@ export async function uploadDeckAssetWithContext({db,actor,env,payload}){
   }
 }
 
+async function deckActor(db,principal,edit=false){
+  const actor=await loadActor(db,principal),access=await resolveWorkspaceAccess(db,actor);
+  requireWorkspaceAccess(access,'PAGE_DECK');
+  if(edit)requireWorkspaceAccess(access,'DECK_EDIT');
+  const permissions=effectiveUserPermissions(actor,access);
+  return {...actor,user:{...actor.user,permissions}};
+}
+
 export async function uploadDeckAsset(env,principal,payload,fetchImpl=fetch){
-  const db=createDb(env,fetchImpl),actor=await loadActor(db,principal);
+  const db=createDb(env,fetchImpl),actor=await deckActor(db,principal,true);
   return uploadDeckAssetWithContext({db,actor,env,payload});
 }
 
@@ -145,7 +154,7 @@ export async function readDeckMediaWithContext({db,actor,env,id,tokenIssuer=issu
 export async function getDeckMediaMaybe(env,principal,payload,fetchImpl=fetch){
   const id=String(payload?.id||'');
   if(!id)return null;
-  const db=createDb(env,fetchImpl),actor=await loadActor(db,principal);
+  const db=createDb(env,fetchImpl),actor=await deckActor(db,principal,false);
   return readDeckMediaWithContext({db,actor,env,id});
 }
 
