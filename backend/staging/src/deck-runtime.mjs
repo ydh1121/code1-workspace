@@ -2,6 +2,7 @@ import {createDb} from './db.mjs';
 import {loadActor} from './authz.mjs';
 import {issueMediaReadToken} from './media-read.mjs';
 import {DECK_ID,DECK_STATUS,validateDeck,collectDeckAssetRefs,prepareDeckSave} from './deck-contract.mjs';
+import {resolveWorkspaceAccess,requireWorkspaceAccess,effectiveUserPermissions} from './workspace-access.mjs';
 
 const esc=encodeURIComponent;
 const ASSET_ERROR='이미지 접근 또는 사용권 기록을 확인해 주세요.';
@@ -109,8 +110,16 @@ export async function saveDeckWithContext({db,actor,payload,now=()=>new Date().t
   return {version:Number(row.version),versionLabel:String(row.version_label||versionLabel),savedAt:String(row.saved_at||savedAt)};
 }
 
+async function deckActor(db,principal,edit=false){
+  const actor=await loadActor(db,principal),access=await resolveWorkspaceAccess(db,actor);
+  requireWorkspaceAccess(access,'PAGE_DECK');
+  if(edit)requireWorkspaceAccess(access,'DECK_EDIT');
+  const permissions=effectiveUserPermissions(actor,access);
+  return {...actor,user:{...actor.user,permissions}};
+}
+
 export async function deckBootstrap(env,principal,fetchImpl=fetch){
-  const db=createDb(env,fetchImpl),actor=await loadActor(db,principal);
+  const db=createDb(env,fetchImpl),actor=await deckActor(db,principal,false);
   return readDeckBundleWithContext({db,actor,env});
 }
 
@@ -119,6 +128,6 @@ export async function deckAssets(env,principal,fetchImpl=fetch){
 }
 
 export async function saveDeck(env,principal,payload,fetchImpl=fetch){
-  const db=createDb(env,fetchImpl),actor=await loadActor(db,principal);
+  const db=createDb(env,fetchImpl),actor=await deckActor(db,principal,true);
   return saveDeckWithContext({db,actor,payload});
 }
