@@ -2,11 +2,11 @@
 
 Updated: 2026-09-12 KST
 PLANNING_DELTA_SEQ_SEEN = 20260912-008
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0061
-LAST_PLANNING_INBOUND_CONSUMED = MSG-20260912-0059
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0062
+LAST_PLANNING_INBOUND_CONSUMED = MSG-20260912-0062
 LAST_CODING_OUTBOUND = MSG-20260912-0061
 
-LAST_VERIFIED_ACTION: The user completed the authorized OWNER visual/click QA on the deployed stable Preview, including fixed synthetic fixture creation, one canonical `기획 검토 필요` click and final `QA 이벤트 정리`. CODING independently verified the root/child/outbox contract before cleanup and then independently verified `ops_change_events=0`, `ops_outbox=0`, `OWNER_QA_FIXTURE residue=0` after cleanup. Final closeout evidence was sent to Planning as `MSG-20260912-0061`.
+LAST_VERIFIED_ACTION: Planning `MSG-20260912-0062` accepted the final OWNER visual/click QA and cleanup evidence, closed `WO-20260912-CODING-OPS-QA-001` and parent `WO-20260912-CODING-OPS-001`, and directed CODING to preserve the current STAGING checkpoint. There is no new implementation scope. Productionization and Platform Reuse remain RESERVED/NOT_DISPATCHED.
 
 ## Durable refs
 
@@ -15,41 +15,30 @@ LAST_VERIFIED_ACTION: The user completed the authorized OWNER visual/click QA on
 - Preview deployment marker: `b7c949ba6999ee8e37da4ce33f443fe8b59a6f6d`
 - live read-only smoke trigger: `d31d5bd7f1ca110985795e46e189c40707bc5d63`
 - final OWNER QA evidence: `docs/coding/OPS_OWNER_QA_FIXTURE_DEPLOY_20260912.md` @ `39c543968a1a8b47910988990b6af8effc87a00b`
-- final cross-track evidence: `MSG-20260912-0061`
+- final CODING evidence: `MSG-20260912-0061` = APPLIED
+- Planning closure: `MSG-20260912-0062`
 
-## Final OWNER QA acceptance
+## Closed work orders
 
-Root fixture verified both visually and through STAGING read-back:
+- `WO-20260912-CODING-OPS-QA-001` = COMPLETE / CLOSED
+- `WO-20260912-CODING-OPS-001` = COMPLETE / CLOSED
 
-```text
-event_id       = OCE_b52fcb855c464fe2850615637c52ef66
-action          = owner.qa.fixture.prepare
-event_class     = OPS_DATA_ONLY
-relay_status    = NO_PLANNING_ACTION
-correlation_id  = self
-causation_id    = null
-outbox_state    = NO_ACTION
-attempt_count   = 0
-actor_ref       = OWNER
-```
+The older Ledger body still contains pre-closure `PENDING` / `NOT_CLOSED` text for these sections. The later Planning Bus decision `MSG-0062` is the current closure authority and supersedes those stale status lines for execution purposes.
 
-After one `기획 검토 필요` click, exactly one causal child was verified:
+## Final accepted evidence
+
+Authenticated OWNER QA and independent STAGING read-back verified:
 
 ```text
-event_id       = OCE_18bc5d4699c64853928e8c419b465746
-action          = planning.review.request
-event_class     = PLANNING_IMPACT
-relay_status    = RECORDED
-correlation_id  = root event id
-causation_id    = root event id
-outbox_state    = PENDING
-attempt_count   = 0
-actor_ref       = OWNER
+root  = OPS_DATA_ONLY / NO_PLANNING_ACTION / OUTBOX NO_ACTION
+child = PLANNING_IMPACT / RECORDED / OUTBOX PENDING
+child correlation = root
+child causation   = root
+direct UIUX/CODING command = 0
+fake DONE = 0
 ```
 
-No direct UIUX/CODING command event and no fake DONE were created.
-
-After the user clicked `QA 이벤트 정리`, independent read-back returned:
+After the user clicked the fixed cleanup action:
 
 ```text
 ops_change_events=0
@@ -57,42 +46,30 @@ ops_outbox=0
 OWNER_QA_FIXTURE residue=0
 ```
 
-`WO-20260912-CODING-OPS-QA-001` = PASS from CODING evidence perspective.
+Production/main/Production Supabase/R2/live legacy Google mutation remained 0.
 
-Parent `WO-20260912-CODING-OPS-001` now has all previously outstanding OWNER closure evidence and is ready for Planning closeout. CODING does not self-close it.
+## Productionization gate — still non-executable
 
-## Security / mutation boundary preserved
+`WO-20260912-CODING-PRODUCTIONIZATION-001` remains `RESERVED / NOT_DISPATCHED`.
 
-- no real farm/account/business mutation for QA
-- no DB RBAC widening
-- no browser service-role or secret material
-- no credential read/reset/synthesis
-- no generic debug endpoint
-- no direct worker command
-- no fake DONE
-- Production/main mutation = 0
-- Production Supabase/R2 mutation = 0
-- live legacy Google mutation = 0
+A new explicit Planning Bus message is required before execution. In addition, Planning now requires a bounded-retention/cost gate before Production activation:
 
-## TRACK_STATE checkpoint
+- define TTL/purge behavior for terminal `ops_change_events` / `ops_outbox` rows
+- define capacity thresholds so relay history cannot grow without bound
+- keep QA/synthetic residue at zero after acceptance
+- keep Drive Planning SSOT as durable policy/work-state authority rather than using OPS tables as a permanent chat/Planning archive
+- any paid-plan/resource activation requires explicit user/Planning approval
 
-After `MSG-0061` read-back:
+## Platform Reuse gate — still non-executable
 
-```text
-last_message_seen = MSG-20260912-0061
-pending_inbound   = 0
-pending_outbound  = 1
-status            = OWNER QA PASS / cleanup residue 0 / final closeout evidence sent
-```
+`WO-20260912-PLATFORM-REUSE-001` remains `RESERVED / DEFERRED / NOT_DISPATCHED`.
 
-## Reserved / non-executable
-
-- `WO-20260912-CODING-PRODUCTIONIZATION-001` — RESERVED / NOT_DISPATCHED
-- `WO-20260912-PLATFORM-REUSE-001` — RESERVED / DEFERRED / NOT_DISPATCHED
+Do not start extraction/clone work until Planning explicitly activates it after Productionization and permanent Staging contracts are sufficiently stable.
 
 ## NEXT HANDOFF
 
-1. Fresh-read CURRENT and latest Planning -> CODING inbound.
-2. Await Planning disposition on `MSG-20260912-0061` and parent OPS closeout.
-3. Do not self-start Productionization or Platform Reuse.
-4. If a new CODING WO is explicitly dispatched, verify its Bus/Ledger authority and actual Git state before execution.
+1. Preserve the accepted `coding/runtime-backend-staging` checkpoint.
+2. Fresh-read Harness CURRENT and the newest `PLANNING -> CODING` Bus inbound on every continuation.
+3. If no new explicit CODING Work Order is dispatched, remain on HOLD.
+4. Do not self-start Productionization or Platform Reuse from reserved Ledger entries.
+5. Do not mutate Production/main/live resources without explicit authority.
