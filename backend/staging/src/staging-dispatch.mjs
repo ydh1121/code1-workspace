@@ -1,6 +1,7 @@
 import {dispatchStagingRpc} from './rpc-adapter.mjs';
 import {dispatchPlanningApi} from './planning-api.mjs';
 import {dispatchAdminOps} from './admin-ops.mjs';
+import {dispatchOpsChangeRelay,isOpsChangeRelayAction} from './ops-change-relay.mjs';
 import {dispatchMediaUpload,isMediaUploadAction} from './media-upload-runtime.mjs';
 import {deckBootstrap,deckAssets,saveDeck} from './deck-runtime.mjs';
 import {uploadDeckAsset,getDeckMediaMaybe} from './deck-media-runtime.mjs';
@@ -25,7 +26,9 @@ const ADMIN_ACTIONS=new Set([
   'admin.access.list',
   'admin.access.save',
   'admin.farm.delete',
-  'admin.account.delete'
+  'admin.account.delete',
+  'admin.ops.events',
+  'admin.ops.review'
 ]);
 
 const DECK_ACTIONS=new Set([
@@ -63,6 +66,7 @@ export async function dispatchCode1Staging(env,principal,action,payload={},fetch
     const deckMedia=await getDeckMediaMaybe(env,principal,payload,fetchImpl);
     if(deckMedia)return deckMedia;
   }
+  if(isOpsChangeRelayAction(action))return dispatchOpsChangeRelay(env,principal,action,payload,fetchImpl);
   if(ADMIN_ACTIONS.has(action))return dispatchAdminOps(env,principal,action,payload,fetchImpl);
   if(PLANNING_ACTIONS.has(action))return dispatchPlanningApi(env,principal,action,payload,fetchImpl);
   if(DECK_ACTIONS.has(action))return dispatchDeckAction(env,principal,action,payload,fetchImpl);

@@ -9,7 +9,8 @@ const actions = new Set([
   'factInbox.list','factInbox.create','factInbox.transition','executiveBrief.current',
   'planning.document.current','planning.document.save','planning.feedback.add','planning.feedback.resolve',
   'planning.profit.list','planning.profit.save','planning.profit.archive',
-  'admin.overview','admin.audit','admin.access.list','admin.access.save','admin.farm.delete','admin.account.delete'
+  'admin.overview','admin.audit','admin.access.list','admin.access.save','admin.farm.delete','admin.account.delete',
+  'admin.ops.events','admin.ops.review'
 ]);
 
 function stagingOwns(){
