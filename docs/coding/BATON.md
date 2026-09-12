@@ -2,75 +2,83 @@
 
 Updated: 2026-09-12 KST
 PLANNING_DELTA_SEQ_SEEN = 20260912-008
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0058
-LAST_PLANNING_INBOUND_CONSUMED = MSG-20260912-0057
-LAST_CODING_OUTBOUND = MSG-20260912-0058
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0059
+LAST_PLANNING_INBOUND_CONSUMED = MSG-20260912-0059
 
-LAST_VERIFIED_ACTION: Planning inbound `MSG-20260912-0057` was processed under `WO-20260912-CODING-OPS-001`. User OWNER visual QA is partial: the authenticated `/ops-relay.html` surface renders, but zero events prevent detail/status/review interaction. Planning requested exactly one synthetic reversible STAGING QA event using the existing server-side OPS contract and forbade real-business mutation, credential manipulation, Production/main/legacy mutation, or unsafe bypass.
+LAST_VERIFIED_ACTION: Planning `MSG-20260912-0059` dispatched `WO-20260912-CODING-OPS-QA-001`. CODING implemented and deployed a narrow authenticated OWNER-only, SUPABASE_STAGING-only fixed QA fixture create/cleanup capability. Complete staging CI and stable Preview read-only smoke are PASS. Actual authenticated OWNER visual/click QA has not been claimed and remains the closure gate.
 
-## Fixture capability result
+## Durable implementation refs
 
-The existing DB contract is suitable without product-data mutation:
+- OPS base implementation: `6ad4773365466277319961329757c1df3f33c230`
+- OWNER QA capability source: `59dc7fa33ebdd8fbe76c229a6985a776dbe3e7a8`
+- Preview deployment marker: `b7c949ba6999ee8e37da4ce33f443fe8b59a6f6d`
+- live read-only smoke trigger: `d31d5bd7f1ca110985795e46e189c40707bc5d63`
+- evidence: `docs/coding/OPS_OWNER_QA_FIXTURE_DEPLOY_20260912.md`
 
-- `code1_ops_record_manual_event(...)` records a synthetic event and returns `mutationApplied:false`.
-- `code1_ops_request_planning_review(...)` creates the causal `PLANNING_IMPACT` child event used by the existing `admin.ops.review` action.
+## Capability contract
 
-STAGING preflight and post-attempt readback:
+Browser actions:
+
+- `admin.ops.qa.fixture.create`
+- `admin.ops.qa.fixture.cleanup`
+
+Guards:
+
+- same-origin/session boundary retained
+- OWNER/SUPER_ADMIN required
+- SUPABASE_STAGING required; non-STAGING action cannot fall through to legacy bridge
+- empty/fixed payload only; no arbitrary browser-supplied event fields
+- fixed namespace `OWNER_QA_FIXTURE / WO-20260912-CODING-OPS-QA-001`
+- source fixture is synthetic `OPS_DATA_ONLY` with `mutationApplied:false`
+- deterministic create request ID gives at most one active root fixture
+- existing `admin.ops.review` creates the causal `PLANNING_IMPACT` child; QA root uses deterministic review request ID
+- repeated review is idempotent
+- cleanup accepts only exact root + exact causal review lineage and fails closed on namespace conflicts
+- event delete cascades only matching outbox rows
+- no real farm/account/business mutation
+- no new DB migration or browser DB privilege
+- no service-role/credential material in browser bundle
+- no direct worker command and no fake DONE
+
+## Verification
+
+Stable Preview smoke run `34676193695`, job `103506377060` passed:
+
+```text
+/ops-relay.html 200
+/assets/ops-relay.js 200
+/assets/ops-relay.css 200
+/api/session configured=true authenticated=false
+admin.ops.events unauthenticated -> 401
+admin.ops.qa.fixture.create unauthenticated -> 401
+admin.ops.qa.fixture.cleanup unauthenticated -> 401
+remoteMutation=NONE
+```
+
+Pre-user-QA Supabase residue readback:
 
 ```text
 ops_change_events=0
 ops_outbox=0
-OWNER_QA synthetic residue=0
-OWNER/SUPER_ADMIN contract row ready=true
+OWNER_QA_FIXTURE residue=0
 ```
 
-The available Supabase connector SQL identity is `supabase_read_only_user`. It has no EXECUTE on `code1_ops_record_manual_event`, is not a member of `service_role` or `postgres`, and has no INSERT privilege on the OPS event/outbox tables. `service_role` alone retains function execution as designed.
-
-One call through this read-only SQL channel was rejected with `permission denied for function code1_ops_record_manual_event`. No write occurred.
-
-The current Preview server contract exposes `admin.ops.events` and `admin.ops.review`, but no manual-event creation action. This execution environment does not possess the user's authorized OWNER browser session.
-
-Result = `BLOCKED_CAPABILITY`.
-
-CODING -> PLANNING blocker report `MSG-20260912-0058` was appended after fresh target-row reconciliation and read back successfully. CODING TRACK_STATE was updated to `last_message_seen=MSG-0057`, `pending_inbound=0`, `pending_outbound=1`.
-
-Do not resolve this by:
-
-- widening anon/authenticated/read-only privileges
-- adding an ad-hoc unauthenticated fixture route or RPC
-- invoking data writes through migration-owner privilege as a bypass
-- reading/resetting/synthesizing OWNER credentials or session secrets
-- mutating any real farm/account/business entity just to manufacture QA evidence
-
-## Existing accepted OPS checkpoint
-
-Implementation head remains `6ad4773365466277319961329757c1df3f33c230`.
-Supabase STAGING migrations `ops_change_relay_0018` and `ops_change_relay_acceptance_0019` remain applied.
-Cloudflare Preview deployment `3e5b3188ff64f3e788fd88c6eccbac360444fa21` remains accepted.
-CI/build/read-only live smoke remain PASS.
 Production/main/live legacy Google mutation remains 0.
 
-Canonical cross-track evidence:
+## Remaining user-authorized QA
 
-- `MSG-20260912-0053` — final technical implementation evidence
-- `MSG-20260912-0054` — decision request, APPLIED
-- `MSG-20260912-0056` — OWNER QA closure gate
-- `MSG-20260912-0057` — partial OWNER QA + one-fixture continuation, consumed
-- `MSG-20260912-0058` — CODING blocker report, pending Planning disposition
+In the user's existing OWNER session:
 
-## Remaining OWNER QA
+1. Refresh `/ops-relay.html`.
+2. Click `QA 이벤트 준비`.
+3. Select the fixed OWNER_QA fixture and verify detail/correlation/outbox.
+4. Click `기획 검토 필요`.
+5. Verify one causal `PLANNING_IMPACT` child, correct correlation/causation, no direct UIUX/CODING command and no fake DONE.
+6. Capture/confirm visual evidence.
+7. Click `QA 이벤트 정리`.
+8. CODING performs independent read-only residue verification = 0 and reports final evidence to Planning.
 
-If Planning supplies or authorizes a safe existing-server write capability for the one synthetic fixture, verify:
-
-- All / Planning / Incident / Failed / Done filters
-- event detail
-- correlation / causation
-- relay + outbox status
-- `기획 검토 필요` -> one causal `PLANNING_IMPACT`
-- no direct UIUX/CODING command
-- no fake DONE
-
-After user QA, delete only the synthetic fixture lineage/outbox and independently read back residue=0.
+Do not read/reset/synthesize OWNER credentials/session material to perform this step.
 
 ## Reserved / non-executable
 
@@ -79,6 +87,7 @@ After user QA, delete only the synthetic fixture lineage/outbox and independentl
 
 ## NEXT HANDOFF
 
-1. Fresh-read CURRENT and the latest Planning -> CODING inbound.
-2. Wait for an explicit Planning disposition responding to `MSG-20260912-0058` before any additional fixture implementation or write-path change.
-3. Do not self-start Productionization or Platform Reuse.
+1. Fresh-read Bus append target and publish implementation/live-smoke evidence for `WO-20260912-CODING-OPS-QA-001`.
+2. After Bus readback, update CODING TRACK_STATE to `MSG-0059 consumed / OWNER QA ready`.
+3. Wait for actual user-authorized OWNER click QA; never fabricate PASS.
+4. After cleanup, verify QA event/outbox residue=0 before requesting parent OPS closeout.
