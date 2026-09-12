@@ -2,62 +2,54 @@
 
 Updated: 2026-09-12 KST
 PLANNING_DELTA_SEQ_SEEN = 20260912-008
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0060
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0061
 LAST_PLANNING_INBOUND_CONSUMED = MSG-20260912-0059
-LAST_CODING_OUTBOUND = MSG-20260912-0060
+LAST_CODING_OUTBOUND = MSG-20260912-0061
 
-LAST_VERIFIED_ACTION: Planning `MSG-20260912-0059` dispatched `WO-20260912-CODING-OPS-QA-001`. CODING implemented and deployed a narrow authenticated OWNER-only, SUPABASE_STAGING-only fixed QA fixture create/cleanup capability. Complete staging CI and stable Preview read-only smoke are PASS. Implementation evidence was appended to Planning as `MSG-20260912-0060` and read back successfully. Actual authenticated OWNER visual/click QA has not been claimed and remains the closure gate.
+LAST_VERIFIED_ACTION: The user completed the authorized OWNER visual/click QA on the deployed stable Preview, including fixed synthetic fixture creation, one canonical `기획 검토 필요` click and final `QA 이벤트 정리`. CODING independently verified the root/child/outbox contract before cleanup and then independently verified `ops_change_events=0`, `ops_outbox=0`, `OWNER_QA_FIXTURE residue=0` after cleanup. Final closeout evidence was sent to Planning as `MSG-20260912-0061`.
 
-## Durable implementation refs
+## Durable refs
 
 - OPS base implementation: `6ad4773365466277319961329757c1df3f33c230`
 - OWNER QA capability source: `59dc7fa33ebdd8fbe76c229a6985a776dbe3e7a8`
 - Preview deployment marker: `b7c949ba6999ee8e37da4ce33f443fe8b59a6f6d`
 - live read-only smoke trigger: `d31d5bd7f1ca110985795e46e189c40707bc5d63`
-- evidence: `docs/coding/OPS_OWNER_QA_FIXTURE_DEPLOY_20260912.md`
-- cross-track implementation evidence: `MSG-20260912-0060`
+- final OWNER QA evidence: `docs/coding/OPS_OWNER_QA_FIXTURE_DEPLOY_20260912.md` @ `39c543968a1a8b47910988990b6af8effc87a00b`
+- final cross-track evidence: `MSG-20260912-0061`
 
-## Capability contract
+## Final OWNER QA acceptance
 
-Browser actions:
-
-- `admin.ops.qa.fixture.create`
-- `admin.ops.qa.fixture.cleanup`
-
-Guards:
-
-- same-origin/session boundary retained
-- OWNER/SUPER_ADMIN required
-- SUPABASE_STAGING required; non-STAGING action cannot fall through to legacy bridge
-- empty/fixed payload only; no arbitrary browser-supplied event fields
-- fixed namespace `OWNER_QA_FIXTURE / WO-20260912-CODING-OPS-QA-001`
-- source fixture is synthetic `OPS_DATA_ONLY` with `mutationApplied:false`
-- deterministic create request ID gives at most one active root fixture
-- existing `admin.ops.review` creates the causal `PLANNING_IMPACT` child; QA root uses deterministic review request ID
-- repeated review is idempotent
-- cleanup accepts only exact root + exact causal review lineage and fails closed on namespace conflicts
-- event delete cascades only matching outbox rows
-- no real farm/account/business mutation
-- no new DB migration or browser DB privilege
-- no service-role/credential material in browser bundle
-- no direct worker command and no fake DONE
-
-## Verification
-
-Stable Preview smoke run `34676193695`, job `103506377060` passed:
+Root fixture verified both visually and through STAGING read-back:
 
 ```text
-/ops-relay.html 200
-/assets/ops-relay.js 200
-/assets/ops-relay.css 200
-/api/session configured=true authenticated=false
-admin.ops.events unauthenticated -> 401
-admin.ops.qa.fixture.create unauthenticated -> 401
-admin.ops.qa.fixture.cleanup unauthenticated -> 401
-remoteMutation=NONE
+event_id       = OCE_b52fcb855c464fe2850615637c52ef66
+action          = owner.qa.fixture.prepare
+event_class     = OPS_DATA_ONLY
+relay_status    = NO_PLANNING_ACTION
+correlation_id  = self
+causation_id    = null
+outbox_state    = NO_ACTION
+attempt_count   = 0
+actor_ref       = OWNER
 ```
 
-Pre-user-QA Supabase residue readback:
+After one `기획 검토 필요` click, exactly one causal child was verified:
+
+```text
+event_id       = OCE_18bc5d4699c64853928e8c419b465746
+action          = planning.review.request
+event_class     = PLANNING_IMPACT
+relay_status    = RECORDED
+correlation_id  = root event id
+causation_id    = root event id
+outbox_state    = PENDING
+attempt_count   = 0
+actor_ref       = OWNER
+```
+
+No direct UIUX/CODING command event and no fake DONE were created.
+
+After the user clicked `QA 이벤트 정리`, independent read-back returned:
 
 ```text
 ops_change_events=0
@@ -65,31 +57,33 @@ ops_outbox=0
 OWNER_QA_FIXTURE residue=0
 ```
 
-CODING TRACK_STATE after Bus readback:
+`WO-20260912-CODING-OPS-QA-001` = PASS from CODING evidence perspective.
+
+Parent `WO-20260912-CODING-OPS-001` now has all previously outstanding OWNER closure evidence and is ready for Planning closeout. CODING does not self-close it.
+
+## Security / mutation boundary preserved
+
+- no real farm/account/business mutation for QA
+- no DB RBAC widening
+- no browser service-role or secret material
+- no credential read/reset/synthesis
+- no generic debug endpoint
+- no direct worker command
+- no fake DONE
+- Production/main mutation = 0
+- Production Supabase/R2 mutation = 0
+- live legacy Google mutation = 0
+
+## TRACK_STATE checkpoint
+
+After `MSG-0061` read-back:
 
 ```text
-last_message_seen=MSG-20260912-0059
-pending_inbound=0
-pending_outbound=1
-outbound=MSG-20260912-0060
+last_message_seen = MSG-20260912-0061
+pending_inbound   = 0
+pending_outbound  = 1
+status            = OWNER QA PASS / cleanup residue 0 / final closeout evidence sent
 ```
-
-Production/main/live legacy Google mutation remains 0.
-
-## Remaining user-authorized QA
-
-In the user's existing OWNER session:
-
-1. Refresh `/ops-relay.html`.
-2. Click `QA 이벤트 준비`.
-3. Select the fixed OWNER_QA fixture and verify detail/correlation/outbox.
-4. Click `기획 검토 필요`.
-5. Verify one causal `PLANNING_IMPACT` child, correct correlation/causation, no direct UIUX/CODING command and no fake DONE.
-6. Capture/confirm visual evidence.
-7. Click `QA 이벤트 정리`.
-8. CODING performs independent read-only residue verification = 0 and reports final evidence to Planning.
-
-Do not read/reset/synthesize OWNER credentials/session material to perform this step.
 
 ## Reserved / non-executable
 
@@ -98,8 +92,7 @@ Do not read/reset/synthesize OWNER credentials/session material to perform this 
 
 ## NEXT HANDOFF
 
-1. Await the user's existing authorized OWNER session visual/click QA.
-2. After the user confirms review-child behavior, run the fixed cleanup only.
-3. Independently verify QA event/outbox residue=0 and report final acceptance to Planning.
-4. Fresh-read Planning Bus before any further implementation.
-5. Do not self-start Productionization or Platform Reuse.
+1. Fresh-read CURRENT and latest Planning -> CODING inbound.
+2. Await Planning disposition on `MSG-20260912-0061` and parent OPS closeout.
+3. Do not self-start Productionization or Platform Reuse.
+4. If a new CODING WO is explicitly dispatched, verify its Bus/Ledger authority and actual Git state before execution.
