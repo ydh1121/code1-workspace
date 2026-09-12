@@ -7,7 +7,9 @@ const actions = new Set([
   'deckAssets','deckBootstrap','saveDeck','questionPolicy.list','questionPolicy.save',
   'mediaUpload.begin','mediaUpload.chunk','mediaUpload.finish','deleteMedia','mediaOrganizer.status','mediaOrganizer.repair',
   'factInbox.list','factInbox.create','factInbox.transition','executiveBrief.current',
-  'admin.overview','admin.audit','admin.farm.delete','admin.account.delete'
+  'planning.document.current','planning.document.save','planning.feedback.add','planning.feedback.resolve',
+  'planning.profit.list','planning.profit.save','planning.profit.archive',
+  'admin.overview','admin.audit','admin.access.list','admin.access.save','admin.farm.delete','admin.account.delete'
 ]);
 
 function stagingOwns(){
