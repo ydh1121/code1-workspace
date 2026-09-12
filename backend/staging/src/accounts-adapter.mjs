@@ -1,16 +1,18 @@
 import {createDb} from './db.mjs';
 import {loadActor,assertAdmin} from './authz.mjs';
 import {publicAccount,parsePermissions,cleanString} from './core.mjs';
+import {resolveWorkspaceAccess,requireWorkspaceAccess} from './workspace-access.mjs';
 const esc=encodeURIComponent;
 const credentialValid=c=>c&&/^[a-f0-9]{64}$/.test(c.hash||'')&&/^[a-f0-9]{32}$/.test(c.salt||'')&&Number(c.iterations)===100000&&c.scheme==='pbkdf2-sha256-pepper-v1';
 
 async function farmIdsFor(db,row){if(row.role!=='FARMER')return [];const r=await db.select('farm_access',`account_id=eq.${esc(row.account_id)}&select=farm_id`);return (r||[]).map(x=>x.farm_id);}
+async function managementActor(db,principal){const actor=await loadActor(db,principal);assertAdmin(actor);const access=await resolveWorkspaceAccess(db,actor);requireWorkspaceAccess(access,'PAGE_ACCOUNTS');requireWorkspaceAccess(access,'ACCOUNT_MANAGE');return actor;}
 export async function accountSelf(env,principal,fetchImpl=fetch){const db=createDb(env,fetchImpl),a=await loadActor(db,principal);return a.user;}
 export async function accountCredential(env,principal,fetchImpl=fetch){const db=createDb(env,fetchImpl),a=await loadActor(db,principal);const r=a.row;return r.password_hash?{salt:r.password_salt,hash:r.password_hash,iterations:Number(r.password_iterations),scheme:r.password_scheme}:null;}
-export async function accountList(env,principal,fetchImpl=fetch){const db=createDb(env,fetchImpl),actor=await loadActor(db,principal);assertAdmin(actor);const [rows,farms]=await Promise.all([db.select('workspace_accounts','archived_at=is.null&order=created_at.asc&select=*'),db.select('farms','order=farm_id.asc&select=farm_id,internal_name,public_name')]);const accounts=[];for(const r of rows||[])accounts.push(publicAccount(r,await farmIdsFor(db,r)));return {accounts,farms:(farms||[]).map(f=>({id:f.farm_id,name:f.internal_name||f.public_name||f.farm_id}))};}
+export async function accountList(env,principal,fetchImpl=fetch){const db=createDb(env,fetchImpl),actor=await managementActor(db,principal);const [rows,farms]=await Promise.all([db.select('workspace_accounts','archived_at=is.null&order=created_at.asc&select=*'),db.select('farms','order=farm_id.asc&select=farm_id,internal_name,public_name')]);const accounts=[];for(const r of rows||[])accounts.push(publicAccount(r,await farmIdsFor(db,r)));return {accounts,farms:(farms||[]).map(f=>({id:f.farm_id,name:f.internal_name||f.public_name||f.farm_id}))};}
 
 export async function accountSave(env,principal,p,fetchImpl=fetch){
-  const db=createDb(env,fetchImpl),actor=await loadActor(db,principal);assertAdmin(actor);
+  const db=createDb(env,fetchImpl),actor=await managementActor(db,principal);
   const id=String(p?.id||''),rows=id?await db.select('workspace_accounts',`account_id=eq.${esc(id)}&select=*`):[],old=rows?.[0]||null;
   if(id&&!old)throw Error('NOT_FOUND');
   if(old?.archived_at)throw Error('FORBIDDEN');
