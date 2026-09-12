@@ -13,8 +13,9 @@ Stable Preview: `https://coding-runtime-backend-stagi.code1-workspace.pages.dev`
 Production/main mutation: 0
 Live legacy Google mutation: 0
 PLANNING_DELTA_SEQ_SEEN = 20260912-008
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0059
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0060
 LAST_PLANNING_INBOUND_CONSUMED = MSG-20260912-0059
+LAST_CODING_OUTBOUND = MSG-20260912-0060
 
 ## Active work orders
 
@@ -76,6 +77,7 @@ OWNER_QA_FIXTURE residue = 0
 ```
 
 Primary child-WO evidence: `docs/coding/OPS_OWNER_QA_FIXTURE_DEPLOY_20260912.md`.
+Cross-track implementation evidence: `MSG-20260912-0060` = PENDING Planning review.
 
 ## Remaining OWNER QA closure gate
 
@@ -103,8 +105,8 @@ No Production/main/Production Supabase/Production R2/live legacy Google mutation
 
 ## NEXT_ATOMIC_ACTION
 
-1. Publish child-WO implementation/live-smoke evidence to Planning after fresh Bus reconciliation.
-2. Update CODING TRACK_STATE only after Bus readback.
-3. Await/collect the user's authenticated OWNER click QA; do not fabricate it.
-4. After the user clicks cleanup, independently verify QA event/outbox residue=0.
+1. Await the user's authenticated OWNER visual/click QA on the deployed stable Preview; do not fabricate it.
+2. After user evidence is confirmed, use only the fixed `QA 이벤트 정리` capability.
+3. Independently read back OWNER_QA event/outbox residue=0 and report final acceptance to Planning.
+4. Fresh-read Planning Bus before any further implementation.
 5. Do not self-start Productionization or Platform Reuse.
