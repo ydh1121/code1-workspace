@@ -6,7 +6,8 @@ const actions = new Set([
   'bootstrap','saveSubmission','getSubmission','review','upload','linkDrive','reviewMedia','media','mediaBatch',
   'deckAssets','deckBootstrap','saveDeck','questionPolicy.list','questionPolicy.save',
   'mediaUpload.begin','mediaUpload.chunk','mediaUpload.finish','deleteMedia','mediaOrganizer.status','mediaOrganizer.repair',
-  'factInbox.list','factInbox.create','factInbox.transition','executiveBrief.current'
+  'factInbox.list','factInbox.create','factInbox.transition','executiveBrief.current',
+  'admin.overview','admin.audit','admin.farm.delete','admin.account.delete'
 ]);
 
 function stagingOwns(){
