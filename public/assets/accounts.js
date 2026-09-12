@@ -6,7 +6,12 @@
   function node(tag,text,cls){const n=document.createElement(tag);n.textContent=text||'';if(cls)n.className=cls;return n;}
   async function call(payload){const r=await fetch('/api/accounts',payload?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}:{}),body=await r.json();if(!r.ok)throw Error(body.message||'계정 정보를 불러오지 못했습니다.');return body.data;}
   async function adminCall(action,payload={}){const r=await fetch('/api/rpc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,payload})}),body=await r.json();if(!r.ok||body.error)throw Error(body.message||body.error||'관리 작업을 완료하지 못했습니다.');return body.data;}
-  function loadExecutiveModule(){if(document.querySelector('script[data-code1-admin-ops]'))return;const s=document.createElement('script');s.src='/assets/admin-ops.js';s.async=false;s.dataset.code1AdminOps='1';document.head.append(s);}
+  function loadExecutiveModule(){
+    if(document.querySelector('script[data-code1-admin-ops]'))return;
+    const s=document.createElement('script');s.src='/assets/admin-ops.js';s.async=false;s.dataset.code1AdminOps='1';
+    s.addEventListener('load',()=>{if(me)window.dispatchEvent(new CustomEvent('code1-ready',{detail:{user:me}}));},{once:true});
+    document.head.append(s);
+  }
   loadExecutiveModule();
   function myInfo(){
     $('accounts-title').textContent=admin()?'계정 관리':'내 계정';
