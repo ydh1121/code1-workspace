@@ -32,14 +32,14 @@
     [['매입·생산비',m.purchase_cost],['포장비',m.package_cost],['배송비',m.shipping_cost],['결제·판매 수수료',m.sales_fee],['기타 비용',m.other_cost],['월 예상 판매수량',`${Number(m.monthly_units||0).toLocaleString('ko-KR')}개`]].forEach(([k,v])=>{const p=el('p');p.append(el('span',null,k),el('b',null,typeof v==='string'?v:won(v)));detail.append(p);});
     card.append(detail);
     if(m.note)card.append(el('p','profit-note',m.note));
-    card.append(el('small','muted',`수정 ${m.current_revision}회 · ${new Date(m.updated_at).toLocaleString('ko-KR')}`));
+    card.append(el('small','muted',`저장 이력 ${m.current_revision} · ${new Date(m.updated_at).toLocaleString('ko-KR')}`));
     return card;
   }
 
   function renderState(){
     const root=$('admin-ops-body');if(!root)return;
     const page=el('div','profit-workspace'),head=el('section','admin-panel profit-intro'),copy=el('div');
-    copy.append(el('h2',null,'제품 수익 구조'),el('p','muted','농가 자료와 별개로, 제품 하나를 팔 때 얼마가 들고 얼마가 남는지 기록합니다. 값이 아직 확정되지 않았다면 현재 파악한 숫자만 입력하고 메모에 확인 필요 내용을 남겨 주세요.'));
+    copy.append(el('h2',null,'제품 수익 구조'),el('p','muted','농가 자료와 별개로, 제품 하나를 팔 때 얼마가 들고 얼마가 남는지 기록합니다. 값이 아직 확정되지 않았다면 현재 파악한 숫자만 입력하고 메모에 확인이 필요한 내용을 남겨 주세요.'));
     const actions=el('div','profit-head-actions');actions.append(button('새로고침',()=>render()));if(state.access.canEdit)actions.append(button('＋ 제품 추가',()=>openEditor(null),'primary'));
     head.append(copy,actions);page.append(head);
     const guide=el('section','profit-guide');guide.append(el('strong',null,'계산 기준'),el('span',null,'남는 금액 = 판매가 - 매입·생산비 - 포장비 - 배송비 - 결제·판매 수수료 - 기타 비용'));
@@ -95,6 +95,44 @@
     if(!confirm(`${model.product_name} 항목을 목록에서 보관 처리할까요? 기록은 삭제되지 않습니다.`))return;
     try{state=await rpc('planning.profit.archive',{id:model.model_id,requestId:uid()});renderState();}catch(error){alert(errorText(error));}
   }
+
+  const exactText=new Map([
+    ['Fact Inbox','사실 확인'],['검증 Fact','확인된 정보'],['EXECUTIVE / OWNER','최고 관리자'],['EXECUTIVE / OWNER ONLY','최고 관리자'],['PLANNING WORKSPACE','경영·기획'],
+    ['사업 기획 Working Copy, revision 이력과 경영진 피드백을 함께 관리합니다.','사업 계획 문서, 수정 이력, 의견과 제품 수익 구조를 한곳에서 관리합니다.'],
+    ['CURRENT 사업계획, 검증 대기 Fact, 농가 관리와 내부 감사 기록을 한곳에서 확인합니다.','현재 사업 계획, 확인이 필요한 정보, 농가 관리와 내부 기록을 한곳에서 확인합니다.'],
+    ['사업 기획 · revision · 경영진 피드백','사업 계획 · 수정 이력 · 의견 · 제품 수익 구조'],['기획문서 열기 ↗','경영·기획 열기 ↗'],
+    ['revision 이력','수정 이력'],['기획문서 revision 이력','기획문서 수정 이력'],['새 revision 저장','새 버전으로 저장'],
+    ['문서 전체 피드백','문서 전체 의견'],['피드백 등록','의견 등록'],['해결 처리','확인 완료'],
+    ['새 Fact 접수','새 확인 항목 등록'],['Fact 접수','확인 항목 등록'],['아직 접수된 Fact가 없습니다.','아직 확인할 정보가 없습니다.'],
+    ['파트너 보고','협력사 보고'],['증빙 요청','확인 자료 요청'],['문서 수신','확인 자료 받음'],['검증 완료','확인 완료'],['현재값 승인','현재 정보 확정']
+  ]);
+  function simplifyPlanningWords(){
+    document.querySelectorAll('#admin-ops-page *,#admin-ops-destination *').forEach(node=>{
+      if(node.children.length)return;const t=(node.textContent||'').trim();if(!t)return;
+      if(exactText.has(t)){node.textContent=exactText.get(t);return;}
+      if(/^Fact Inbox · \d+$/.test(t)){node.textContent=t.replace('Fact Inbox','사실 확인');return;}
+      if(/^Working Copy r\d+/.test(t)){node.textContent=t.replace(/^Working Copy r(\d+)/,'현재 문서 버전 $1').replace(' · 원본 ',' · 기준 문서 ');return;}
+      if(/^r\d+$/.test(t)&&node.closest('#planning-history-dialog')){node.textContent=t.replace(/^r(\d+)$/,'버전 $1');return;}
+      if(/^(열림|해결) · r\d+ ·/.test(t)){node.textContent=t.replace('열림','확인 필요').replace('해결','확인 완료').replace(/ · r(\d+) ·/,' · 버전 $1 ·');}
+      if(t.startsWith('section id:'))node.hidden=true;
+    });
+    const editorNote=document.querySelector('.planning-editor-note');if(editorNote&&editorNote.textContent.includes('revision'))editorNote.textContent='저장할 때 기존 문서를 덮어쓰지 않고 새 버전으로 보관합니다. 다른 사용자가 먼저 저장했다면 최신 내용을 다시 불러온 뒤 수정해 주세요.';
+    const fields=[['fact-domain','영역','예: 공급 / 계약 / 가격'],['fact-subject-type','대상 종류','예: 농가 / 선별·포장 시설 / 계약'],['fact-subject-id','대상','예: 농가명 또는 계약번호'],['fact-source','정보를 받은 곳','예: 직접 전달 / 협력사 전달']];
+    for(const [id,label,placeholder] of fields){const input=$(id);if(!input)continue;input.placeholder=placeholder;const parent=input.closest('label');if(parent?.firstChild?.nodeType===Node.TEXT_NODE)parent.firstChild.nodeValue=label;}
+    document.querySelectorAll('.planning-feedback-form textarea').forEach(ta=>{if(ta.placeholder.includes('피드백'))ta.placeholder=ta.placeholder.replace('경영진 피드백','의견');});
+  }
+  function installPlanningTab(){
+    const tabs=$('admin-ops-tabs');if(!tabs)return;
+    if(!$('planning-profit-tab')){
+      const b=button('제품 수익 구조',()=>{tabs.querySelectorAll('button').forEach(x=>x.classList.remove('active'));b.classList.add('active');render();});
+      b.id='planning-profit-tab';b.dataset.profitTab='1';
+      const before=tabs.querySelector('[data-admin-tab="facts"]');tabs.insertBefore(b,before||null);
+    }
+    if(!tabs.dataset.profitBound){tabs.dataset.profitBound='1';tabs.addEventListener('click',e=>{if(e.target.closest('[data-admin-tab]'))$('planning-profit-tab')?.classList.remove('active');},true);}
+  }
+  let scheduled=false;const sync=()=>{if(scheduled)return;scheduled=true;requestAnimationFrame(()=>{scheduled=false;installPlanningTab();simplifyPlanningWords();});};
+  const observer=new MutationObserver(sync);observer.observe(document.documentElement,{childList:true,subtree:true});
+  window.addEventListener('code1-ready',sync);window.addEventListener('code1-access-ready',sync);sync();
 
   window.Code1ProfitUI={render};
 })();
