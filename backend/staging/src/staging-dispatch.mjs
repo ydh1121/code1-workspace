@@ -9,12 +9,18 @@ const PLANNING_ACTIONS=new Set([
   'factInbox.list',
   'factInbox.create',
   'factInbox.transition',
-  'executiveBrief.current'
+  'executiveBrief.current',
+  'planning.document.current',
+  'planning.document.save',
+  'planning.feedback.add',
+  'planning.feedback.resolve'
 ]);
 
 const ADMIN_ACTIONS=new Set([
   'admin.overview',
   'admin.audit',
+  'admin.access.list',
+  'admin.access.save',
   'admin.farm.delete',
   'admin.account.delete'
 ]);
