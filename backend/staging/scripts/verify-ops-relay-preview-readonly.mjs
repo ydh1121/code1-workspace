@@ -19,6 +19,8 @@ const session=await fetch(origin+'/api/session',{redirect:'follow'});const sj=aw
 if(session.status!==200||new URL(session.url).origin!==origin||sj.configured!==true||sj.authenticated!==false)throw Error(`session gate mismatch: ${session.status} ${JSON.stringify(sj)}`);
 console.log('PASS GET /api/session configured=true authenticated=false');
 await unauthRpc('admin.ops.events',{limit:1});
+await unauthRpc('admin.ops.capacity.report',{});
+await unauthRpc('admin.ops.retention.dryRun',{});
 await unauthRpc('admin.ops.qa.fixture.create',{});
 await unauthRpc('admin.ops.qa.fixture.cleanup',{});
-console.log(JSON.stringify({origin,staticRoutes:'PASS',sessionGate:'PASS',unauthenticatedRpcFailClosed:'PASS',qaFixtureUnauthenticatedFailClosed:'PASS',remoteMutation:'NONE'},null,2));
+console.log(JSON.stringify({origin,staticRoutes:'PASS',sessionGate:'PASS',unauthenticatedRpcFailClosed:'PASS',retentionReportUnauthenticatedFailClosed:'PASS',qaFixtureUnauthenticatedFailClosed:'PASS',remoteMutation:'NONE'},null,2));
