@@ -9,7 +9,7 @@ Live-smoke trigger head: `d31d5bd7f1ca110985795e46e189c40707bc5d63`
 
 ## Implemented capability
 
-The deployed `/ops-relay.html` now exposes two authenticated OWNER controls only:
+The deployed `/ops-relay.html` exposes two authenticated OWNER controls only:
 
 - `QA 이벤트 준비` -> `admin.ops.qa.fixture.create`
 - `QA 이벤트 정리` -> `admin.ops.qa.fixture.cleanup`
@@ -60,11 +60,52 @@ PASS POST /api/rpc admin.ops.qa.fixture.cleanup -> 401 UNAUTHENTICATED
 remoteMutation = NONE
 ```
 
-This proves the deployed static surface contains the new QA controls and that all QA write actions still fail closed without an authenticated session. It does not claim authenticated OWNER click acceptance.
+This proves the deployed static surface contains the new QA controls and that all QA write actions still fail closed without an authenticated session.
 
-## Pre-user-QA STAGING residue
+## Authenticated OWNER visual/click acceptance
 
-Read-only Supabase read-back after deployment/smoke:
+The user exercised the deployed stable Preview from the existing authorized OWNER browser session and supplied visual evidence. CODING independently read back the corresponding STAGING rows.
+
+Root fixture after `QA 이벤트 준비`:
+
+```text
+event_id       = OCE_b52fcb855c464fe2850615637c52ef66
+entity          = OWNER_QA_FIXTURE / WO-20260912-CODING-OPS-QA-001
+action          = owner.qa.fixture.prepare
+event_class     = OPS_DATA_ONLY
+planning        = false
+priority        = P1
+relay_status    = NO_PLANNING_ACTION
+correlation_id  = OCE_b52fcb855c464fe2850615637c52ef66
+causation_id    = null
+outbox_state    = NO_ACTION
+outbox_attempts = 0
+actor_ref       = OWNER
+changed_fields  = [qa.fixture]
+```
+
+After the user clicked `기획 검토 필요`, exactly one canonical causal child was present:
+
+```text
+event_id       = OCE_18bc5d4699c64853928e8c419b465746
+action          = planning.review.request
+event_class     = PLANNING_IMPACT
+planning        = true
+priority        = P0
+relay_status    = RECORDED
+correlation_id  = OCE_b52fcb855c464fe2850615637c52ef66
+causation_id    = OCE_b52fcb855c464fe2850615637c52ef66
+outbox_state    = PENDING
+outbox_attempts = 0
+actor_ref       = OWNER
+changed_fields  = [qa.fixture]
+```
+
+The browser UI and independent database read-back matched. No UIUX/CODING direct command event was created, and no fake `DONE` was synthesized.
+
+## Cleanup acceptance
+
+After visual/click evidence was confirmed, the user clicked `QA 이벤트 정리` once. CODING then independently performed read-only STAGING verification:
 
 ```text
 ops_change_events = 0
@@ -72,18 +113,12 @@ ops_outbox = 0
 OWNER_QA_FIXTURE residue = 0
 ```
 
-The capability is therefore deployed and clean. No synthetic event exists until the user clicks `QA 이벤트 준비` from the already-authorized OWNER browser session.
+Therefore the synthetic root, its causal Planning child and all associated outbox residue were removed. No real farm/account/business entity was used or mutated for this QA.
 
-## Remaining closure sequence
+## Verdict
 
-Actual OWNER visual/click QA remains required:
+`WO-20260912-CODING-OPS-QA-001` acceptance = PASS from CODING evidence perspective.
 
-1. Refresh `/ops-relay.html` in the existing authorized OWNER session.
-2. Click `QA 이벤트 준비`.
-3. Select `OWNER_QA_FIXTURE · WO-20260912-CODING-OPS-QA-001` and verify detail, correlation and outbox state.
-4. Click `기획 검토 필요`.
-5. Verify one causal `PLANNING_IMPACT` child, correlation preserved and causation pointing to the root; no direct UIUX/CODING command and no fake `DONE`.
-6. Click `QA 이벤트 정리` only after visual/click evidence is captured.
-7. CODING must independently read back QA event/outbox residue = 0 and report final evidence to Planning.
+The parent `WO-20260912-CODING-OPS-001` now has its previously outstanding authenticated OWNER visual/click closure evidence plus final cleanup verification. CODING may report the parent ready for Planning closeout, but does not self-close it and does not self-start Productionization.
 
-`WO-20260912-CODING-OPS-001` remains open until this user-authorized QA and cleanup are accepted. Productionization and Platform Reuse remain NOT_DISPATCHED.
+Productionization and Platform Reuse remain `RESERVED / NOT_DISPATCHED` until a new explicit Planning dispatch.
