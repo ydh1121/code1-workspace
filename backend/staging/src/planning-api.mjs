@@ -52,7 +52,7 @@ export async function transitionFactInboxItem(env,principal,payload={},fetchImpl
   assertFactTransition(current.status,toStatus);
   const evidenceRef=payload.evidenceRef??null;
   if(toStatus==='DOCUMENT_RECEIVED'&&evidenceRef===null&&current.evidence_ref==null)throw Error('EVIDENCE_REQUIRED');
-  if(['VERIFIED','APPROVED_CURRENT'].includes(toStatus)&&current.evidence_ref==null)throw Error('EVIDENCE_REQUIRED');
+  if(['VERIFIED','APPROVED_CURRENT'].includes(toStatus)&&evidenceRef===null&&current.evidence_ref==null)throw Error('EVIDENCE_REQUIRED');
   await requirePlanningCapability(db,actor,requiredFactCapability(toStatus));
   const confidence=payload.confidence===undefined||payload.confidence===null?null:Number(payload.confidence);if(confidence!==null&&(!Number.isFinite(confidence)||confidence<0||confidence>1))throw Error('INVALID_FACT_CONFIDENCE');
   const result=await db.rpc('code1_transition_fact',{p_actor_id:actor.row.account_id,p_fact_id:id,p_to_status:toStatus,p_note:clean(payload.note,2000)||null,p_confidence:confidence,p_evidence_ref:evidenceRef,p_request_id:payload.requestId});
