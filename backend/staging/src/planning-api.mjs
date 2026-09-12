@@ -10,7 +10,6 @@ const requestId=value=>/^[a-f0-9]{32}$/.test(String(value||''));
 
 export async function hasPlanningCapability(db,actor,capability){
   if(!Object.values(PLANNING_CAPABILITIES).includes(capability))return false;
-  if(actor.row.account_id==='OWNER'&&actor.row.role==='SUPER_ADMIN')return true;
   const rows=await db.select('account_capabilities',`account_id=eq.${esc(actor.row.account_id)}&capability=eq.${esc(capability)}&effect=eq.ALLOW&select=capability`);
   return !!rows?.length;
 }
