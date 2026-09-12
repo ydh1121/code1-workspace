@@ -17,8 +17,6 @@ export function isAdmin(actor) { return ['SUPER_ADMIN','ADMIN'].includes(actor?.
 
 export async function assertFarmAccess(db, actor, farmId, edit=false) {
   if (!farmId) throw Error('FORBIDDEN');
-  const farm=(await db.select('farms',`farm_id=eq.${encodeURIComponent(farmId)}&select=farm_id`))?.[0];
-  if(!farm)throw Error('FORBIDDEN');
   if (isAdmin(actor)) return;
   const p = parsePermissions(actor.row.permissions_json);
   if (p.farm === 'none' || (edit && p.farm !== 'edit')) throw Error('FORBIDDEN');
