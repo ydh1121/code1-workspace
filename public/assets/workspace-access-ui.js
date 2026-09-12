@@ -25,14 +25,14 @@
     return response;
   };
 
-  function neutralGate(show){const gate=document.getElementById('auth-pending');if(gate)gate.hidden=!show;}
-  function resolveGate(authenticated){document.body.classList.remove('auth-pending');neutralGate(false);const login=document.getElementById('login');if(login&&!authenticated)login.hidden=false;}
-  function setHidden(id,hidden){const node=document.getElementById(id);if(node)node.hidden=hidden;}
-  function setDisabled(id,disabled,title='이 계정에는 이 기능의 권한이 없습니다.'){const node=document.getElementById(id);if(node){node.disabled=disabled;if(disabled)node.title=title;else node.removeAttribute('title');}}
+  function neutralGate(show){const gate=document.getElementById('auth-pending');if(gate&&gate.hidden===show)gate.hidden=!show;}
+  function resolveGate(authenticated){document.body.classList.remove('auth-pending');neutralGate(false);const login=document.getElementById('login');if(login&&!authenticated&&login.hidden)login.hidden=false;}
+  function setHidden(id,hidden){const node=document.getElementById(id);if(node&&node.hidden!==hidden)node.hidden=hidden;}
+  function setDisabled(id,disabled,title='이 계정에는 이 기능의 권한이 없습니다.'){const node=document.getElementById(id);if(!node)return;if(node.disabled!==disabled)node.disabled=disabled;if(disabled){if(node.title!==title)node.title=title;}else if(node.hasAttribute('title'))node.removeAttribute('title');}
 
   function applyAccess(){
     const inputPolicyVisible=can('PAGE_INPUT_POLICY');
-    document.querySelectorAll('button,a').forEach(node=>{if((node.textContent||'').trim()==='입력 항목 관리')node.hidden=!inputPolicyVisible;});
+    document.querySelectorAll('button,a').forEach(node=>{if((node.textContent||'').trim()==='입력 항목 관리'&&node.hidden===inputPolicyVisible)node.hidden=!inputPolicyVisible;});
     const farmEdit=can('FARM_EDIT'),farmReview=can('FARM_REVIEW'),deckEdit=can('DECK_EDIT'),deckExport=can('DECK_EXPORT'),accountManage=can('ACCOUNT_MANAGE');
     if(boot?.user?.role!=='FARMER')setHidden('new-farm',!farmEdit);
     if(!farmEdit)setHidden('link-drive',true);
