@@ -1,92 +1,136 @@
 # CODE1 CODING CURRENT
 
 Updated: 2026-09-12 KST
-Status: OPS CLOSED / STAGING CHECKPOINT HOLD / WAITING NEXT PLANNING WORK ORDER
+Status: OPS RETENTION/CAPACITY TECHNICAL PASS / PLANNING REVIEW PENDING
 Branch: `coding/runtime-backend-staging`
-OPS base implementation head: `6ad4773365466277319961329757c1df3f33c230`
-OWNER QA capability source head: `59dc7fa33ebdd8fbe76c229a6985a776dbe3e7a8`
-OWNER QA deployment marker: `b7c949ba6999ee8e37da4ce33f443fe8b59a6f6d`
-Live smoke head: `d31d5bd7f1ca110985795e46e189c40707bc5d63`
-Final OWNER QA evidence commit: `39c543968a1a8b47910988990b6af8effc87a00b`
 Base main: `a71a71eae73706862308e194110f4fcc2d25db01`
 Supabase STAGING: `bsintmkyhptizrjoizfb`
 Stable Preview: `https://coding-runtime-backend-stagi.code1-workspace.pages.dev`
 Production/main mutation: 0
 Live legacy Google mutation: 0
 PLANNING_DELTA_SEQ_SEEN = 20260912-008
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0062
-LAST_PLANNING_INBOUND_CONSUMED = MSG-20260912-0062
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0063
+LAST_PLANNING_INBOUND_CONSUMED = MSG-20260912-0063
 LAST_CODING_OUTBOUND = MSG-20260912-0061
 
-## Planning closure consumed
+## Current work order
 
-Latest authoritative Planning inbound: `MSG-20260912-0062 / CLOSURE_STATUS_UPDATE`.
+`WO-20260912-CODING-OPS-RETENTION-001` was dispatched by Planning `MSG-20260912-0063` as a STAGING-only, non-destructive retention/capacity hardening task after the parent OPS Relay closure.
 
-Planning accepted the final authenticated OWNER visual/click QA and cleanup evidence and explicitly closed both CODING OPS work orders:
+CODING technical implementation and verification are complete. Final cross-track implementation evidence still needs to be published and accepted by Planning.
 
-- `WO-20260912-CODING-OPS-QA-001` = COMPLETE / CLOSED
-- `WO-20260912-CODING-OPS-001` = COMPLETE / CLOSED
+## Durable implementation refs
 
-The older Ledger status text that still says `NOT_CLOSED` / `PENDING` is stale relative to the later append-only Planning Bus decision `MSG-20260912-0062`. For current execution state, the latest Planning decision governs.
+- starting branch checkpoint: `9a36b7074bc56833aae730ad6ac313a6c1408d04`
+- retention migration source: `backend/staging/schema/0020_ops_retention_capacity_guard.sql`
+- server report actions: `admin.ops.capacity.report`, `admin.ops.retention.dryRun`
+- implementation/test head: `3993d50be6d388ddd5391e4035aab4d9d781a000`
+- Preview deployment marker: `5cc9d7b467b5ec0f974e35a513f2e605fb4d7500`
+- final live smoke/test head: `bfae31df267943d86dd3d02f170f048b6112dd43`
+- evidence: `docs/coding/OPS_RETENTION_CAPACITY_EVIDENCE_20260912.md`
+- STAGING migration: `ops_retention_capacity_guard_0020`
 
-`MSG-0062` contains no new implementation scope. CODING must preserve the accepted staging checkpoint and wait for the next explicit Planning Work Order.
+## Measured baseline / capacity model
 
-## Final accepted OPS / OWNER QA evidence
+Pre-change STAGING readback:
 
-Stable Preview and STAGING acceptance already completed:
+- `ops_change_events`: rows 0 / total 147,456 bytes
+- `ops_outbox`: rows 0 / total 98,304 bytes
+- combined empty relation footprint: 245,760 bytes
+- database bytes before 0020: 13,569,171
+- OWNER QA residue: 0
+- eleven OPS indexes present
+- measured average retained row unavailable because both tables were empty
 
-- complete staging CI/build/npm-audit gate PASS
-- stable Preview read-only live smoke PASS
-- unauthenticated `admin.ops.events`, `admin.ops.qa.fixture.create`, `admin.ops.qa.fixture.cleanup` all fail closed with 401
-- authenticated OWNER root fixture rendered as `OPS_DATA_ONLY / NO_PLANNING_ACTION / OUTBOX NO_ACTION`
-- one canonical `기획 검토 필요` click created exactly one causal `PLANNING_IMPACT / RECORDED / OUTBOX PENDING` child
-- child correlation and causation both pointed to the root event as required
-- direct UIUX/CODING command = 0
-- fake DONE = 0
-- user ran fixed QA cleanup once
-- independent post-cleanup STAGING read-back: `ops_change_events=0`, `ops_outbox=0`, `OWNER_QA_FIXTURE residue=0`
+SELECT-only representative datum sizing, without insert:
 
-Primary evidence: `docs/coding/OPS_OWNER_QA_FIXTURE_DEPLOY_20260912.md` at `39c543968a1a8b47910988990b6af8effc87a00b`.
-Final cross-track evidence: `MSG-20260912-0061`, accepted/APPLIED by Planning.
-Closure decision: `MSG-20260912-0062`.
+- event row: 808 bytes
+- outbox row: 224 bytes
+- combined heap datum: 1,032 bytes
 
-## Preserved security / mutation boundary
+Conservative planning model uses 4 KiB per logical event+outbox pair. From the measured fixed baseline:
 
-- no real farm/account/business mutation for QA
-- no DB RBAC widening
-- no browser service-role or credential exposure
-- no credential read/reset/synthesis
-- no generic arbitrary-event debug endpoint
-- no Production/main mutation
-- no Production Supabase/R2 mutation
-- no live legacy Apps Script/Sheet/Drive mutation
+- 1k events ~4.14 MiB
+- 10k ~39.30 MiB
+- 100k ~390.86 MiB
+- 1M ~3.815 GiB
+
+Actual growth-rate calculation remains unavailable until multiple time-separated samples exist.
+
+## Report-only retention contract
+
+Migration 0020 adds only:
+
+- `code1_ops_retention_policy_proposal()`
+- `code1_ops_capacity_report(...)`
+- `code1_ops_retention_dry_run(...)`
+
+All are service-role-only and OWNER-authorized. anon/authenticated EXECUTE=false; service_role=true. RLS remains enabled on both OPS tables.
+
+The application actions are STAGING-only, fixed-empty-payload, server-side actions. No arbitrary SQL/debug payload is accepted. If no configured database limit is supplied, the capacity state is intentionally `WATCH / CONFIGURED_LIMIT_UNKNOWN`; no Supabase quota or paid plan is invented.
+
+No purge executor, DELETE/TRUNCATE/DROP path, trigger, pg_cron scheduler, automatic upgrade, archive destination or Production resource operation was created.
+
+## Retention proposal — NOT FROZEN
+
+- QA/test fixture: immediate cleanup; 1-day fallback alert
+- delivered / NO_ACTION outbox: 14-day terminal candidate
+- FAILED_RETRYABLE outbox: 30-day REVIEW_ONLY, not deletion-eligible
+- OPS_DATA_ONLY: 90-day terminal candidate only after `NO_PLANNING_ACTION + NO_ACTION`
+- PLANNING/UIUX/CODING impact: 180-day candidate only after `DONE + DELIVERED`
+- POLICY_APPROVAL_REQUIRED / INCIDENT: 365-day `ARCHIVE_REVIEW_ONLY`, not deletion-eligible
+
+This is `PROPOSAL_NOT_FROZEN`. Planning/user approval is required before policy freeze or any purge/archive activation.
+
+## Acceptance evidence
+
+Preview deployment `5cc9d7b...` = SUCCESS.
+
+Stable Preview read-only smoke at `bfae31d...`:
+
+- run `34677990898`, job `103511206750` = SUCCESS
+- page/assets 200
+- session configured=true/authenticated=false
+- `admin.ops.capacity.report` unauthenticated = 401
+- `admin.ops.retention.dryRun` unauthenticated = 401
+- remote mutation NONE
+
+CI on `bfae31d...`:
+
+- STAGING tests 162/162 PASS
+- npm audit 0
+- build PASS
+- root baseline: exactly five accepted pre-existing failures, no new failure
+
+Final STAGING readback:
+
+- events=0
+- outbox=0
+- OWNER_QA residue=0
+- relation sizes unchanged
+- database bytes=13,585,555, increase attributable to function/catalog metadata
+
+## Hard boundaries preserved
+
+- `AUTO_PURGE=FALSE`
+- `PAID_UPGRADE=FALSE`
+- `PRODUCTIONIZATION=NOT_DISPATCHED`
+- Production/main/Production Supabase/R2/live legacy Google mutation=0
+- credential read/reset/synthesis/provisioning=0
+- browser service-role exposure=0
+- retained non-synthetic deletion=0
+- scheduler activation=0
 
 ## Reserved work — NOT DISPATCHED
 
-### `WO-20260912-CODING-PRODUCTIONIZATION-001`
+- `WO-20260912-CODING-PRODUCTIONIZATION-001` remains `RESERVED / NOT_DISPATCHED`.
+- `WO-20260912-PLATFORM-REUSE-001` remains `RESERVED / DEFERRED / NOT_DISPATCHED`.
 
-Status remains `RESERVED / NOT_DISPATCHED`.
-
-Do not execute from the reserved Ledger entry. A new explicit Planning Bus dispatch is required even though the OPS closure trigger is now satisfied.
-
-Additional Planning cost/retention gate before Production activation:
-
-- define and verify bounded retention for `ops_change_events` and `ops_outbox`
-- terminal event/outbox rows require an explicit TTL/purge policy and capacity thresholds
-- synthetic/QA residue must be removed immediately after acceptance; current QA residue is already zero
-- Drive Planning SSOT remains durable policy/work-state authority; Supabase OPS tables are not a permanent archive for chat/Planning instructions
-- any paid-plan/resource activation requires explicit user/Planning approval
-
-### `WO-20260912-PLATFORM-REUSE-001`
-
-Status remains `RESERVED / DEFERRED / NOT_DISPATCHED`.
-
-Do not clone/extract the platform baseline until Planning explicitly activates the reserved program after Productionization/permanent-staging contracts are sufficiently stable.
+Do not start either from the reserved Ledger entry.
 
 ## NEXT_ATOMIC_ACTION
 
-1. Hold the current accepted staging checkpoint; no additional implementation is authorized by `MSG-0062`.
-2. On continuation, fresh-read CURRENT and the latest `PLANNING -> CODING` inbound before any work.
-3. Execute only a newly dispatched Planning Work Order.
-4. Do not self-start Productionization or Platform Reuse.
-5. Preserve Production/main/live mutation = 0 until explicitly authorized.
+1. Publish one consolidated `CODING -> PLANNING / IMPLEMENTATION_EVIDENCE` for `WO-20260912-CODING-OPS-RETENTION-001` after a fresh Bus-tail reconciliation.
+2. Update CODING TRACK_STATE from the live Bus state.
+3. Await Planning technical acceptance and separate retention-policy decision.
+4. Do not freeze TTLs, activate purge/archive, buy resources, or start Productionization without explicit Planning/user authority.
