@@ -10,7 +10,9 @@ Stable Preview: `https://coding-runtime-backend-stagi.code1-workspace.pages.dev`
 Production/main mutation: 0
 Live legacy Google mutation: 0
 PLANNING_DELTA_SEQ_SEEN = 20260912-008
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0057
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0058
+LAST_PLANNING_INBOUND_CONSUMED = MSG-20260912-0057
+LAST_CODING_OUTBOUND = MSG-20260912-0058
 
 ## Active work order
 
@@ -20,7 +22,7 @@ Planning inbound `MSG-20260912-0057` is consumed. Existing authorized-browser vi
 
 Planning requested exactly one synthetic/reversible STAGING QA event under the existing OPS contract, with no real business mutation and no credential/RBAC bypass.
 
-## MSG-0057 fixture preflight
+## MSG-0057 fixture preflight and blocker
 
 Existing code already contains the correct no-business-mutation contract:
 
@@ -28,7 +30,7 @@ Existing code already contains the correct no-business-mutation contract:
 - result JSON includes `mutationApplied:false`
 - `public.code1_ops_request_planning_review(...)` creates the causal `PLANNING_IMPACT` child event used by `admin.ops.review`
 
-Preflight STAGING readback:
+STAGING preflight and post-attempt readback:
 
 ```text
 ops_change_events = 0
@@ -54,7 +56,9 @@ A single attempted invocation through that read-only SQL session was denied by P
 
 Current Preview server actions expose `admin.ops.events` and `admin.ops.review`, but do not expose a generic manual-event creation action. The current execution environment also does not possess the user's authorized OWNER browser session.
 
-Therefore fixture preparation is `BLOCKED_CAPABILITY` under `MSG-0057`. Do not work around this by granting browser/read-only roles new privileges, adding an ad-hoc unauthenticated RPC/route, using a migration-owner path as a data-write bypass, or reading/resetting/synthesizing OWNER credentials/session secrets.
+Therefore fixture preparation is `BLOCKED_CAPABILITY` under `MSG-0057`. CODING did not work around this by granting browser/read-only roles new privileges, adding an ad-hoc RPC/route, using a migration-owner data-write bypass, or reading/resetting/synthesizing OWNER credentials/session secrets.
+
+The blocker was reported to Planning as `MSG-20260912-0058` after fresh append-target reconciliation and was read back successfully. CODING TRACK_STATE now has `pending_inbound=0`, `pending_outbound=1`, waiting for Planning disposition.
 
 ## OPS technical checkpoint
 
@@ -62,6 +66,7 @@ Primary evidence: `docs/coding/OPS_CHANGE_RELAY_EVIDENCE_20260912.md`.
 Canonical final evidence: `MSG-20260912-0053`.
 Planning closure-gate decision: `MSG-20260912-0056`.
 Planning partial-QA continuation: `MSG-20260912-0057`.
+CODING blocker report: `MSG-20260912-0058`.
 
 Applied Supabase STAGING migrations:
 
@@ -74,7 +79,7 @@ Technical acceptance remains PASS for atomicity/rollback, idempotency, six class
 
 The Work Order remains NOT CLOSED.
 
-Once a safe authorized server-side fixture creation capability is available, OWNER QA must verify:
+Once Planning provides or authorizes a safe existing-server write capability for the single QA fixture, OWNER QA must verify:
 
 - All / Planning / Incident / Failed / Done filters
 - event detail
@@ -95,7 +100,7 @@ No Production/main/Production Supabase/Production R2/live legacy Google mutation
 
 ## NEXT_ATOMIC_ACTION
 
-1. Report `MSG-0057` fixture creation as `BLOCKED_CAPABILITY` to Planning with the exact privilege/readback evidence.
-2. Do not add an unsafe bypass or widen RBAC.
-3. Fresh-read the Planning Bus after the blocker report and execute only a new explicit Planning disposition.
+1. Wait only for a new explicit Planning disposition responding to `MSG-20260912-0058`; do not invent a write path.
+2. On next continuation, fresh-read CURRENT and the latest Planning -> CODING inbound before any action.
+3. Do not widen RBAC, expose credentials, or mutate a real business entity for QA.
 4. Productionization and Platform Reuse remain non-executable.
