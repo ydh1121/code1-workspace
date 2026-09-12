@@ -2,10 +2,11 @@
 
 Updated: 2026-09-12 KST
 PLANNING_DELTA_SEQ_SEEN = 20260912-008
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0059
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0060
 LAST_PLANNING_INBOUND_CONSUMED = MSG-20260912-0059
+LAST_CODING_OUTBOUND = MSG-20260912-0060
 
-LAST_VERIFIED_ACTION: Planning `MSG-20260912-0059` dispatched `WO-20260912-CODING-OPS-QA-001`. CODING implemented and deployed a narrow authenticated OWNER-only, SUPABASE_STAGING-only fixed QA fixture create/cleanup capability. Complete staging CI and stable Preview read-only smoke are PASS. Actual authenticated OWNER visual/click QA has not been claimed and remains the closure gate.
+LAST_VERIFIED_ACTION: Planning `MSG-20260912-0059` dispatched `WO-20260912-CODING-OPS-QA-001`. CODING implemented and deployed a narrow authenticated OWNER-only, SUPABASE_STAGING-only fixed QA fixture create/cleanup capability. Complete staging CI and stable Preview read-only smoke are PASS. Implementation evidence was appended to Planning as `MSG-20260912-0060` and read back successfully. Actual authenticated OWNER visual/click QA has not been claimed and remains the closure gate.
 
 ## Durable implementation refs
 
@@ -14,6 +15,7 @@ LAST_VERIFIED_ACTION: Planning `MSG-20260912-0059` dispatched `WO-20260912-CODIN
 - Preview deployment marker: `b7c949ba6999ee8e37da4ce33f443fe8b59a6f6d`
 - live read-only smoke trigger: `d31d5bd7f1ca110985795e46e189c40707bc5d63`
 - evidence: `docs/coding/OPS_OWNER_QA_FIXTURE_DEPLOY_20260912.md`
+- cross-track implementation evidence: `MSG-20260912-0060`
 
 ## Capability contract
 
@@ -63,6 +65,15 @@ ops_outbox=0
 OWNER_QA_FIXTURE residue=0
 ```
 
+CODING TRACK_STATE after Bus readback:
+
+```text
+last_message_seen=MSG-20260912-0059
+pending_inbound=0
+pending_outbound=1
+outbound=MSG-20260912-0060
+```
+
 Production/main/live legacy Google mutation remains 0.
 
 ## Remaining user-authorized QA
@@ -87,7 +98,8 @@ Do not read/reset/synthesize OWNER credentials/session material to perform this 
 
 ## NEXT HANDOFF
 
-1. Fresh-read Bus append target and publish implementation/live-smoke evidence for `WO-20260912-CODING-OPS-QA-001`.
-2. After Bus readback, update CODING TRACK_STATE to `MSG-0059 consumed / OWNER QA ready`.
-3. Wait for actual user-authorized OWNER click QA; never fabricate PASS.
-4. After cleanup, verify QA event/outbox residue=0 before requesting parent OPS closeout.
+1. Await the user's existing authorized OWNER session visual/click QA.
+2. After the user confirms review-child behavior, run the fixed cleanup only.
+3. Independently verify QA event/outbox residue=0 and report final acceptance to Planning.
+4. Fresh-read Planning Bus before any further implementation.
+5. Do not self-start Productionization or Platform Reuse.
