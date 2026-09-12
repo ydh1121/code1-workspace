@@ -71,7 +71,7 @@ test('OWNER QA fixture create is fixed-template, STAGING-only and no-business-mu
 });
 
 test('OWNER QA fixture create keeps OWNER authorization at the existing server boundary',async()=>{
-  const nonOwner={...owner,account_id:'STAFF',role:'EDITOR'};
+  const nonOwner={...owner,account_id:'STAFF',role:'ADMIN'};
   const fetchImpl=route((u)=>{
     if(u.pathname==='/rest/v1/workspace_accounts')return [nonOwner];
     throw Error('unexpected '+u.pathname);
