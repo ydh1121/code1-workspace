@@ -1,55 +1,28 @@
 # CODE1 CODING BATON
 
 Updated: 2026-09-14 KST
-PLANNING_DELTA_SEQ_SEEN = 20260914-042
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260914-0093
-LAST_PLANNING_INBOUND_CONSUMED = MSG-20260913-0092
+PLANNING_DELTA_SEQ_SEEN = 20260914-044
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260914-0094
+LAST_PLANNING_INBOUND_CONSUMED = MSG-20260914-0094
 LAST_CODING_OUTBOUND = MSG-20260914-0093
 
-LAST_VERIFIED_ACTION: `WO-20260913-CODING-MATERIAL-INGEST-001 / REV B` reached STAGING technical PASS. Applied migrations `planning_material_workspace_0021`, `planning_material_acceptance_0022`, `planning_material_transactional_acceptance_0023` are present in Supabase STAGING; synthetic acceptance residue is 0; Cloudflare Pages Preview deploy and credential-free read-only live smoke passed. Canonical CODING evidence was appended to Planning as `MSG-20260914-0093`. Durable evidence is `docs/coding/PLANNING_MATERIAL_REV_B_EVIDENCE_20260914.md`.
+LAST_VERIFIED_ACTION: Planning `MSG-20260914-0094 / AUTH_BROWSER_QA_CONTINUATION` was consumed. User-provided authenticated OWNER screenshots exposed bounded Planning Material UI defects. Frontend-only UX polish was implemented, regression-tested, deployed to Cloudflare Pages STAGING and credential-free stable Preview smoke passed. Supabase migrations/schema, R2 contracts, RBAC, manifest and OPS contracts were not changed. Post-fix authenticated OWNER visual QA is now the immediate gate.
 
 ## Active authority
 
-Planning `MSG-20260913-0092 / Delta041` remains the controlling Work Order authority.
+`WO-20260913-CODING-MATERIAL-INGEST-001 / REV B`
 
-Planning Delta `20260914-042` was consumed at handoff as CODING-awareness only. It explicitly states REV B is already in progress, requires no duplicate dispatch, and makes no CODING scope change.
+Latest Planning authority: `MSG-20260914-0094 / Delta044`.
 
-`MSG-20260913-0091 / Delta040` is SUPERSEDED.
+REV B is already `TECHNICAL_ACCEPTED`. Do not replay migrations or expand scope. Fix only concrete bounded authenticated-browser QA defects.
 
-The domain is a separate internal `경영·기획` Planning Material workspace, not farm questionnaire intake.
+Underlying REV B domain correction remains `MSG-20260913-0092 / Delta041`; `MSG-20260913-0091 / Delta040` is SUPERSEDED.
 
-Exact tab contract:
+Exact internal tab contract remains:
 
 `기획문서` -> `상세페이지 및 제안서 파일` -> `해야 할 일`
 
-## Technical checkpoint
-
-Pre-work base: `a2a5a097dc27bf841ffe16c6c041ac08470011f9`.
-
-Preview deployment commit: `cea50d617566c1243f86874b7868ce4014e77112`.
-
-Read-only smoke technical checkpoint: `4b28c22a7efa64c348649d18018cd80e4f1a7ee7`.
-
-Durable evidence commit starts at `7012b64406b88d9abd24c28f40ebe34e1129bb96`; CURRENT/BATON closeout commits follow on the same staging branch.
-
-## Implemented REV B boundaries
-
-- additive Planning Material schema, not farm questionnaire model reuse
-- exact seven default material labels
-- versioned template mutations with immutable request snapshots
-- SUPER_ADMIN template add/rename/reorder/required/archive controls
-- separate PARTNER role with assigned-request-only upload access
-- unassigned access denied
-- private R2 original-byte authority
-- checksum/object-key/idempotency/version history
-- review/audit history
-- deterministic Planning manifest and checksum
-- non-public Planning source artifact
-- deduplicated Planning-impact OPS event/outbox on submission/review-ready transition
-- no public delivery by default
-- no Drive hot-path dual-write
-
-## Live acceptance read-back
+## Backend checkpoint — unchanged
 
 Supabase STAGING migrations:
 
@@ -57,62 +30,87 @@ Supabase STAGING migrations:
 - `planning_material_acceptance_0022`
 - `planning_material_transactional_acceptance_0023`
 
-Synthetic residue after transactional acceptance:
+Synthetic acceptance residue previously read back 0. No database migration or Production resource change occurred during UX polish.
 
-- QA accounts 0
-- QA template 0
-- QA media 0
-- QA request 0
-- Planning Material QA OPS events 0
+## UX defect correction checkpoint
 
-Cloudflare Pages deployment `cea50d61...`: SUCCESS.
+Authenticated OWNER pre-fix screenshots showed:
 
-Atomic Preview: `https://4f46d39c.code1-workspace.pages.dev`.
+- request card/title width collapse
+- irrelevant generic farm/account KPIs inside Planning Material tab
+- all request items fully expanded
+- weak file-selection affordance
+- upload-item manager horizontal scroll/clipped controls
+- raw internal classification codes visible
 
-Stable Preview: `https://coding-runtime-backend-stagi.code1-workspace.pages.dev`.
+Bounded correction checkpoints:
 
-Read-only Preview smoke PASS:
+- JS: `c3b6e70cc834065413442eca1e01198158e0ab8d`
+- CSS: `ae6fefa86dbb49372b1cf0237775340b164cf330`
+- focused UX test: `70900c7e81ec4d798bed2dd22002378cc2790b31`
+- Preview deploy: `69d78f5258df6e221cefb7a4b52723a0d3f6252a`
+- atomic Preview: `https://265aa4a1.code1-workspace.pages.dev`
+- stable Preview: `https://coding-runtime-backend-stagi.code1-workspace.pages.dev`
+- stable Preview smoke trigger/checkpoint: `5ecce9f6f7877c7673a650d7eb98bf83aae8c208`
 
-- root and required JS/CSS assets 200
-- dynamic module loader contract PASS
-- session configured=true, authenticated=false
-- unauthenticated Planning Material bootstrap/get/upload-begin/submit RPCs -> 401 `UNAUTHENTICATED`
+New UI contract:
+
+- full-width request rows
+- material-specific operational metrics
+- item accordions with file/submission/review summary
+- improved selected-file/drag-drop affordance while retaining existing private-R2 upload RPCs
+- wide upload-item manager without horizontal scrolling
+- human-readable classification labels
+- ↑/↓ ordering controls
+- sticky save/cancel footer
+- 390px no-horizontal-overflow responsive contract
+
+## Verification read-back
+
+`70900c7e...` isolated-node-checks = SUCCESS.
+
+Cloudflare Pages `69d78f52...` = SUCCESS.
+
+Credential-free stable Preview smoke at `5ecce9f6...` = SUCCESS:
+
+- root + accounts/material JS/CSS 200
+- dynamic loader PASS
+- session configured=true / authenticated=false
+- material bootstrap/get/upload-begin/submit fail closed with 401 when unauthenticated
 - remote mutation NONE
 
-GitHub isolated-node-checks at final technical checkpoint: SUCCESS.
+`5ecce9f6...` isolated-node-checks = SUCCESS.
 
-## Handoff read-back
+## Remaining authenticated QA
 
-Message Bus contains canonical `MSG-20260914-0093` CODING -> PLANNING implementation evidence.
+OWNER post-fix visual/click QA must be performed through the user's existing authorized session. Do not read/reset/synthesize credentials and do not infer PASS from credential-free smoke.
 
-CODING TRACK_STATE read-back:
+Required immediate visual checks:
 
-- planning delta seen = `20260914-042`
-- last message seen = `MSG-20260914-0093`
-- pending inbound = 0
-- pending outbound = 1
-- banner = REV B TECHNICAL PASS / Planning review pending
+1. Material tab shows material-specific metrics instead of generic farm/account metrics.
+2. Request title/row no longer collapses vertically.
+3. Request detail renders compact accordion items.
+4. Upload item manager fits without horizontal scroll; classification labels are human-readable; save actions remain reachable.
+5. Desktop page/console errors = 0.
+6. 390px horizontal overflow = 0 when evidence is available.
 
-## Remaining acceptance gate
-
-Authenticated OWNER/PARTNER visual/click browser acceptance is not claimed. CODING did not read, reset, synthesize or expose credentials to fabricate this gate.
-
-Planning may accept the technical closeout as-is, request explicit authorized browser acceptance, or dispatch a follow-on Work Order. CODING must not infer that decision.
+PARTNER authenticated access/denial click QA remains pending under `MSG-0094` unless a newer Planning disposition changes that gate.
 
 ## Hard boundaries
 
 - Production/main/live mutation = 0
 - Production Supabase/R2 mutation = 0
-- credentials = unchanged
+- credentials unchanged/not accessed
+- Drive hot-path write = 0
 - paid resources = none
-- Drive hot-path write = none
 - automatic VERIFIED/APPROVED_CURRENT/public delivery = none
 - DESIGN/Figma/HOME/UIUX = untouched
 - retention freeze/purge = none
 
 ## NEXT HANDOFF
 
-1. Fresh-read Message Bus and CODING TRACK_STATE when work resumes.
-2. Wait for Planning disposition of `MSG-20260914-0093`.
-3. If Planning requests authenticated OWNER/PARTNER browser acceptance, preserve the security boundary and do not invent a PASS.
-4. Do not auto-start Drive mirroring, Productionization, or unrelated work.
+1. Get fresh post-fix screenshots from the existing authorized OWNER session after hard refresh.
+2. Evaluate visible defects/click paths only; fix only bounded defects and rerun impacted checks.
+3. Complete required OWNER/PARTNER auth QA or explicitly report remaining gate.
+4. Publish CODING -> PLANNING evidence for `MSG-0094` only after the authenticated QA status is truthfully known.
+5. Do not auto-start Drive mirroring, Productionization or unrelated work.
