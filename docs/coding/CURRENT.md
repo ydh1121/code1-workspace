@@ -1,103 +1,66 @@
 # CODE1 CODING CURRENT
 
-Updated: 2026-09-12 KST
-Status: OPS RETENTION/CAPACITY TECHNICAL PASS / MSG-0064 PENDING PLANNING
+Updated: 2026-09-14 KST
+Status: MATERIAL WORKSPACE REV B ACTIVE / STAGING ONLY
 Branch: `coding/runtime-backend-staging`
 Base main: `a71a71eae73706862308e194110f4fcc2d25db01`
 Supabase STAGING: `bsintmkyhptizrjoizfb`
 Stable Preview: `https://coding-runtime-backend-stagi.code1-workspace.pages.dev`
 Production/main mutation: 0
+Production Supabase/R2 mutation: 0
 Live legacy Google mutation: 0
-PLANNING_DELTA_SEQ_SEEN = 20260912-008
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260912-0064
-LAST_PLANNING_INBOUND_CONSUMED = MSG-20260912-0063
+PLANNING_DELTA_SEQ_SEEN = 20260913-041
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260913-0092
+LAST_PLANNING_INBOUND_CONSUMED = MSG-20260912-0065
 LAST_CODING_OUTBOUND = MSG-20260912-0064
 
-## Current work order
+## Retention acceptance consumed
 
-`WO-20260912-CODING-OPS-RETENTION-001` was dispatched by Planning `MSG-20260912-0063` as a STAGING-only, non-destructive retention/capacity hardening task after the parent OPS Relay closure.
+Planning `MSG-20260912-0065 / RETENTION_TECHNICAL_ACCEPTANCE` is now durable-consumed. `WO-20260912-CODING-OPS-RETENTION-001` is TECHNICAL ACCEPTED / CLOSED. Migration `ops_retention_capacity_guard_0020`, report-only/dry-run contracts, RBAC, Preview and CI evidence from `MSG-0064` are accepted.
 
-CODING technical implementation and verification are complete. Consolidated evidence was published to Planning as `MSG-20260912-0064`; Planning acceptance and retention-policy decision are pending.
+Retention policy remains `PROPOSAL_NOT_FROZEN`; `AUTO_PURGE=FALSE`. No purge/archive scheduler, destructive cleanup, paid upgrade or Productionization is authorized.
 
-## Durable implementation refs
+## Current Planning authority
 
-- starting branch checkpoint: `9a36b7074bc56833aae730ad6ac313a6c1408d04`
-- implementation/test head: `3993d50be6d388ddd5391e4035aab4d9d781a000`
-- Preview deployment marker: `5cc9d7b467b5ec0f974e35a513f2e605fb4d7500`
-- final live smoke/test head: `bfae31df267943d86dd3d02f170f048b6112dd43`
-- evidence: `docs/coding/OPS_RETENTION_CAPACITY_EVIDENCE_20260912.md`
-- STAGING migration: `ops_retention_capacity_guard_0020`
-- final Bus evidence: `MSG-20260912-0064`
+Planning Delta `20260913-041` and `MSG-20260913-0092` activate `WO-20260913-CODING-MATERIAL-INGEST-001 / REV B` at P0, STAGING ONLY.
 
-## Measured baseline / capacity model
+`MSG-20260913-0091 / Delta040` is SUPERSEDED and must not be executed.
 
-Pre-change STAGING readback:
+REV B defines an `INTERNAL PLANNING MATERIAL WORKSPACE`, separate from farm intake/questionnaire. Exact internal menu label and order:
 
-- `ops_change_events`: rows 0 / total 147,456 bytes
-- `ops_outbox`: rows 0 / total 98,304 bytes
-- combined empty relation footprint: 245,760 bytes
-- database bytes before 0020: 13,569,171
-- OWNER QA residue: 0
-- eleven OPS indexes present
-- actual average retained row/growth rate unavailable because both tables were empty
+1. `기획문서`
+2. `상세페이지 및 제안서 파일`
+3. `해야 할 일`
 
-SELECT-only representative datum sizing, without insert: event 808 bytes + outbox 224 bytes = 1,032 bytes.
+The farm-domain primary models `question_catalog`, `intake_submissions`, `submission_answers`, and farm questionnaire workflow must not be used as the Planning Material business model. Shared domain-neutral primitives must be reused where safe: workspace auth/RBAC, private R2 multipart upload/retry/recovery, SHA-256/object keys/idempotency, safe media validation, audit_log, ops event/outbox, and protected server-side file retrieval/export.
 
-Conservative planning model uses 4 KiB per logical event+outbox pair: 1k ~4.14 MiB; 10k ~39.30 MiB; 100k ~390.86 MiB; 1M ~3.815 GiB.
+External uploaders must have least privilege to assigned material requests only. FARMER role must not be repurposed merely for convenience. Anonymous unrestricted upload is forbidden.
 
-## Report-only retention contract
+## Material workspace hard boundaries
 
-Migration 0020 adds only service-role/OWNER-authorized report functions and exposes two fixed-empty-payload STAGING server actions:
+- STAGING ONLY
+- operational structured authority = Supabase STAGING
+- original file bytes = private R2
+- Google Drive is not in the upload hot path and is not dual-written
+- default sensitive material = `INTERNAL_RESTRICTED`
+- `public_delivery_allowed=false` by default
+- upload does not imply VERIFIED, APPROVED_CURRENT, or public delivery
+- Production/main/live mutation = 0
+- Production Supabase/R2 mutation = 0
+- credential mutation = 0
+- paid-resource activation = 0
+- DESIGN/Figma/HOME/UIUX modification = 0
+- retention policy freeze/purge = 0
 
-- `admin.ops.capacity.report`
-- `admin.ops.retention.dryRun`
+## Current execution checkpoint
 
-anon/authenticated EXECUTE=false; service_role=true. RLS remains enabled. Direct invocation from the read-only SQL connector was denied.
-
-If configured DB limit is unknown, capacity reports `WATCH / CONFIGURED_LIMIT_UNKNOWN`; no quota or paid plan is invented.
-
-No purge executor, DELETE/TRUNCATE/DROP path, trigger, pg_cron scheduler, automatic upgrade, archive destination, arbitrary SQL/debug path or Production resource operation exists.
-
-## Retention proposal — PROPOSAL_NOT_FROZEN
-
-- QA/test fixture: immediate cleanup; 1-day fallback alert
-- delivered / NO_ACTION outbox: 14-day terminal candidate
-- FAILED_RETRYABLE outbox: 30-day REVIEW_ONLY
-- OPS_DATA_ONLY: 90-day terminal candidate after `NO_PLANNING_ACTION + NO_ACTION`
-- PLANNING/UIUX/CODING impact: 180-day candidate after `DONE + DELIVERED`
-- POLICY_APPROVAL_REQUIRED / INCIDENT: 365-day `ARCHIVE_REVIEW_ONLY`
-
-Planning/user approval is required before policy freeze or purge/archive activation.
-
-## Acceptance evidence
-
-Preview deployment `5cc9d7b...` = SUCCESS.
-
-Stable Preview smoke at `bfae31d...`, run `34677990898`, job `103511206750` = SUCCESS. Both new report actions fail closed unauthenticated with 401; remote mutation NONE.
-
-CI on `bfae31d...`: STAGING tests 162/162 PASS; npm audit 0; build PASS; root baseline exactly five accepted pre-existing failures, no new failures.
-
-Final STAGING readback: events=0, outbox=0, OWNER_QA residue=0, relation sizes unchanged, database bytes=13,585,555.
-
-## Hard boundaries preserved
-
-- `AUTO_PURGE=FALSE`
-- `PAID_UPGRADE=FALSE`
-- `PRODUCTIONIZATION=NOT_DISPATCHED`
-- Production/main/Production Supabase/R2/live legacy Google mutation=0
-- credential read/reset/synthesis/provisioning=0
-- browser service-role exposure=0
-- retained non-synthetic deletion=0
-- scheduler activation=0
-
-## Reserved work — NOT DISPATCHED
-
-- `WO-20260912-CODING-PRODUCTIONIZATION-001` remains `RESERVED / NOT_DISPATCHED`.
-- `WO-20260912-PLATFORM-REUSE-001` remains `RESERVED / DEFERRED / NOT_DISPATCHED`.
+Fresh Git readback before REV B implementation: `coding/runtime-backend-staging` at `a2a5a097dc27bf841ffe16c6c041ac08470011f9`. CURRENT/BATON were stale at MSG-0064 and are being advanced before any material-workspace implementation.
 
 ## NEXT_ATOMIC_ACTION
 
-1. Fresh-read CURRENT and latest `PLANNING -> CODING` inbound.
-2. Await Planning disposition on `MSG-20260912-0064` and retention-policy proposal.
-3. Do not freeze TTLs, activate purge/archive, buy resources, or self-start Productionization/Platform Reuse.
-4. Execute only a newly dispatched Planning Work Order.
+1. Finish durable BATON sync for MSG-0065/MSG-0092.
+2. Fresh-read actual Supabase STAGING migrations/schema and current admin/RBAC/media/R2 implementation.
+3. Design the smallest additive Planning Material domain schema without farm-intake model abuse.
+4. Implement only `MSG-0092 / Delta041 / REV B` on staging.
+5. Run required security/domain/version/manifest/mobile/desktop QA and publish CODING -> PLANNING evidence.
+6. Stop after Planning evidence; do not auto-start Drive mirroring or Productionization.
