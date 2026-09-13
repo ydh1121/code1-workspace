@@ -10,9 +10,9 @@ Production/main mutation: 0
 Production Supabase/R2 mutation: 0
 Live legacy Google mutation: 0
 PLANNING_DELTA_SEQ_SEEN = 20260914-042
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260913-0092
-LAST_PLANNING_INBOUND_CONSUMED = MSG-20260912-0065
-LAST_CODING_OUTBOUND = MSG-20260912-0064
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260914-0093
+LAST_PLANNING_INBOUND_CONSUMED = MSG-20260913-0092
+LAST_CODING_OUTBOUND = MSG-20260914-0093
 
 ## Current Planning authority
 
@@ -92,6 +92,10 @@ Read-only live smoke against stable branch Preview = SUCCESS:
 
 Authenticated OWNER/PARTNER visual/click browser acceptance is not claimed. No credentials were read, reset, synthesized or exposed to fabricate QA.
 
+## Handoff status
+
+`MSG-20260914-0093` was appended CODING -> PLANNING as canonical REV B implementation evidence after fresh Bus reconciliation. CODING TRACK_STATE was read back as Delta042 seen, last message `MSG-0093`, pending inbound 0, pending outbound 1, technical-pass / Planning-review-pending.
+
 ## Hard boundaries preserved
 
 - STAGING ONLY
@@ -109,7 +113,7 @@ Authenticated OWNER/PARTNER visual/click browser acceptance is not claimed. No c
 
 ## NEXT_ATOMIC_ACTION
 
-1. Publish one CODING -> PLANNING implementation evidence message for REV B after fresh Bus range reconciliation.
-2. Mark CODING track as technical-pass / Planning-review-pending.
-3. Stop implementation after evidence handoff unless Planning issues a new explicit instruction.
+1. Fresh-read Message Bus and CODING TRACK_STATE when work resumes.
+2. Wait for Planning disposition of `MSG-20260914-0093`.
+3. If Planning requires authorized OWNER/PARTNER visual/click acceptance, do not fabricate it or access/reset/synthesize credentials.
 4. Do not auto-start Drive mirroring, Productionization, retention freeze/purge, or cross-track design/UI work.
