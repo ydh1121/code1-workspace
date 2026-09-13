@@ -1,7 +1,7 @@
 # CODE1 CODING CURRENT
 
 Updated: 2026-09-14 KST
-Status: MATERIAL WORKSPACE REV B TECHNICAL ACCEPTED / AUTH OWNER QA CONTINUATION / UX POLISH DEPLOYED / STAGING ONLY
+Status: MATERIAL WORKSPACE REV B TECHNICAL ACCEPTED / MSG-0094 AUTH QA CONTINUATION / UX DEFECT BATCH 2 DEPLOYED / OWNER RECHECK PENDING / STAGING ONLY
 Branch: `coding/runtime-backend-staging`
 Base main: `a71a71eae73706862308e194110f4fcc2d25db01`
 Supabase STAGING: `bsintmkyhptizrjoizfb`
@@ -18,97 +18,88 @@ LAST_CODING_OUTBOUND = MSG-20260914-0093
 
 Planning `MSG-20260914-0094 / Delta044 / AUTH_BROWSER_QA_CONTINUATION` is the latest CODING authority for `WO-20260913-CODING-MATERIAL-INGEST-001 / REV B`, STAGING ONLY.
 
-Planning already marked the REV B implementation `TECHNICAL_ACCEPTED`. `MSG-0094` does not authorize schema expansion or migration replay. It authorizes authenticated OWNER/PARTNER browser QA on stable STAGING Preview and bounded fixes only for concrete QA defects.
+REV B remains `TECHNICAL_ACCEPTED`. Do not replay migrations or expand scope. Only concrete authenticated-browser QA defects may be corrected. `MSG-20260913-0092 / Delta041` remains the underlying REV B domain correction; `MSG-20260913-0091 / Delta040` is SUPERSEDED.
 
-`MSG-20260913-0091 / Delta040` remains SUPERSEDED. `MSG-20260913-0092 / Delta041` remains the controlling REV B domain correction underneath the QA continuation.
+Exact internal tab order remains `기획문서` -> `상세페이지 및 제안서 파일` -> `해야 할 일`.
 
-Exact internal tab order remains:
+## Backend contracts — unchanged
 
-1. `기획문서`
-2. `상세페이지 및 제안서 파일`
-3. `해야 할 일`
-
-## Technical implementation status
-
-Applied Supabase STAGING migrations remain unchanged and read back live:
+Supabase STAGING migrations remain:
 
 - `planning_material_workspace_0021`
 - `planning_material_acceptance_0022`
 - `planning_material_transactional_acceptance_0023`
 
-No migration was replayed for UX polish.
+No migration/schema/R2/RBAC/manifest/OPS contract was changed by UX defect batch 2. Existing `planning_material_template_items.item_key + classification_hint` and request-item snapshots are sufficient to model classification -> independent child item -> input/file/review history without schema expansion.
 
-Core REV B implementation remains unchanged: separate Planning Material domain, exact seven defaults, SUPER_ADMIN versioned template controls, PARTNER assigned-request-only access, private R2 multipart/checksum/idempotency, immutable request snapshots, review/audit history, deterministic Planning manifest, and deduplicated `PLANNING_IMPACT` OPS event/outbox.
+## Authenticated OWNER QA defect batch 2
 
-## Authenticated OWNER QA defect intake and bounded UX fix
+Fresh user screenshots exposed four concrete defects:
 
-User-provided authenticated OWNER screenshots exposed concrete interface defects on stable STAGING Preview:
+1. developer-facing Planning export manifest was visible in the normal operator workflow;
+2. request-item body mixed submission state, memo, upload and review controls into one dense surface;
+3. template manager was still visually cramped and flat despite `classification_hint`, making child-item structure unclear;
+4. new-request assignee UI filtered to `PARTNER` only, hiding internal accounts even though the server accepts any active account assignment.
 
-- request tile width collapsed and Korean title text wrapped vertically one character at a time
-- generic farm/account KPI cards were contextually wrong inside the Planning Material tab
-- all seven request items were expanded at once, producing excessive scroll and repeated controls
-- browser-native file selection gave weak selected-file feedback
-- upload-item manager modal required horizontal scrolling and clipped classification controls
-- internal classification codes were exposed directly to users
+The account permission dialog also used implementation vocabulary (`Planning Material`, `package`, `request`, `Fact`) rather than operator-facing descriptions.
 
-Bounded frontend-only correction was applied. Data model, RPC actions, Supabase schema, R2 contracts, RBAC, manifest and OPS contracts were not changed.
+## UX defect batch 2 implementation
 
-UX polish commits/checkpoints:
+Application checkpoints:
 
-- JS UX correction: `c3b6e70cc834065413442eca1e01198158e0ab8d`
-- CSS responsive/layout correction: `ae6fefa86dbb49372b1cf0237775340b164cf330`
-- focused UX regression test: `70900c7e81ec4d798bed2dd22002378cc2790b31`
-- Cloudflare Preview deployment: `69d78f5258df6e221cefb7a4b52723a0d3f6252a`
-- deployed atomic Preview: `https://265aa4a1.code1-workspace.pages.dev`
+- request-detail / grouped-template / assignee JS: `e86bb66afaff7dab63cc9bb32900616e06e0164c`
+- responsive/grouped CSS: `3a2bf1dd095e4cc7496ed0fc9a5c29932e1d015d`
+- operator-facing permission copy: `3d8084e8836602a714ed92a4942edef17c13ac65`
+- focused regression test checkpoint: `691588838dec7d4c07d0be5ad3d45e9d9b660c5c`
+- atomic Preview: `https://d7f4692c.code1-workspace.pages.dev`
 - stable Preview: `https://coding-runtime-backend-stagi.code1-workspace.pages.dev`
-- smoke trigger/docs checkpoint: `5ecce9f6f7877c7673a650d7eb98bf83aae8c208`
+- stable smoke checkpoint: `1bb1b7b5ca24a33eaf9a13f26c5f33f644085795`
 
-Implemented UI changes:
+Implemented behavior:
 
-- full-width operational request rows instead of collapsing card grid
-- material-specific summary metrics: 전체 요청 / 요청 중 / 제출 완료 / 검토 대기
-- compact `<details>` accordion for request items with submission/review/file-count summaries
-- clearer progress summary including file count, verified count and needs-info/rejected count
-- improved file picker with selected file names/sizes and drag/drop affordance; existing upload RPCs retained
-- wider upload-item manager with no horizontal scrolling, human classification labels, ↑/↓ ordering controls and sticky save/cancel footer
-- explicit 390px no-horizontal-overflow responsive rules retained
+- normal UI no longer exposes `Planning manifest 보기` / manifest JSON modal; deterministic backend manifest remains intact;
+- each request child item has explicit `직접 입력`, `파일 첨부`, and internal-only `내부 검토` sections;
+- direct input and uploaded originals are visually and operationally separated while keeping the existing item/file/revision RPC model;
+- template manager is now `요청 항목 구성 관리`, grouped by human-readable classification with independent child items;
+- each child item supports name, submission guidance, required/active status, within-category ordering and classification move;
+- no new DB table/column was introduced; `classification_hint` is the category and `item_key` is the independent child-item identity;
+- new request assignee list now shows eligible internal and external active accounts, rather than PARTNER-only filtering;
+- assigned-only uploader use still requires existing `MATERIAL_UPLOAD_ASSIGNED` authority when the account is not otherwise an internal material operator;
+- permission catalog text was rewritten to operator-facing Korean while capability IDs and authorization semantics remain unchanged.
 
-## QA / Preview
+## Verification
 
-Focused pre-deploy `isolated-node-checks` at `70900c7e...` = SUCCESS.
+At `691588838...`:
 
-Cloudflare Pages deployment at `69d78f52...` = SUCCESS.
+- GitHub `isolated-node-checks` = SUCCESS
+- Cloudflare Pages = SUCCESS
+- atomic Preview = `https://d7f4692c.code1-workspace.pages.dev`
 
-Credential-free stable Preview smoke at `5ecce9f6...` = SUCCESS:
+Credential-free stable Preview smoke at `1bb1b7b5...` = SUCCESS:
 
 - `/` 200
 - `/assets/accounts.js` 200
 - `/assets/planning-materials.js` 200
 - `/assets/planning-materials.css` 200
 - session configured=true / authenticated=false
-- unauthenticated `planning.material.bootstrap` -> 401 `UNAUTHENTICATED`
-- unauthenticated `planning.material.request.get` -> 401 `UNAUTHENTICATED`
-- unauthenticated `planning.material.upload.begin` -> 401 `UNAUTHENTICATED`
-- unauthenticated `planning.material.request.submit` -> 401 `UNAUTHENTICATED`
+- unauthenticated material bootstrap/get/upload-begin/submit RPCs -> 401 `UNAUTHENTICATED`
 - dynamic loader contract PASS
 - remote mutation NONE
 
-Final docs-only checkpoint `5ecce9f6...` isolated-node-checks = SUCCESS.
+`1bb1b7b5...` isolated-node-checks = SUCCESS.
 
 ## Remaining acceptance gate
 
-The user has an existing authorized OWNER browser session and supplied pre-fix screenshots. Post-fix authenticated visual/click acceptance is still pending and must be based on fresh user-visible evidence; CODING must not invent a PASS.
+Authenticated OWNER post-fix visual/click recheck is still required; do not invent PASS. The next user-visible recheck should verify:
 
-Next visual checks on the stable Preview:
+- manifest control is absent from normal request detail;
+- item body clearly separates direct input / file attachment / internal review;
+- `요청 항목 구성 관리` is wide, category-grouped, and exposes independent child items without horizontal clipping;
+- new request shows internal and external assignee candidates as expected;
+- account permission labels/descriptions are understandable without internal developer terminology;
+- desktop errors = 0 and 390px overflow = 0 when evidence is available.
 
-- material-specific metrics replace generic farm/account metrics in this tab
-- request title no longer collapses vertically
-- request detail uses compact accordion rows
-- upload item manager has no horizontal scroll and shows human classification labels
-- desktop page/console errors = 0
-- 390px horizontal overflow = 0
-
-PARTNER authenticated QA remains separately required by `MSG-0094` unless Planning later narrows or accepts evidence.
+PARTNER/assigned-account authenticated access/denial QA remains required by `MSG-0094` unless a newer Planning message changes the gate.
 
 ## Hard boundaries preserved
 
@@ -125,8 +116,8 @@ PARTNER authenticated QA remains separately required by `MSG-0094` unless Planni
 
 ## NEXT_ATOMIC_ACTION
 
-1. Ask the user to hard-refresh the stable Preview in the existing authorized OWNER session and provide post-fix desktop screenshots; also collect a 390px view when practical.
-2. Assess only the visible/click paths actually demonstrated; do not fabricate OWNER/PARTNER QA.
-3. Fix only concrete bounded defects discovered by that QA and rerun impacted tests/smoke.
-4. After the authorized QA gate is complete, publish one CODING -> PLANNING implementation evidence message referencing `MSG-0094`.
-5. Do not auto-start Drive mirroring, Productionization, retention freeze/purge, or unrelated cross-track work.
+1. Recheck the four corrected surfaces in the user's existing authorized OWNER session after hard refresh.
+2. Assess only evidence actually shown; fix only additional bounded defects and rerun impacted checks.
+3. Complete assigned-account/PARTNER authorization QA or truthfully preserve the remaining gate.
+4. Publish one CODING -> PLANNING evidence message for `MSG-0094` only after authenticated QA status is known.
+5. Do not auto-start Drive mirroring, Productionization, retention work or unrelated cross-track work.
