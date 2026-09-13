@@ -9,14 +9,16 @@ Stable Preview: `https://coding-runtime-backend-stagi.code1-workspace.pages.dev`
 Production/main mutation: 0
 Production Supabase/R2 mutation: 0
 Live legacy Google mutation: 0
-PLANNING_DELTA_SEQ_SEEN = 20260913-041
+PLANNING_DELTA_SEQ_SEEN = 20260914-042
 CROSS_TRACK_BUS_LAST_SEEN = MSG-20260913-0092
 LAST_PLANNING_INBOUND_CONSUMED = MSG-20260912-0065
 LAST_CODING_OUTBOUND = MSG-20260912-0064
 
 ## Current Planning authority
 
-Planning `MSG-20260913-0092 / Delta041` is the active authority for `WO-20260913-CODING-MATERIAL-INGEST-001 / REV B`, STAGING ONLY.
+Planning `MSG-20260913-0092 / Delta041` remains the active authority for `WO-20260913-CODING-MATERIAL-INGEST-001 / REV B`, STAGING ONLY.
+
+Planning Delta `20260914-042` was consumed at the current handoff boundary as CODING-awareness only. It explicitly states that REV B is already in progress, no duplicate dispatch is required, and there is no CODING scope change.
 
 `MSG-20260913-0091 / Delta040` is SUPERSEDED and was not executed as authority.
 
