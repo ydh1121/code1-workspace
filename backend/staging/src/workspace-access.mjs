@@ -1,9 +1,11 @@
 import {parsePermissions} from './core.mjs';
 
 export const ACCESS_CAPABILITIES=Object.freeze([
-  'PAGE_FARM','PAGE_DECK','PAGE_PLANNING','PAGE_INPUT_POLICY','PAGE_ACCOUNTS',
+  'PAGE_FARM','PAGE_DECK','PAGE_PLANNING','PAGE_PLANNING_MATERIALS','PAGE_INPUT_POLICY','PAGE_ACCOUNTS',
   'FARM_EDIT','FARM_REVIEW','DECK_EDIT','DECK_EXPORT',
-  'PLANNING_EDIT','PLANNING_FEEDBACK','ACCOUNT_MANAGE','INPUT_POLICY_MANAGE',
+  'PLANNING_EDIT','PLANNING_FEEDBACK',
+  'MATERIAL_REQUEST_MANAGE','MATERIAL_REVIEW','MATERIAL_TEMPLATE_MANAGE','MATERIAL_UPLOAD_ASSIGNED',
+  'ACCOUNT_MANAGE','INPUT_POLICY_MANAGE',
   'EXECUTIVE_BRIEF_VIEW','FACT_SUBMIT','FACT_VERIFY','FACT_APPROVE_CURRENT'
 ]);
 
@@ -11,7 +13,8 @@ export const ACCESS_CATALOG=Object.freeze([
   {group:'페이지',items:[
     ['PAGE_FARM','농가 자료','농가 자료 페이지를 표시합니다.'],
     ['PAGE_DECK','아자몰 제안서','제안서 페이지를 표시합니다.'],
-    ['PAGE_PLANNING','경영·기획','경영 브리프·기획문서·피드백 페이지를 표시합니다.'],
+    ['PAGE_PLANNING','경영·기획','기획문서·해야 할 일·Fact 등 내부 경영기획 페이지를 표시합니다.'],
+    ['PAGE_PLANNING_MATERIALS','상세페이지 및 제안서 파일','내부 Planning Material 요청·검토 페이지를 표시합니다.'],
     ['PAGE_INPUT_POLICY','입력 항목 관리','입력 항목 정책 관리 페이지를 표시합니다.'],
     ['PAGE_ACCOUNTS','계정','내 계정 또는 계정 관리 페이지를 표시합니다.']
   ]},
@@ -26,10 +29,16 @@ export const ACCESS_CATALOG=Object.freeze([
   {group:'경영·기획',items:[
     ['PLANNING_EDIT','기획문서 수정','기획문서 Working Copy를 새 revision으로 저장합니다.'],
     ['PLANNING_FEEDBACK','경영진 피드백','기획문서 전체 또는 섹션에 피드백을 남깁니다.'],
+    ['MATERIAL_REQUEST_MANAGE','Planning 자료요청 관리','상세페이지·납품제안서 자료요청 package를 만들고 제출자를 배정합니다.'],
+    ['MATERIAL_REVIEW','Planning 자료 검토','제출된 Planning 자료를 검토하고 추가정보·검증·반려 상태를 처리합니다.'],
+    ['MATERIAL_TEMPLATE_MANAGE','업로드 항목 관리','Planning Material template 항목·순서·필수여부·활성상태를 관리합니다.'],
     ['EXECUTIVE_BRIEF_VIEW','Executive Brief 조회','승인된 Executive Brief를 조회합니다.'],
     ['FACT_SUBMIT','Fact 접수','검증할 사업 Fact를 접수합니다.'],
     ['FACT_VERIFY','Fact 검증','증빙 요청·수신·검증 상태를 처리합니다.'],
     ['FACT_APPROVE_CURRENT','Fact 현재값 승인','검증된 Fact를 현재 승인값으로 확정합니다.']
+  ]},
+  {group:'외부 자료 제출',items:[
+    ['MATERIAL_UPLOAD_ASSIGNED','배정된 자료요청 제출','자신에게 배정된 Planning Material request의 파일·메모만 제출합니다. 경영·기획 전체 권한은 포함하지 않습니다.']
   ]},
   {group:'관리',items:[
     ['ACCOUNT_MANAGE','계정 관리','계정 생성·수정·삭제와 권한 저장을 허용합니다.'],
@@ -52,6 +61,8 @@ function legacyCapabilities(actor){
     if(p.deck!=='none'){out.add('PAGE_DECK');out.add('DECK_EXPORT');}
     if(p.deck==='edit')out.add('DECK_EDIT');
   }
+  // PARTNER intentionally receives no business page from legacy fallback.
+  // OWNER must initialize an explicit access profile before assigned request upload is available.
   return out;
 }
 
