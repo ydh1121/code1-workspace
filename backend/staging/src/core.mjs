@@ -1,4 +1,4 @@
-export const ROLES = new Set(['SUPER_ADMIN','ADMIN','FARMER']);
+export const ROLES = new Set(['SUPER_ADMIN','ADMIN','FARMER','PARTNER']);
 export const FARM_LEVELS = new Set(['none','view','edit']);
 export const DECK_LEVELS = new Set(['none','view','edit']);
 export const POLICY_REASON_CODES = new Set(['DUPLICATE','DERIVED','NOT_APPLICABLE','LATER_PHASE','COLLECT_LATER','SENSITIVE','LOW_VALUE','OTHER']);
@@ -9,10 +9,13 @@ export function publicAccount(row, farmIds = []) {
   if (!row || row.archived_at || !ROLES.has(row.role) || !['active','disabled'].includes(row.status)) throw Error('UNAUTHENTICATED');
   if (row.role === 'SUPER_ADMIN' && row.account_id !== 'OWNER') throw Error('FORBIDDEN');
   const admin = row.role === 'SUPER_ADMIN' || row.role === 'ADMIN';
+  const farmer = row.role === 'FARMER';
   const raw = parsePermissions(row.permissions_json);
   const permissions = admin
     ? {farm:'edit',deck:'edit',farmIds:[],allFarms:true,accounts:true,review:true}
-    : {farm:raw.farm,deck:raw.deck,farmIds:[...farmIds],allFarms:false,accounts:false,review:false};
+    : farmer
+      ? {farm:raw.farm,deck:raw.deck,farmIds:[...farmIds],allFarms:false,accounts:false,review:false}
+      : {farm:'none',deck:'none',farmIds:[],allFarms:false,accounts:false,review:false};
   return {
     id: row.account_id,
     username: row.username,
@@ -68,6 +71,11 @@ export function safeObjectKeyPart(value, fallback='item') {
 export function privateObjectKey({farmId, submissionId, mediaId, fileName}) {
   if (!farmId || !submissionId || !mediaId) throw Error('INVALID_MEDIA_IDENTITY');
   return `private/farms/${safeObjectKeyPart(farmId)}/submissions/${safeObjectKeyPart(submissionId)}/media/${safeObjectKeyPart(mediaId)}/original/${safeObjectKeyPart(fileName,'original')}`;
+}
+
+export function privatePlanningMaterialObjectKey({materialRequestId,itemKey,mediaId,fileName}){
+  if(!materialRequestId||!itemKey||!mediaId)throw Error('INVALID_MEDIA_IDENTITY');
+  return `private/planning-materials/${safeObjectKeyPart(materialRequestId)}/items/${safeObjectKeyPart(itemKey)}/uploads/${safeObjectKeyPart(mediaId)}/original/${safeObjectKeyPart(fileName,'original')}`;
 }
 
 export function percentile(values, p) {
