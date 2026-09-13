@@ -2,11 +2,11 @@
 
 Updated: 2026-09-14 KST
 PLANNING_DELTA_SEQ_SEEN = 20260914-042
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260913-0092
-LAST_PLANNING_INBOUND_CONSUMED = MSG-20260912-0065
-LAST_CODING_OUTBOUND = MSG-20260912-0064
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260914-0093
+LAST_PLANNING_INBOUND_CONSUMED = MSG-20260913-0092
+LAST_CODING_OUTBOUND = MSG-20260914-0093
 
-LAST_VERIFIED_ACTION: `WO-20260913-CODING-MATERIAL-INGEST-001 / REV B` reached STAGING technical PASS. Applied migrations `planning_material_workspace_0021`, `planning_material_acceptance_0022`, `planning_material_transactional_acceptance_0023` are present in Supabase STAGING; synthetic acceptance residue is 0; Cloudflare Pages Preview deploy and credential-free read-only live smoke passed. Durable evidence is `docs/coding/PLANNING_MATERIAL_REV_B_EVIDENCE_20260914.md`.
+LAST_VERIFIED_ACTION: `WO-20260913-CODING-MATERIAL-INGEST-001 / REV B` reached STAGING technical PASS. Applied migrations `planning_material_workspace_0021`, `planning_material_acceptance_0022`, `planning_material_transactional_acceptance_0023` are present in Supabase STAGING; synthetic acceptance residue is 0; Cloudflare Pages Preview deploy and credential-free read-only live smoke passed. Canonical CODING evidence was appended to Planning as `MSG-20260914-0093`. Durable evidence is `docs/coding/PLANNING_MATERIAL_REV_B_EVIDENCE_20260914.md`.
 
 ## Active authority
 
@@ -81,6 +81,18 @@ Read-only Preview smoke PASS:
 
 GitHub isolated-node-checks at final technical checkpoint: SUCCESS.
 
+## Handoff read-back
+
+Message Bus contains canonical `MSG-20260914-0093` CODING -> PLANNING implementation evidence.
+
+CODING TRACK_STATE read-back:
+
+- planning delta seen = `20260914-042`
+- last message seen = `MSG-20260914-0093`
+- pending inbound = 0
+- pending outbound = 1
+- banner = REV B TECHNICAL PASS / Planning review pending
+
 ## Remaining acceptance gate
 
 Authenticated OWNER/PARTNER visual/click browser acceptance is not claimed. CODING did not read, reset, synthesize or expose credentials to fabricate this gate.
@@ -100,7 +112,7 @@ Planning may accept the technical closeout as-is, request explicit authorized br
 
 ## NEXT HANDOFF
 
-1. Fresh-read Message Bus immediately before mutation.
-2. Append one CODING -> PLANNING implementation evidence row for REV B.
-3. Update CODING TRACK_STATE to technical-pass / Planning-review-pending and read back both mutations.
-4. Stop until Planning response; do not auto-start Drive mirroring, Productionization, or unrelated work.
+1. Fresh-read Message Bus and CODING TRACK_STATE when work resumes.
+2. Wait for Planning disposition of `MSG-20260914-0093`.
+3. If Planning requests authenticated OWNER/PARTNER browser acceptance, preserve the security boundary and do not invent a PASS.
+4. Do not auto-start Drive mirroring, Productionization, or unrelated work.
