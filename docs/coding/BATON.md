@@ -1,7 +1,7 @@
 # CODE1 CODING BATON
 
 Updated: 2026-09-14 KST
-PLANNING_DELTA_SEQ_SEEN = 20260913-041
+PLANNING_DELTA_SEQ_SEEN = 20260914-042
 CROSS_TRACK_BUS_LAST_SEEN = MSG-20260913-0092
 LAST_PLANNING_INBOUND_CONSUMED = MSG-20260912-0065
 LAST_CODING_OUTBOUND = MSG-20260912-0064
@@ -10,7 +10,9 @@ LAST_VERIFIED_ACTION: `WO-20260913-CODING-MATERIAL-INGEST-001 / REV B` reached S
 
 ## Active authority
 
-Planning `MSG-20260913-0092 / Delta041` is the controlling Work Order authority.
+Planning `MSG-20260913-0092 / Delta041` remains the controlling Work Order authority.
+
+Planning Delta `20260914-042` was consumed at handoff as CODING-awareness only. It explicitly states REV B is already in progress, requires no duplicate dispatch, and makes no CODING scope change.
 
 `MSG-20260913-0091 / Delta040` is SUPERSEDED.
 
