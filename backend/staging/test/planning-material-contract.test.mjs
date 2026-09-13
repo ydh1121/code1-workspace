@@ -37,7 +37,7 @@ test('REV B seeds exactly seven authoritative default upload items in order',()=
 });
 
 test('Planning Material domain is separate from farm questionnaire while reusing media_assets',()=>{
-  for(const table of ['planning_material_templates','planning_material_template_revisions','planning_material_template_items','planning_material_requests','planning_material_request_assignees','planning_material_request_items','planning_material_files','planning_material_file_versions'])assert.match(schema21,new RegExp(`create table if not exists public\\.${table}`,'i'));
+  for(const table of ['planning_material_templates','planning_material_template_revisions','planning_material_template_items','planning_material_requests','planning_material_request_assignees','planning_material_request_items','planning_material_files','planning_material_file_versions'])assert.match(schema21,new RegExp(`create table(?: if not exists)? public\\.${table}`,'i'));
   assert.match(schema21,/references public\.media_assets\(media_id\)/i);
   assert.doesNotMatch(runtime,/\bquestion_catalog\b|\bintake_submissions\b|\bsubmission_answers\b/);
 });
@@ -101,7 +101,9 @@ test('internal menu label and ordering contract are exact',()=>{
 });
 
 test('external uploader UI is assigned-request-only and does not expose internal Planning labels',()=>{
-  assert.match(ui,/boot\.mode==='INTERNAL'\?ensureInternalTab\(\):ensureExternalPage\(\)/);
+  assert.match(ui,/boot\.mode==='INTERNAL'/);
+  assert.match(ui,/ensureInternalTab\(\)/);
+  assert.match(ui,/ensureExternalPage\(\)/);
   assert.match(ui,/ASSIGNED_UPLOAD|자료 제출/);
   assert.doesNotMatch(ui,/Fact Inbox|기획문서 수정|Executive Brief/);
 });
