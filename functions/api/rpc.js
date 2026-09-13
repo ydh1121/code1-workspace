@@ -39,7 +39,7 @@ export async function onRequestPost({ request, env }) {
     }
     let data;
     if(useSupabaseStaging(env)&&stagingOwns(action,body))data=await dispatchCode1Staging(env,user,action,body);
-    else data=await bridge(env,user,action,body);
+    else data=await bridge(env, user, action, body);
     return json({ data });
   } catch(e) { return failure(e); }
 }
