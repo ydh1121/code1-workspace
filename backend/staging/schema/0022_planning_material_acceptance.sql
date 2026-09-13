@@ -79,7 +79,6 @@ begin
     select event_id into v_event_id from public.ops_change_events where entity_type='PLANNING_MATERIAL_REQUEST' and entity_id=p_material_request_id and action='planning.material.request.'||lower(p_target_status) order by recorded_at desc limit 1;
     return jsonb_build_object('material_request_id',p_material_request_id,'status',v_r.status,'manifest_revision',v_r.manifest_revision,'ops_event_id',v_event_id,'idempotent',true);
   end if;
-  -- Same terminal handoff state is deduplicated even with a new browser request id.
   if v_r.status=p_target_status and v_r.manifest_revision>0 then
     select event_id into v_event_id from public.ops_change_events where entity_type='PLANNING_MATERIAL_REQUEST' and entity_id=p_material_request_id and action='planning.material.request.'||lower(p_target_status) order by recorded_at desc limit 1;
     return jsonb_build_object('material_request_id',p_material_request_id,'status',v_r.status,'manifest_revision',v_r.manifest_revision,'ops_event_id',v_event_id,'idempotent',true,'deduplicated',true);
@@ -111,13 +110,12 @@ grant execute on function public.code1_material_finalize_file_version(text,text,
 grant execute on function public.code1_material_review_item(text,text,text,text,text) to service_role;
 grant execute on function public.code1_material_submit_request(text,text,text,text) to service_role;
 
--- Transactional synthetic acceptance. Any failed assertion aborts the whole migration.
 DO $$
 DECLARE
   v_template constant text:='PMT_QA_REV_B';
   v_partner constant text:='QA_PM_PARTNER';
   v_outsider constant text:='QA_PM_OUTSIDER';
-  v_request text;v_item text;v_file jsonb;v_manifest jsonb;v_submit jsonb;v_repeat jsonb;v_before_label text;v_event text;v_count integer;v_denied boolean:=false;
+  v_request text;v_item text;v_file jsonb;v_manifest jsonb;v_submit jsonb;v_repeat jsonb;v_event text;v_count integer;v_denied boolean:=false;
 BEGIN
   insert into public.workspace_accounts(account_id,username,display_name,email,role,status,permissions_json,session_version)
   values(v_partner,'qa.pm.partner','QA Planning Material Partner','','PARTNER','active','{}'::jsonb,1),
@@ -135,10 +133,10 @@ BEGIN
   insert into public.planning_material_template_revisions(template_id,revision,items_snapshot,actor_id,request_id)
   select v_template,1,jsonb_agg(jsonb_build_object('item_key',item_key,'label',label,'required',required,'sort_order',sort_order,'active',active,'classification_hint',classification_hint) order by sort_order),'OWNER',repeat('0',32) from public.planning_material_template_items where template_id=v_template;
 
-  select x->>'material_request_id' into v_request from jsonb_array_elements(jsonb_build_array(public.code1_material_create_request('OWNER','QA request','QA company',jsonb_build_object('name','QA product','sku','QA-SKU'),'BOTH',null,v_template,array[v_partner],repeat('1',32)))) x;
+  v_request:=public.code1_material_create_request('OWNER','QA request','QA company',jsonb_build_object('name','QA product','sku','QA-SKU'),'BOTH',null,v_template,array[v_partner],repeat('1',32))->>'material_request_id';
   if v_request is null then raise exception 'QA_REQUEST_CREATE_FAILED'; end if;
-  select request_item_id,label_snapshot into v_item,v_before_label from public.planning_material_request_items where material_request_id=v_request and item_key='QA_ITEM_A';
-  if v_before_label<>'현재 인증서' then raise exception 'QA_SNAPSHOT_SEED_FAILED'; end if;
+  select request_item_id into v_item from public.planning_material_request_items where material_request_id=v_request and item_key='QA_ITEM_A';
+  if (select label_snapshot from public.planning_material_request_items where request_item_id=v_item)<>'현재 인증서' then raise exception 'QA_SNAPSHOT_SEED_FAILED'; end if;
 
   perform public.code1_material_save_template('OWNER',v_template,1,jsonb_build_array(
     jsonb_build_object('item_key','QA_ITEM_B','label','사업자등록증','description','QA','required',true,'sort_order',1,'active',true,'classification_hint','01_사업자_법인'),
@@ -149,7 +147,6 @@ BEGIN
   if (select current_revision from public.planning_material_templates where template_id=v_template)<>2 then raise exception 'QA_TEMPLATE_REVISION_FAILED'; end if;
   if not exists(select 1 from public.planning_material_template_items where template_id=v_template and item_key='QA_ITEM_C' and active=false and archived_at is not null) then raise exception 'QA_TEMPLATE_ARCHIVE_FAILED'; end if;
 
-  -- Assigned partner can annotate; unassigned outsider cannot.
   perform public.code1_material_set_item_submission(v_partner,v_item,'LATER','추후 제출',repeat('3',32));
   begin
     perform public.code1_material_set_item_submission(v_outsider,v_item,'NOT_APPLICABLE','should fail',repeat('4',32));
@@ -172,7 +169,7 @@ BEGIN
 
   v_manifest:=public.code1_material_manifest('OWNER',v_request);
   if v_manifest->>'material_request_id'<>v_request or jsonb_array_length(v_manifest->'items')<>2 then raise exception 'QA_MANIFEST_FAILED'; end if;
-  if (v_manifest::text ~* 'https?://|token=|signature=|credential=|password=|secret=') then raise exception 'QA_MANIFEST_SECRET_URL_LEAK'; end if;
+  if v_manifest::text ~* 'https?://|token=|signature=|credential=|password=|secret=' then raise exception 'QA_MANIFEST_SECRET_URL_LEAK'; end if;
   if not (v_manifest::text like '%M_QA_PM_REV_B_1%' and v_manifest::text like '%'||repeat('a',64)||'%') then raise exception 'QA_MANIFEST_DESCRIPTOR_MISSING'; end if;
 
   v_submit:=public.code1_material_submit_request(v_partner,v_request,'SUBMITTED',repeat('9',32));v_event:=v_submit->>'ops_event_id';
@@ -186,16 +183,16 @@ BEGIN
   if not exists(select 1 from public.planning_source_artifacts where source_ref=v_request and source_type='PLANNING_MATERIAL_MANIFEST' and public_delivery_allowed=false) then raise exception 'QA_PLANNING_ARTIFACT_MISSING'; end if;
   if not exists(select 1 from public.audit_log where target_id=v_request and action='planning.material.request.create') or not exists(select 1 from public.audit_log where target_id=v_request and action='planning.material.request.submit') then raise exception 'QA_AUDIT_MISSING'; end if;
 
-  -- cleanup synthetic evidence, preserving no operational residue.
   delete from public.ops_outbox where event_id in (select event_id from public.ops_change_events where entity_type='PLANNING_MATERIAL_REQUEST' and entity_id=v_request);
   delete from public.ops_change_events where entity_type='PLANNING_MATERIAL_REQUEST' and entity_id=v_request;
   delete from public.planning_source_artifacts where source_ref=v_request and source_type='PLANNING_MATERIAL_MANIFEST';
   delete from public.review_decisions where subject_type='PLANNING_MATERIAL_ITEM' and subject_id in (select request_item_id from public.planning_material_request_items where material_request_id=v_request);
   delete from public.media_events where media_id='M_QA_PM_REV_B_1';
+  update public.planning_material_files set current_version_id=null,pending_version_id=null where request_item_id in (select request_item_id from public.planning_material_request_items where material_request_id=v_request);
   delete from public.planning_material_file_versions where media_id='M_QA_PM_REV_B_1';
   delete from public.planning_material_files where request_item_id in (select request_item_id from public.planning_material_request_items where material_request_id=v_request);
   delete from public.media_assets where media_id='M_QA_PM_REV_B_1';
-  delete from public.audit_log where (target_id=v_request or target_id=v_item or target_id=v_template or target_id like 'PMF_%') and actor_id in ('OWNER',v_partner,v_outsider);
+  delete from public.audit_log where (target_id=v_request or target_id=v_item or target_id=v_template or target_type in ('PLANNING_MATERIAL_FILE','PLANNING_MATERIAL_ITEM','PLANNING_MATERIAL_TEMPLATE')) and actor_id in ('OWNER',v_partner,v_outsider);
   delete from public.planning_material_request_assignees where material_request_id=v_request;
   delete from public.planning_material_request_items where material_request_id=v_request;
   delete from public.planning_material_requests where material_request_id=v_request;
