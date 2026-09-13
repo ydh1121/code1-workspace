@@ -26,3 +26,7 @@ Environment: STAGING ONLY
 - Credential mutation/access: 0.
 
 Pre-deploy regression checkpoint: `70900c7e81ec4d798bed2dd22002378cc2790b31` — isolated-node-checks SUCCESS.
+
+Deployment checkpoint: `69d78f5258df6e221cefb7a4b52723a0d3f6252a` — Cloudflare Pages SUCCESS, atomic Preview `https://265aa4a1.code1-workspace.pages.dev`.
+
+This docs-only update triggers the credential-free stable Preview smoke and must not redeploy application code.
