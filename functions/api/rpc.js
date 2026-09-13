@@ -38,6 +38,7 @@ export async function onRequestPost({ request, env }) {
       throw Error(action.startsWith('admin.ops.qa.')?'OWNER_QA_STAGING_ONLY':'OPS_RETENTION_STAGING_ONLY');
     }
     let data;
+    // No farm-runtime fallback here: Supabase STAGING owns its selected runtime path and fails closed.
     if(useSupabaseStaging(env)&&stagingOwns(action,body))data=await dispatchCode1Staging(env,user,action,body);
     else data=await bridge(env, user, action, body);
     return json({ data });
