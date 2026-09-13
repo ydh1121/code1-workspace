@@ -18,7 +18,8 @@ export async function accountSave(env,principal,p,fetchImpl=fetch){
   if(old?.archived_at)throw Error('FORBIDDEN');
   if(old&&(old.account_id==='OWNER'||old.account_id===actor.row.account_id))throw Error('FORBIDDEN');
   if(actor.row.role!=='SUPER_ADMIN'&&((old&&old.role!=='FARMER')||p.role!=='FARMER'))throw Error('FORBIDDEN');
-  if(!['ADMIN','FARMER'].includes(p.role)||!['active','disabled'].includes(p.status))throw Error('INVALID_ACCOUNT');
+  if(!['ADMIN','FARMER','PARTNER'].includes(p.role)||!['active','disabled'].includes(p.status))throw Error('INVALID_ACCOUNT');
+  if(actor.row.role!=='SUPER_ADMIN'&&p.role==='PARTNER')throw Error('FORBIDDEN');
   if(old&&Number(old.session_version)!==Number(p.baseVersion))throw Error('CONFLICT');
   const username=String(p.username||'').trim().toLowerCase(),display=cleanString(p.displayName,80);
   if(!/^[a-z0-9][a-z0-9._-]{2,31}$/.test(username)||!display)throw Error('INVALID_ACCOUNT');
@@ -33,16 +34,8 @@ export async function accountSave(env,principal,p,fetchImpl=fetch){
   if(!old&&!p.credential)throw Error('INVALID_CREDENTIAL');
   const accountId=old?.account_id||`U_${crypto.randomUUID().replace(/-/g,'').slice(0,24)}`;
   const saved=(await db.rpc('code1_save_account',{
-    p_actor_id:actor.row.account_id,
-    p_account_id:accountId,
-    p_base_version:old?Number(p.baseVersion):0,
-    p_username:username,
-    p_display_name:display,
-    p_role:p.role,
-    p_status:p.status,
-    p_permissions:permissions,
-    p_farm_ids:farmIds,
-    p_credential:p.credential||null
+    p_actor_id:actor.row.account_id,p_account_id:accountId,p_base_version:old?Number(p.baseVersion):0,
+    p_username:username,p_display_name:display,p_role:p.role,p_status:p.status,p_permissions:permissions,p_farm_ids:farmIds,p_credential:p.credential||null
   }))?.[0];
   if(!saved)throw Error('CONFLICT');
   return publicAccount(saved,farmIds);
@@ -51,11 +44,7 @@ export async function accountSave(env,principal,p,fetchImpl=fetch){
 export async function accountPassword(env,principal,p,fetchImpl=fetch){
   const db=createDb(env,fetchImpl),actor=await loadActor(db,principal);
   if(!credentialValid(p?.credential))throw Error('INVALID_CREDENTIAL');
-  const updated=(await db.rpc('code1_change_password',{
-    p_actor_id:actor.row.account_id,
-    p_base_version:Number(actor.row.session_version),
-    p_credential:p.credential
-  }))?.[0];
+  const updated=(await db.rpc('code1_change_password',{p_actor_id:actor.row.account_id,p_base_version:Number(actor.row.session_version),p_credential:p.credential}))?.[0];
   if(!updated)throw Error('CONFLICT');
   return publicAccount(updated,actor.farmIds);
 }
