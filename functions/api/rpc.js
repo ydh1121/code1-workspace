@@ -3,8 +3,8 @@ import { dispatchCode1Staging } from '../../backend/staging/src/staging-dispatch
 import { useSupabaseStaging } from '../../backend/staging/src/runtime-mode.mjs';
 
 const materialActions=[
-  'planning.material.bootstrap','planning.material.request.get','planning.material.template.save',
-  'planning.material.request.create','planning.material.request.assign','planning.material.item.update',
+  'planning.material.bootstrap','planning.material.request.get','planning.material.template.save','planning.material.template.publish',
+  'planning.material.request.create','planning.material.request.delete','planning.material.request.assign','planning.material.item.update',
   'planning.material.review','planning.material.request.submit','planning.material.manifest',
   'planning.material.upload.begin','planning.material.upload.chunk','planning.material.upload.finish','planning.material.file.read'
 ];
