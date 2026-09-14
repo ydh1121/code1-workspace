@@ -11,9 +11,9 @@ Production Supabase/R2 mutation: 0
 Drive hot-path mutation: 0
 Credential read/reset/synthesis: 0
 PLANNING_DELTA_SEQ_SEEN = 20260914-049
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260914-0104
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260914-0105
 LAST_PLANNING_INBOUND_CONSUMED = MSG-20260914-0104
-LAST_CODING_OUTBOUND = MSG-20260914-0102
+LAST_CODING_OUTBOUND = MSG-20260914-0105
 
 ## Current Planning authority
 
@@ -21,7 +21,9 @@ Active Work Order: `WO-20260914-CODING-MATERIAL-DRAFT-SEED-DELETE-001`.
 
 Authority: `MSG-20260914-0104 / Planning Delta 20260914-049 / P0`.
 
-Planning reconciled `MSG-0101` technical evidence and `MSG-0102` user-QA request-delete gap into this Work Order.
+Planning reconciled `MSG-0101` technical evidence and `MSG-0102` user-QA request-delete gap into this Work Order. CODING returned consolidated implementation evidence in `MSG-20260914-0105`.
+
+Final Bus read after `MSG-0105` showed no newer PLANNING -> CODING authority.
 
 ## Actual Great Farm DRAFT — STAGING data
 
@@ -112,8 +114,9 @@ Key application commits:
 - `ce5082d23102e58bb2f88e89cb109bdc5b30d466` — Cloudflare application deploy
 - atomic Preview: `https://042bbc4b.code1-workspace.pages.dev`
 - stable Preview: `https://coding-runtime-backend-stagi.code1-workspace.pages.dev`
+- consolidated evidence commit: `e5349c69a5f905fcc6febd6c5c4bc30c97dd4b14`
 
-Verification before durable docs sync:
+Verification:
 
 - STAGING tests = 207 / 207 PASS
 - npm audit = 0
@@ -157,6 +160,7 @@ Therefore the MSG-0104 implementation/data/delete checkpoint is technically comp
 ## NEXT_ATOMIC_ACTION
 
 1. Fresh-read Message Bus.
-2. Publish CODING → PLANNING MSG-0104 implementation evidence with DRAFT identity/full readback, internal-preview/no-exposure evidence, delete evidence, commit/Preview refs, mutation audit, and exact auth-session blocker.
-3. If Planning issues newer CODING authority, process it first.
-4. Otherwise wait for existing authenticated OWNER and assigned PARTNER sessions; then execute desktop + 390 browser QA without credential reset/synthesis.
+2. If Planning issues newer CODING authority, process it first.
+3. Otherwise preserve r2 DRAFT exactly as-is and do not publish it.
+4. Remain `BLOCKED_AUTH_SESSION` until existing authenticated OWNER and assigned PARTNER sessions are available; then execute desktop + 390 browser QA without credential reset/synthesis.
+5. Do not auto-start Productionization, Drive mirroring, publication, or unrelated work.
