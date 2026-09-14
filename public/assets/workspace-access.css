@@ -1,3 +1,4 @@
+@import url('/assets/user-qa-visual-polish.css');
 body.auth-pending #login{display:none!important}
 .auth-pending-view{min-height:60vh;display:grid;place-items:center;padding:40px 20px;text-align:center;color:#506176}
 .auth-pending-card{display:grid;gap:10px;justify-items:center}.auth-pending-card strong{font-size:20px;color:#10243a}.auth-pending-dot{width:30px;height:30px;border:3px solid #d7e2ee;border-top-color:#1b6fb7;border-radius:50%;animation:code1-spin .8s linear infinite}@keyframes code1-spin{to{transform:rotate(360deg)}}
