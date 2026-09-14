@@ -24,9 +24,10 @@ await must('/assets/planning-materials.js',{contains:[
   'planning.material.upload.chunk',
   'planning.material.upload.finish',
   'planning.material.template.publish',
-  'responseKind',
+  "['TEXT_FILE','내용 + 파일 제출']",
+  "kind==='TEXT'||kind==='LONG_TEXT'",
   "kind==='FILE'",
-  "kind==='TEXT_FILE'",
+  'responseKindLegacy',
   '초안 미리보기',
   '게시 전에는 실제 제출자에게 노출되지 않습니다',
   '자료 제출'
