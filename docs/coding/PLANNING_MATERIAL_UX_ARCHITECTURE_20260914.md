@@ -87,7 +87,7 @@ Interaction tests use `happy-dom` and dispatch DOM events rather than only match
 
 Locked npm audit = 0 vulnerabilities. Existing unrelated root-suite baseline failures remain unchanged and accepted by the branch baseline guard.
 
-This docs-only checkpoint intentionally uses `[CF-Pages-Skip]` and triggers the credential-free stable Preview smoke after the successful application deployment.
+This docs-only checkpoint is the explicit `PLANNING_MATERIAL_PREVIEW_SMOKE` trigger and must not redeploy application code.
 
 ## Authentication/browser acceptance still required
 
