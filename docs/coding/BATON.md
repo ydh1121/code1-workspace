@@ -1,98 +1,153 @@
 # CODE1 CODING BATON
 
 Updated: 2026-09-14 KST
-PLANNING_DELTA_SEQ_SEEN = 20260914-044
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260914-0094
-LAST_PLANNING_INBOUND_CONSUMED = MSG-20260914-0094
+PLANNING_DELTA_SEQ_SEEN = 20260914-046
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260914-0096
+LAST_PLANNING_INBOUND_CONSUMED = MSG-20260914-0096
 LAST_CODING_OUTBOUND = MSG-20260914-0093
 
-LAST_VERIFIED_ACTION: Under Planning `MSG-20260914-0094 / AUTH_BROWSER_QA_CONTINUATION`, a second bounded authenticated-OWNER UX defect batch was implemented, regression-tested, deployed to STAGING Preview and credential-free stable Preview smoke passed. No Supabase migration/schema, R2, RBAC semantics, manifest/OPS backend contract, Production/main/live resource, Drive hot-path or credential state was changed. OWNER post-fix visual recheck remains open.
+LAST_VERIFIED_ACTION: Planning `MSG-20260914-0096 / WO-20260914-CODING-MATERIAL-UX-001 / Delta046` was fresh-read and executed as an information-architecture/user-flow correction. The rebuilt Planning Material UI passed 187/187 STAGING tests including DOM interaction tests, deployed successfully to Cloudflare Pages STAGING, and credential-free stable Preview smoke passed. Required real authenticated OWNER and assigned submitter/PARTNER desktop + 390px browser QA is still open and must not be fabricated.
 
 ## Active authority
 
-`WO-20260913-CODING-MATERIAL-INGEST-001 / REV B`
+`WO-20260914-CODING-MATERIAL-UX-001`
 
-Latest Planning authority: `MSG-20260914-0094 / Delta044`.
+Latest Planning authority: `MSG-20260914-0096 / Delta046 / P0`.
 
-REV B is `TECHNICAL_ACCEPTED`; do not replay migrations or expand scope. Underlying domain correction remains `MSG-20260913-0092 / Delta041`; `MSG-20260913-0091 / Delta040` is SUPERSEDED.
+`MSG-0096` supersedes the remaining UX work under `MSG-0094`. REV B backend technical acceptance remains valid.
 
-Exact internal tab order remains `기획문서` -> `상세페이지 및 제안서 파일` -> `해야 할 일`.
+No newer PLANNING -> CODING message was present in the final Bus read before this handoff.
 
-## Backend checkpoint — unchanged
+## Backend/schema checkpoint — preserved
 
-Supabase STAGING migrations remain:
+No migration was added or replayed.
+
+Supabase STAGING remains on:
 
 - `planning_material_workspace_0021`
 - `planning_material_acceptance_0022`
 - `planning_material_transactional_acceptance_0023`
 
-Existing `classification_hint` + independent `item_key` + request-item snapshots are used for category/child-item organization. No schema migration was necessary.
+Fresh schema read confirmed existing `classification_hint + item_key + immutable request-item snapshot + files/file_versions` can represent the corrected IA without schema expansion.
 
-## UX defect batch 2
+Unchanged contracts:
 
-User-provided OWNER screenshots established these defects:
+- private R2 originals and multipart/checksum/idempotency/recovery
+- RBAC and assigned-request authorization
+- immutable request/template snapshots
+- file revision/current/superseded history
+- deterministic Planning manifest
+- deduplicated `PLANNING_IMPACT` OPS event/outbox
+- review/currentness/public-claim separation
+- public delivery remains false by default
 
-- manifest JSON surfaced as a normal operator action;
-- direct input, upload, status and review were visually mixed;
-- template manager was flat/cramped instead of expressing classification -> child item hierarchy;
-- new-request assignee selector hid internal accounts due PARTNER-only filtering;
-- permission descriptions exposed developer vocabulary.
+## MSG-0096 UI contract now deployed
 
-Applied checkpoints:
+### Request item
 
-- JS: `e86bb66afaff7dab63cc9bb32900616e06e0164c`
-- CSS: `3a2bf1dd095e4cc7496ed0fc9a5c29932e1d015d`
-- permission catalog copy: `3d8084e8836602a714ed92a4942edef17c13ac65`
-- regression-test/deploy checkpoint: `691588838dec7d4c07d0be5ad3d45e9d9b660c5c`
-- atomic Preview: `https://d7f4692c.code1-workspace.pages.dev`
-- stable Preview smoke checkpoint: `1bb1b7b5ca24a33eaf9a13f26c5f33f644085795`
+- one coherent `자료 제출` compose surface
+- text and attachments coexist within that surface
+- `추후 제출 / 자료 없음 / 해당 없음` are secondary collapsed exception actions
+- internal review is a separate collapsed internal-only panel, absent from assigned submitter/PARTNER mode
+- developer-facing English eyebrow labels removed from ordinary operator UI
 
-New operator UI contract:
+### File UX
 
-- manifest JSON is not exposed in the normal request-detail UI;
-- request child item is separated into `직접 입력`, `파일 첨부`, and internal-only `내부 검토`;
-- template editor groups items by human-readable category and allows independent child-item creation/move/order/required/active/guidance editing;
-- new-request assignee selector lists eligible active internal and external accounts instead of PARTNER only;
-- assigned-only uploader access continues to use existing `MATERIAL_UPLOAD_ASSIGNED` capability and request assignment;
-- permission labels/descriptions are written as operator actions, not implementation terminology.
+- whole drop zone clickable + keyboard accessible
+- normal file picker preserved
+- dragenter/dragover/dragleave/drop with visual feedback
+- multi-file select/drop
+- pre-upload filename + size queue
+- per-file remove before upload
+- per-file progress/state/success/failure
+- failures do not erase other file results
+- current-file `새 버전` opens a revision uploader with the same drop interaction and preserves history
+
+### 요청 항목 관리
+
+- one consistent name: `요청 항목 관리`
+- outline-first classification/item structure
+- first non-empty category open; other non-empty categories collapsed
+- empty categories summarized/de-emphasized
+- dense required/active/classification/guidance controls removed from outline
+- secondary item edit dialog exposes label/guidance/classification/required/active
+- existing add/reorder/archive/template revision semantics retained
+
+### New request
+
+- one template => selector hidden and default auto-applied
+- multiple templates => explicit configuration selector remains
+- internal/external active assignment candidates preserved subject to existing server authorization
+
+## Checkpoints
+
+- JS: `ef90b1e3c2bae014320f58d5876928ed013c73e9`
+- CSS: `91f14a9569b54fa28f6ac7e46ea65132651cf957`
+- source guards: `5cdbefb8a75d805385c0257091d88cf12db2a93b`
+- interaction-test checkpoint: `17ede232e9b6c625c0c63a77f4302a1b9486f46d`
+- Preview deploy checkpoint: `58054a55c56d49bb03c821f6c523257c7920050c`
+- atomic Preview: `https://a636445e.code1-workspace.pages.dev`
+- stable Preview: `https://coding-runtime-backend-stagi.code1-workspace.pages.dev`
+- stable smoke checkpoint: `9d560b01a1956f312130883447a50a1f88f02658`
 
 ## Verification read-back
 
-At `691588838...`:
+At the validated tree:
 
+- STAGING tests = 187 total / 187 pass / 0 fail
 - isolated-node-checks = SUCCESS
-- Cloudflare Pages = SUCCESS
-- atomic Preview = `https://d7f4692c.code1-workspace.pages.dev`
+- locked npm audit = 0 vulnerabilities
 
-Credential-free stable Preview smoke at `1bb1b7b5...` = SUCCESS:
+The new `happy-dom` interaction suite dispatches actual DOM click/drag/drop events and validates:
 
-- root + accounts/material JS/CSS 200
-- dynamic loader PASS
+1. OWNER one-compose/secondary-exception/collapsed-review/outline-first/single-template flow.
+2. Whole drop-zone click, dragover state, two-file drop, file queue, pre-upload removal, multipart RPC flow and success state.
+3. Assigned submitter/PARTNER compose/drop flow with internal review absent.
+
+This interaction suite is regression evidence, not a substitute for `MSG-0096` real authenticated browser acceptance.
+
+Cloudflare Pages `58054a55...` = SUCCESS.
+
+Stable Preview smoke `9d560b01...` = SUCCESS:
+
+- root + accounts/material JS/CSS = 200
 - session configured=true / authenticated=false
-- unauthenticated material bootstrap/get/upload-begin/submit -> 401 `UNAUTHENTICATED`
+- material bootstrap/get/upload-begin/submit fail closed with 401 when unauthenticated
+- dynamic loader contract PASS
 - remote mutation NONE
 
-`1bb1b7b5...` isolated-node-checks = SUCCESS.
+## Remaining authenticated browser QA
 
-## Remaining authenticated QA
+Do not claim completion until the following is demonstrated through existing authorized sessions.
 
-OWNER post-fix recheck must use the existing authorized browser session. Do not read/reset/synthesize credentials and do not infer visual PASS from smoke.
+OWNER desktop + 390px:
 
-Immediate checks:
+- coherent `자료 제출` flow
+- actual multi-file drag/drop and queue/removal/progress/results
+- `새 버전` drag/drop path
+- exception actions secondary
+- internal review separated/collapsed
+- `요청 항목 관리` outline-first and secondary edit detail
+- one-template selection hidden
+- horizontal overflow 0
+- page/console errors 0
 
-1. no manifest button/modal in normal request detail;
-2. direct input / file upload / internal review are clearly separated;
-3. category-grouped child-item editor is wide enough and has no horizontal clipping;
-4. internal account candidates appear in new-request assignee selection;
-5. account permission labels/descriptions are intuitive Korean;
-6. desktop errors = 0 and 390px overflow = 0 when evidence is available.
+Assigned submitter/PARTNER desktop + 390px:
 
-Assigned-account/PARTNER authenticated access/denial QA remains pending under `MSG-0094` unless a newer Planning disposition changes it.
+- only assigned requests visible
+- same coherent compose/drop behavior
+- no internal review controls
+- actual drag/drop gesture
+- horizontal overflow 0
+- page/console errors 0
+
+If an authorized session is unavailable, stop at the auth-session blocker; never read/reset/synthesize credentials.
 
 ## Hard boundaries
 
 - Production/main/live mutation = 0
 - Production Supabase/R2 mutation = 0
+- STAGING schema/migration mutation for this UX WO = 0
 - credentials unchanged/not accessed
 - Drive hot-path write = 0
 - paid resources = none
@@ -102,8 +157,7 @@ Assigned-account/PARTNER authenticated access/denial QA remains pending under `M
 
 ## NEXT HANDOFF
 
-1. Obtain fresh post-fix screenshots from the user's existing authorized OWNER session after hard refresh.
-2. Evaluate only demonstrated visual/click paths and fix only bounded defects.
-3. Complete assigned-account/PARTNER auth QA or preserve the truthful remaining blocker.
-4. Send one CODING -> PLANNING implementation evidence message for `MSG-0094` only after authenticated QA status is known.
-5. Do not auto-start Drive mirroring, Productionization or unrelated work.
+1. Complete real authenticated OWNER + assigned submitter/PARTNER desktop/390 browser QA using existing sessions, including real drag/drop and console/overflow checks.
+2. Fix only concrete bounded defects, if any, and rerun affected checks.
+3. After truthful authenticated PASS, publish one CODING -> PLANNING `IMPLEMENTATION_EVIDENCE` for `MSG-0096` containing before/after visual evidence, click paths/results, drag/drop results, commit/Preview refs and mutation audit.
+4. Do not auto-start Drive mirroring, Productionization or unrelated work.
