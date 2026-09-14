@@ -2,11 +2,11 @@
 
 Updated: 2026-09-14 KST
 PLANNING_DELTA_SEQ_SEEN = 20260914-049
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260914-0104
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260914-0105
 LAST_PLANNING_INBOUND_CONSUMED = MSG-20260914-0104
-LAST_CODING_OUTBOUND = MSG-20260914-0102
+LAST_CODING_OUTBOUND = MSG-20260914-0105
 
-LAST_VERIFIED_ACTION: `MSG-20260914-0104 / WO-20260914-CODING-MATERIAL-DRAFT-SEED-DELETE-001 / Delta049` was executed on STAGING. Great Farm r2 DRAFT data is physically present, exact active 32-item readback matches Planning, published pointer remains r1, real requests using r2 = 0, and safe whole-request delete/archive is deployed and acceptance-tested. Cloudflare Pages and stable Preview smoke passed. Real authenticated OWNER/PARTNER browser acceptance remains `BLOCKED_AUTH_SESSION` and was not fabricated.
+LAST_VERIFIED_ACTION: `MSG-20260914-0104 / WO-20260914-CODING-MATERIAL-DRAFT-SEED-DELETE-001 / Delta049` was executed on STAGING and consolidated evidence was returned as `MSG-20260914-0105`. Great Farm r2 DRAFT data is physically present, exact active 32-item readback matches Planning, published pointer remains r1, real requests using r2 = 0, and safe whole-request delete/archive is deployed and acceptance-tested. Cloudflare Pages and stable Preview smoke passed. Real authenticated OWNER/PARTNER browser acceptance remains `BLOCKED_AUTH_SESSION` and was not fabricated.
 
 ## Active authority
 
@@ -14,7 +14,9 @@ LAST_VERIFIED_ACTION: `MSG-20260914-0104 / WO-20260914-CODING-MATERIAL-DRAFT-SEE
 
 Latest Planning authority consumed: `MSG-20260914-0104 / Delta049 / P0`.
 
-This authority reconciles prior CODING `MSG-0101` technical evidence and user-QA request-delete gap `MSG-0102`.
+Latest CODING outbound: `MSG-20260914-0105 / IMPLEMENTATION_EVIDENCE / P0`.
+
+Final Bus read after MSG-0105 showed no newer PLANNING -> CODING authority.
 
 ## Great Farm DRAFT checkpoint
 
@@ -79,7 +81,8 @@ Delete acceptance passed:
 - application deploy: `ce5082d23102e58bb2f88e89cb109bdc5b30d466`
 - atomic Preview: `https://042bbc4b.code1-workspace.pages.dev`
 - stable Preview: `https://coding-runtime-backend-stagi.code1-workspace.pages.dev`
-- smoke checkpoint before durable evidence: `b8a137351bc5c0f91c57e5870efbfb52d1c3c641`
+- pre-evidence smoke checkpoint: `b8a137351bc5c0f91c57e5870efbfb52d1c3c641`
+- consolidated evidence commit: `e5349c69a5f905fcc6febd6c5c4bc30c97dd4b14`
 
 Verification:
 
@@ -126,6 +129,6 @@ Therefore:
 ## NEXT HANDOFF
 
 1. Fresh-read Message Bus.
-2. Publish CODING -> PLANNING MSG-0104 implementation evidence after Bus reconciliation.
-3. If newer Planning authority exists, process it first.
-4. Otherwise remain `BLOCKED_AUTH_SESSION` until existing authorized OWNER + assigned PARTNER browser sessions are available; then run desktop/390 authenticated QA without creating/resetting credentials.
+2. If newer Planning authority exists, process it first.
+3. Otherwise preserve Great Farm r2 as DRAFT and wait for Planning disposition of MSG-0105.
+4. Authenticated desktop/390 QA remains gated on existing OWNER + assigned PARTNER sessions; do not create/reset credentials to force it.
