@@ -1,154 +1,131 @@
 # CODE1 CODING BATON
 
 Updated: 2026-09-14 KST
-PLANNING_DELTA_SEQ_SEEN = 20260914-048
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260914-0101
-LAST_PLANNING_INBOUND_CONSUMED = MSG-20260914-0099
-LAST_CODING_OUTBOUND = MSG-20260914-0101
+PLANNING_DELTA_SEQ_SEEN = 20260914-049
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260914-0104
+LAST_PLANNING_INBOUND_CONSUMED = MSG-20260914-0104
+LAST_CODING_OUTBOUND = MSG-20260914-0102
 
-LAST_VERIFIED_ACTION: `MSG-20260914-0099 / WO-20260914-CODING-MATERIAL-FIELD-TYPES-001 / Delta048` was implemented on STAGING. Field types, immutable request snapshots, typed required validation, explicit DRAFT→PREVIEW→PUBLISH, safe draft delete and published-history preservation are technically PASS. Supabase 0024/0025, CI, Cloudflare deployment and typed stable-Preview read-only smoke all passed. Mandatory real authenticated OWNER + assigned PARTNER desktop/390 browser QA remains `BLOCKED_AUTH_SESSION` and was not fabricated.
+LAST_VERIFIED_ACTION: `MSG-20260914-0104 / WO-20260914-CODING-MATERIAL-DRAFT-SEED-DELETE-001 / Delta049` was executed on STAGING. Great Farm r2 DRAFT data is physically present, exact active 32-item readback matches Planning, published pointer remains r1, real requests using r2 = 0, and safe whole-request delete/archive is deployed and acceptance-tested. Cloudflare Pages and stable Preview smoke passed. Real authenticated OWNER/PARTNER browser acceptance remains `BLOCKED_AUTH_SESSION` and was not fabricated.
 
 ## Active authority
 
-`WO-20260914-CODING-MATERIAL-FIELD-TYPES-001`
+`WO-20260914-CODING-MATERIAL-DRAFT-SEED-DELETE-001`
 
-Latest Planning authority consumed: `MSG-20260914-0099 / Delta048 / P0`.
+Latest Planning authority consumed: `MSG-20260914-0104 / Delta049 / P0`.
 
-CODING outbound: `MSG-20260914-0101` = technical evidence + exact auth-session blocker.
+This authority reconciles prior CODING `MSG-0101` technical evidence and user-QA request-delete gap `MSG-0102`.
 
-No newer PLANNING -> CODING authority was present in the final pre-outbound Bus read.
+## Great Farm DRAFT checkpoint
 
-## Implemented contract
+Template: `PMT_GREAT_FARM_DEFAULT`
 
-Planning Material template items now carry explicit `response_kind`:
+- current_revision = 2
+- published_revision = 1
+- r2 state = DRAFT
+- r2 published_at = NULL
+- r2 snapshot = 39 total entries / 32 active / 7 inactive legacy-history entries
+- r2 snapshot MD5 = `6d3f066c12a4b490a312b33755448a8c`
+- real requests using r2 = 0
+- existing Great Farm requests = 2, both r1 / REQUESTED
 
-- TEXT
-- LONG_TEXT
-- FILE
-- TEXT_FILE
+Do **not** publish r2 without a future explicit Planning/user authority.
 
-New request items snapshot that value immutably from the published template revision. Existing pre-0024 request items remain legacy-compatible with NULL `response_kind_snapshot`; no retrofit/history rewrite was performed.
+Full active 32-item row-by-row readback is in:
+`docs/coding/PLANNING_MATERIAL_DRAFT_SEED_DELETE_DEPLOY_20260914.md`
 
-Required validation:
+Key rules:
 
-- TEXT/LONG_TEXT => text channel
-- FILE => current file channel
-- TEXT_FILE => both channels
+- 현재 상품명 = TEXT required
+- 지정 택배사 = TEXT required
+- 상품1 구성 = FILE required; 상품2~5 = FILE optional
+- 상품1 package front/back = required; 상품2~5 front/back = optional
+- all specified photo/certificate/report/business-registration evidence fields = FILE
+- TEXT does not expose upload UI; FILE uses the MSG-0096 drag/drop/queue/progress/version flow
 
-TEXT items reject Planning Material file containers; FILE items reject normal text submission.
+## Whole material-request delete
 
-Browser rendering follows the same response kind. `제품명` TEXT is text-only, FILE evidence is dropzone-only, and TEXT_FILE exposes both only when explicitly selected.
+SUPER_ADMIN-only delete is deployed.
 
-## Lifecycle
+- exact title confirmation required
+- pristine unused request => hard `DELETED`
+- meaningful history => `ARCHIVED`, history preserved
+- archived requests excluded from active bootstrap
+- archived request assignees are deactivated, assignment rows retained
+- ADMIN/PARTNER/non-SUPER_ADMIN => no delete control / forbidden server path
 
-- template save = DRAFT
-- internal exact-surface preview
-- no draft exposure to submitter/new request
-- explicit publish moves `published_revision`
-- request creation snapshots PUBLISHED revision only
-- never-published draft item may be physically deleted
-- previously published removed item becomes archived/inactive for future requests while old request snapshots remain
+Acceptance migrations:
 
-## Preserved MSG-0096 behavior
+- `planning_material_draft_seed_request_delete_0026`
+- `planning_material_request_delete_acceptance_0027`
+- `planning_material_archive_assignment_guard_0028`
 
-- clickable/keyboard drop zone
-- real drag/drop event handling and feedback
-- multi-file queue
-- filename/size/remove-before-upload
-- progress/per-file result
-- retry/reupload/new-version path
-- internal review separated from submitter flow
-- private R2, RBAC, audit, immutable file history, deterministic manifest, PLANNING_IMPACT preserved
+Delete acceptance passed:
 
-## Supabase STAGING
+- pristine => DELETED
+- historied => ARCHIVED + history preserved
+- ADMIN => FORBIDDEN
+- synthetic residue => 0
 
-Project: `bsintmkyhptizrjoizfb`
+## Git / deploy
 
-Applied:
-
-- `planning_material_field_types_lifecycle_0024`
-- `planning_material_field_types_acceptance_0025`
-
-Legacy request-item invariant after both migrations:
-
-- 14 rows
-- 14 NULL legacy response-kind snapshots
-- fingerprint `0badfd86ac001a1dcd9441a7868c8f3a`
-
-0025 privileged acceptance PASS covered the required TEXT/FILE/TEXT_FILE and draft/publish/remove-history scenarios. Synthetic residue = 0.
-
-Browser DB roles remain denied direct execution of the material service RPCs.
-
-## Git / deploy checkpoints
-
-- interaction checkpoint: `70f582b8ef896ca470038426d211efd2774c1d1c`
-- acceptance source: `aa55258a27c18c00810ae0061e24338515a5b304`
-- deployed application commit: `795243ddf5d0880481fca616e7e3b7ea93c4ab16`
-- atomic Preview: `https://dcd66a17.code1-workspace.pages.dev`
+- feature seed/delete: `1a2590c1fe167d31210871d898f52175e92b41a3`
+- delete acceptance: `c4fdf205ad35e9a5d1336eb5dc7ada7663a30dcd`
+- delete runtime: `e8635a09e9a5ed7ea9a468feee0b4e96f42edc34`
+- routing/archive exclusion: `ed23fe9dcf72c0855f412e6e455fb9492e438d3f`
+- assignment guard: `71675a8e83cd7c45bf7983176201e3e568f7ab7f`
+- SUPER_ADMIN delete UI: `6dd77996a3f97d0a19e5a74e15ea4bece9032966`
+- contract tests: `1104d0c141a9e2d52defc2a2733eab84fe552046`
+- application deploy: `ce5082d23102e58bb2f88e89cb109bdc5b30d466`
+- atomic Preview: `https://042bbc4b.code1-workspace.pages.dev`
 - stable Preview: `https://coding-runtime-backend-stagi.code1-workspace.pages.dev`
-- typed live-smoke checkpoint: `7da7017fbcd6ac48f2cabeb6c0d1c329e2f6d6ed`
-- durable evidence: `docs/coding/PLANNING_MATERIAL_FIELD_TYPES_EVIDENCE_20260914.md`
+- smoke checkpoint before durable evidence: `b8a137351bc5c0f91c57e5870efbfb52d1c3c641`
 
-Cloudflare deploy = SUCCESS.
-Final typed read-only smoke = SUCCESS:
+Verification:
 
-- static app/assets 200
-- field-type bundle contract PASS
-- draft/publish bundle contract PASS
-- 390px CSS contract present
-- session configured=true/authenticated=false
-- unauth material bootstrap/get/upload/submit/publish = 401 UNAUTHENTICATED
-- remote mutation NONE
+- STAGING tests = 207 / 207 PASS
+- npm audit = 0
+- build = PASS
+- known root baseline unchanged (44 total / 39 pass / 5 known failures)
+- Cloudflare Pages deploy = SUCCESS
+- stable material Preview smoke = SUCCESS
+- requestDeleteBundleContract = PASS
+- fieldTypeBundleContract = PASS
+- draftPublishBundleContract = PASS
+- unauth material/delete/publish RPCs fail closed at 401
+- smoke remote mutation = NONE
 
-Final smoke checkpoint isolated-node-checks = SUCCESS. Earlier full STAGING field-type tree = 199/199 PASS and npm audit 0.
+## Remaining blocker
 
-## Current blocker
+`BLOCKED_AUTH_SESSION` only for required real-browser acceptance.
 
-`BLOCKED_AUTH_SESSION`
+Fresh account readback:
 
-Do not mark the WO CLOSED until real authenticated browser acceptance is run.
+- active SUPER_ADMIN = 1
+- active ADMIN = 1
+- active PARTNER = 0
 
-Facts read back:
+Current execution environment has no interactive browser carrying an existing OWNER session, and there is no existing PARTNER identity/session. Do not create/reset/synthesize credentials or QA accounts.
 
-1. Current chat execution has no interactive Computer/Cloud Browser carrying the user's staging session.
-2. No Playwright/Puppeteer authenticated runner with a pre-authorized session exists in the repository.
-3. `bootstrap-owner-web-login-staging.mjs` requires `CODE1_OPERATOR_SESSION_SECRET` and a new staging OWNER password, resets OWNER password/session version, and therefore is prohibited for manufacturing this QA.
-4. Current STAGING account readback has active OWNER but no active PARTNER account/session.
-5. No credentials were read/reset/synthesized and no QA account was created.
+Therefore:
 
-Remaining acceptance once existing authorized sessions are available:
-
-OWNER desktop + 390px:
-- TEXT only / FILE only / explicit TEXT_FILE both
-- draft preview only and pre-publish delete
-- publish -> subsequent request snapshot
-- remove published item -> future exclusion + old history retained
-- drag/drop + queue/remove/progress/reupload
-- internal review separated
-- no horizontal overflow
-- page/console errors 0
-
-Assigned PARTNER desktop + 390px:
-- assigned-request-only access
-- typed published controls
-- no draft/template/internal-review surface
-- actual drag/drop
-- no horizontal overflow
-- page/console errors 0
+- Great Farm r2 DRAFT seed = technically complete
+- request delete/archive = technically complete
+- r2 publish = prohibited / 0
+- actual authenticated browser QA = not claimed
 
 ## Hard boundaries
 
 - Production/main/live mutation = 0
-- Production Supabase/R2 mutation = 0
-- credentials unchanged/not accessed
-- Drive hot-path write = 0
-- no fabricated auth/browser evidence
-- no unrelated cross-track work
+- Production Supabase/R2 access/mutation = 0
+- Drive hot-path dual-write = 0
+- credential/password/session-secret read/reset/synthesis = 0
+- real user request deletion during implementation/evidence = 0
+- no fabricated browser evidence
 
 ## NEXT HANDOFF
 
-1. Fresh-read Harness/CURRENT/Baton/Message Bus/Delta before resuming.
-2. Process a newer PLANNING -> CODING message first if one exists.
-3. Otherwise keep the WO at `BLOCKED_AUTH_SESSION` until existing authorized OWNER + assigned PARTNER browser sessions are available in an interactive browser-capable execution context.
-4. Run desktop + 390px authenticated browser QA, fixing only concrete bounded defects.
-5. After truthful PASS, append final CODING -> PLANNING completion evidence and request closure.
+1. Fresh-read Message Bus.
+2. Publish CODING -> PLANNING MSG-0104 implementation evidence after Bus reconciliation.
+3. If newer Planning authority exists, process it first.
+4. Otherwise remain `BLOCKED_AUTH_SESSION` until existing authorized OWNER + assigned PARTNER browser sessions are available; then run desktop/390 authenticated QA without creating/resetting credentials.
