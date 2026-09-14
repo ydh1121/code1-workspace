@@ -10,6 +10,7 @@ const MIN_MULTIPART_PART_BYTES=5*1024*1024;
 const ridPattern=/^[a-f0-9]{32}$/;
 const shaPattern=/^[a-f0-9]{64}$/;
 const esc=encodeURIComponent;
+const RESPONSE_KINDS=new Set(['TEXT','LONG_TEXT','FILE','TEXT_FILE']);
 
 export const MATERIAL_MIME_ALLOWLIST=Object.freeze({
   '.pdf':['application/pdf'],
@@ -122,7 +123,7 @@ async function requestBundle(ctx,requestId){
       for(const version of versionsByFile.get(file.material_file_id)||[]){const media=mediaMap.get(version.media_id);if(media)verOut.push(await publicFile(ctx,{file,version,media}));}
       fileOut.push({materialFileId:file.material_file_id,currentRevision:Number(file.current_revision),versions:verOut});
     }
-    out.push({requestItemId:item.request_item_id,itemKey:item.item_key,label:item.label_snapshot,description:item.description_snapshot,required:item.required_snapshot===true,sortOrder:Number(item.sort_order_snapshot),templateRevision:Number(item.template_revision),classificationHint:item.classification_hint,submissionState:item.submission_state,reviewStatus:item.review_status,memo:item.memo||'',files:fileOut});
+    out.push({requestItemId:item.request_item_id,itemKey:item.item_key,label:item.label_snapshot,description:item.description_snapshot,required:item.required_snapshot===true,sortOrder:Number(item.sort_order_snapshot),templateRevision:Number(item.template_revision),classificationHint:item.classification_hint,responseKind:item.response_kind_snapshot||'TEXT_FILE',responseKindLegacy:item.response_kind_snapshot==null,submissionState:item.submission_state,reviewStatus:item.review_status,memo:item.memo||'',files:fileOut});
   }
   return {request:{materialRequestId:req.material_request_id,title:req.title,counterparty:req.counterparty,product:req.product_snapshot||{},purpose:req.purpose,status:req.status,reviewStatus:req.review_status,revision:Number(req.revision),templateId:req.template_id,templateRevision:Number(req.template_revision),requestedAt:req.requested_at,submittedAt:req.submitted_at,updatedAt:req.updated_at,manifestRevision:Number(req.manifest_revision)},items:out,assignees:assignees||[],access:{internal:ctx.internal,canManage:accessHas(ctx.access,'MATERIAL_REQUEST_MANAGE'),canReview:accessHas(ctx.access,'MATERIAL_REVIEW'),canTemplate:accessHas(ctx.access,'MATERIAL_TEMPLATE_MANAGE'),canUpload:ctx.internal||ctx.assigned}};
 }
@@ -138,14 +139,27 @@ export async function materialBootstrap(env,principal,fetchImpl=fetch){
   let templates=[],accounts=[];
   if(ctx.internal){
     const ts=await ctx.db.select('planning_material_templates','status=eq.ACTIVE&order=created_at.asc&select=*');
-    for(const t of ts||[]){const items=await ctx.db.select('planning_material_template_items',`template_id=eq.${esc(t.template_id)}&order=sort_order.asc,item_key.asc&select=*`);templates.push({templateId:t.template_id,name:t.name,revision:Number(t.current_revision),items:(items||[]).map(i=>({itemKey:i.item_key,label:i.label,description:i.description,required:i.required===true,sortOrder:Number(i.sort_order),active:i.active===true,classificationHint:i.classification_hint}))});}
+    for(const t of ts||[]){
+      const [items,publishedRows]=await Promise.all([
+        ctx.db.select('planning_material_template_items',`template_id=eq.${esc(t.template_id)}&order=sort_order.asc,item_key.asc&select=*`),
+        ctx.db.select('planning_material_template_revisions',`template_id=eq.${esc(t.template_id)}&published_at=not.is.null&order=revision.asc&select=revision,items_snapshot,published_at`)
+      ]);
+      const everPublished=new Set();
+      for(const r of publishedRows||[])for(const x of Array.isArray(r.items_snapshot)?r.items_snapshot:[])if(x?.item_key)everPublished.add(String(x.item_key).toUpperCase());
+      templates.push({
+        templateId:t.template_id,name:t.name,revision:Number(t.current_revision),publishedRevision:t.published_revision==null?null:Number(t.published_revision),
+        lifecycleStatus:t.published_revision!=null&&Number(t.current_revision)===Number(t.published_revision)?'PUBLISHED':'DRAFT',
+        items:(items||[]).map(i=>({itemKey:i.item_key,label:i.label,description:i.description,required:i.required===true,sortOrder:Number(i.sort_order),active:i.active===true,classificationHint:i.classification_hint,responseKind:RESPONSE_KINDS.has(i.response_kind)?i.response_kind:'TEXT_FILE',publishedBefore:everPublished.has(String(i.item_key).toUpperCase())}))
+      });
+    }
     if(accessHas(ctx.access,'MATERIAL_REQUEST_MANAGE'))accounts=await ctx.db.select('workspace_accounts','archived_at=is.null&status=eq.active&order=display_name.asc&select=account_id,username,display_name,role');
   }
   return {mode:ctx.internal?'INTERNAL':'ASSIGNED_UPLOAD',requests:(requests||[]).map(r=>({materialRequestId:r.material_request_id,title:r.title,counterparty:r.counterparty,product:r.product_snapshot||{},purpose:r.purpose,status:r.status,reviewStatus:r.review_status,revision:Number(r.revision),requestedAt:r.requested_at,submittedAt:r.submitted_at,updatedAt:r.updated_at,manifestRevision:Number(r.manifest_revision)})),templates,accounts:(accounts||[]).map(a=>({id:a.account_id,username:a.username,displayName:a.display_name,role:a.role})),access:{canManage:accessHas(ctx.access,'MATERIAL_REQUEST_MANAGE'),canReview:accessHas(ctx.access,'MATERIAL_REVIEW'),canTemplate:accessHas(ctx.access,'MATERIAL_TEMPLATE_MANAGE'),canUploadAssigned:accessHas(ctx.access,'MATERIAL_UPLOAD_ASSIGNED')}};
 }
 
 export async function materialGet(env,principal,payload,fetchImpl=fetch){const ctx=await actorContext(env,principal,fetchImpl);ctx.env=env;return requestBundle(ctx,String(payload.materialRequestId||''));}
-export async function materialTemplateSave(env,principal,payload,fetchImpl=fetch){const ctx=await actorContext(env,principal,fetchImpl);await assertRequestAccess(ctx,'',{template:true});requestIdOf(payload.requestId);return unwrap(await ctx.db.rpc('code1_material_save_template',{p_actor_id:ctx.actor.row.account_id,p_template_id:String(payload.templateId||''),p_base_revision:Number(payload.baseRevision),p_items:payload.items||[],p_request_id:payload.requestId}));}
+export async function materialTemplateSave(env,principal,payload,fetchImpl=fetch){const ctx=await actorContext(env,principal,fetchImpl);await assertRequestAccess(ctx,'',{template:true});requestIdOf(payload.requestId);if(!Array.isArray(payload.items))throw Error('INVALID_TEMPLATE');for(const item of payload.items){if(!RESPONSE_KINDS.has(String(item?.response_kind||'')))throw Error('INVALID_RESPONSE_KIND');}return unwrap(await ctx.db.rpc('code1_material_save_template',{p_actor_id:ctx.actor.row.account_id,p_template_id:String(payload.templateId||''),p_base_revision:Number(payload.baseRevision),p_items:payload.items,p_request_id:payload.requestId}));}
+export async function materialTemplatePublish(env,principal,payload,fetchImpl=fetch){const ctx=await actorContext(env,principal,fetchImpl);await assertRequestAccess(ctx,'',{template:true});requestIdOf(payload.requestId);return unwrap(await ctx.db.rpc('code1_material_publish_template',{p_actor_id:ctx.actor.row.account_id,p_template_id:String(payload.templateId||''),p_revision:Number(payload.revision),p_request_id:payload.requestId}));}
 export async function materialRequestCreate(env,principal,payload,fetchImpl=fetch){const ctx=await actorContext(env,principal,fetchImpl);await assertRequestAccess(ctx,'',{manage:true});requestIdOf(payload.requestId);return unwrap(await ctx.db.rpc('code1_material_create_request',{p_actor_id:ctx.actor.row.account_id,p_title:safeText(payload.title,240),p_counterparty:safeText(payload.counterparty,240),p_product_snapshot:payload.product&&typeof payload.product==='object'?payload.product:{},p_purpose:String(payload.purpose||''),p_farm_id:payload.farmId||null,p_template_id:String(payload.templateId||'PMT_GREAT_FARM_DEFAULT'),p_assignees:Array.isArray(payload.assignees)?payload.assignees.map(String):[],p_request_id:payload.requestId}));}
 export async function materialAssign(env,principal,payload,fetchImpl=fetch){const ctx=await actorContext(env,principal,fetchImpl);await assertRequestAccess(ctx,String(payload.materialRequestId||''),{manage:true});requestIdOf(payload.requestId);return unwrap(await ctx.db.rpc('code1_material_assign_uploaders',{p_actor_id:ctx.actor.row.account_id,p_material_request_id:String(payload.materialRequestId||''),p_assignees:Array.isArray(payload.assignees)?payload.assignees.map(String):[],p_request_id:payload.requestId}));}
 export async function materialItemUpdate(env,principal,payload,fetchImpl=fetch){const ctx=await actorContext(env,principal,fetchImpl);await loadItemContext(ctx,String(payload.requestItemId||''));requestIdOf(payload.requestId);return unwrap(await ctx.db.rpc('code1_material_set_item_submission',{p_actor_id:ctx.actor.row.account_id,p_request_item_id:String(payload.requestItemId||''),p_submission_state:String(payload.submissionState||''),p_memo:safeText(payload.memo,8000),p_request_id:payload.requestId}));}
@@ -155,6 +169,7 @@ export async function materialManifest(env,principal,payload,fetchImpl=fetch){co
 
 export async function materialUploadBegin(env,principal,payload,fetchImpl=fetch){
   const ctx=await actorContext(env,principal,fetchImpl);ctx.env=env;const requestId=requestIdOf(payload.requestId),{item,req}=await loadItemContext(ctx,String(payload.requestItemId||''));
+  if(item.response_kind_snapshot!=null&&!['FILE','TEXT_FILE'].includes(item.response_kind_snapshot))throw Error('FIELD_KIND_NO_FILE');
   if(['SUBMITTED','READY_FOR_REVIEW','COMPLETED','ARCHIVED'].includes(req.status)&&!ctx.internal)throw Error('REQUEST_READ_ONLY');
   const fileName=fileNameOf(payload.fileName),fileSize=fileSizeOf(payload.fileSize),{mime}=assertMaterialFileType(fileName,payload.mimeType),checksum=String(payload.sha256||'').toLowerCase();if(!shaPattern.test(checksum))throw Error('INVALID_SHA256');
   const existing=(await ctx.db.select('media_assets',`uploaded_by=eq.${esc(ctx.actor.row.account_id)}&request_id=eq.${esc(requestId)}&source_storage=eq.R2_PRIVATE&select=*`))?.[0];
@@ -201,13 +216,14 @@ export async function materialUploadFinish(env,principal,payload,fetchImpl=fetch
 
 export async function materialFileRead(env,principal,payload,fetchImpl=fetch){const ctx=await actorContext(env,principal,fetchImpl),bundle=await loadMediaContext(ctx,String(payload.mediaId||''));const token=await issueMediaReadToken(env,{accountId:ctx.actor.row.account_id,mediaId:bundle.media.media_id,objectKey:bundle.media.object_key,mimeType:bundle.media.mime_type});return {mediaId:bundle.media.media_id,fileName:bundle.media.original_file_name,mime:bundle.media.mime_type,size:Number(bundle.media.file_size_bytes),sha256:bundle.media.checksum_sha256,url:`/api/staging/media-get?token=${encodeURIComponent(token)}`,expiresInSeconds:300,confidentiality:bundle.version.confidentiality,publicDeliveryAllowed:false};}
 
-const ACTIONS=new Set(['planning.material.bootstrap','planning.material.request.get','planning.material.template.save','planning.material.request.create','planning.material.request.assign','planning.material.item.update','planning.material.review','planning.material.request.submit','planning.material.manifest','planning.material.upload.begin','planning.material.upload.chunk','planning.material.upload.finish','planning.material.file.read']);
+const ACTIONS=new Set(['planning.material.bootstrap','planning.material.request.get','planning.material.template.save','planning.material.template.publish','planning.material.request.create','planning.material.request.assign','planning.material.item.update','planning.material.review','planning.material.request.submit','planning.material.manifest','planning.material.upload.begin','planning.material.upload.chunk','planning.material.upload.finish','planning.material.file.read']);
 export function isPlanningMaterialAction(action){return ACTIONS.has(action);}
 export async function dispatchPlanningMaterial(env,principal,action,payload={},fetchImpl=fetch){
   switch(action){
     case 'planning.material.bootstrap':return materialBootstrap(env,principal,fetchImpl);
     case 'planning.material.request.get':return materialGet(env,principal,payload,fetchImpl);
     case 'planning.material.template.save':return materialTemplateSave(env,principal,payload,fetchImpl);
+    case 'planning.material.template.publish':return materialTemplatePublish(env,principal,payload,fetchImpl);
     case 'planning.material.request.create':return materialRequestCreate(env,principal,payload,fetchImpl);
     case 'planning.material.request.assign':return materialAssign(env,principal,payload,fetchImpl);
     case 'planning.material.item.update':return materialItemUpdate(env,principal,payload,fetchImpl);
