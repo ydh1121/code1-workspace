@@ -17,8 +17,21 @@ const unauthRpc=async(action,payload={})=>{
 
 await must('/',{contains:['/assets/accounts.js','CODE1 Internal Workspace']});
 await must('/assets/accounts.js',{contains:['loadMaterialModule','/assets/planning-materials.js','/assets/planning-materials.css','PARTNER','MATERIAL_UPLOAD_ASSIGNED']});
-await must('/assets/planning-materials.js',{contains:['상세페이지 및 제안서 파일','planning.material.bootstrap','planning.material.upload.begin','planning.material.upload.chunk','planning.material.upload.finish','자료 제출']});
-await must('/assets/planning-materials.css',{contains:['@media(max-width:390px)','overflow-x:hidden','.material-workspace']});
+await must('/assets/planning-materials.js',{contains:[
+  '상세페이지 및 제안서 파일',
+  'planning.material.bootstrap',
+  'planning.material.upload.begin',
+  'planning.material.upload.chunk',
+  'planning.material.upload.finish',
+  'planning.material.template.publish',
+  'responseKind',
+  "kind==='FILE'",
+  "kind==='TEXT_FILE'",
+  '초안 미리보기',
+  '게시 전에는 실제 제출자에게 노출되지 않습니다',
+  '자료 제출'
+]});
+await must('/assets/planning-materials.css',{contains:['@media(max-width:390px)','overflow-x:hidden','.material-workspace','.material-upload-zone','.material-review-panel']});
 const session=await fetch(origin+'/api/session',{redirect:'follow'});const sj=await session.json();
 if(session.status!==200||new URL(session.url).origin!==origin||sj.configured!==true||sj.authenticated!==false)throw Error(`session gate mismatch: ${session.status} ${JSON.stringify(sj)}`);
 console.log('PASS GET /api/session configured=true authenticated=false');
@@ -26,4 +39,5 @@ await unauthRpc('planning.material.bootstrap',{});
 await unauthRpc('planning.material.request.get',{materialRequestId:'PMR_READONLY_SMOKE'});
 await unauthRpc('planning.material.upload.begin',{requestItemId:'PMI_READONLY_SMOKE'});
 await unauthRpc('planning.material.request.submit',{materialRequestId:'PMR_READONLY_SMOKE',targetStatus:'SUBMITTED'});
-console.log(JSON.stringify({origin,staticRoutes:'PASS',dynamicLoaderContract:'PASS',sessionGate:'PASS',unauthenticatedRpcFailClosed:'PASS',remoteMutation:'NONE'},null,2));
+await unauthRpc('planning.material.template.publish',{templateId:'PMT_READONLY_SMOKE',revision:1});
+console.log(JSON.stringify({origin,staticRoutes:'PASS',fieldTypeBundleContract:'PASS',draftPublishBundleContract:'PASS',dynamicLoaderContract:'PASS',sessionGate:'PASS',unauthenticatedRpcFailClosed:'PASS',remoteMutation:'NONE'},null,2));
