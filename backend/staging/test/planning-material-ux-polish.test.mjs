@@ -10,67 +10,66 @@ const ui=fs.readFileSync(resolve(root,'public/assets/planning-materials.js'),'ut
 const css=fs.readFileSync(resolve(root,'public/assets/planning-materials.css'),'utf8');
 const access=fs.readFileSync(resolve(root,'backend/staging/src/workspace-access.mjs'),'utf8');
 
-test('material workspace uses readable request rows instead of collapsing tile cards',()=>{
+test('material workspace keeps request discovery readable and uses one Korean configuration name',()=>{
   assert.match(ui,/material-request-row/);
+  assert.match(ui,/요청 항목 관리/);
+  assert.doesNotMatch(ui,/업로드 항목 관리/);
   assert.match(css,/\.material-request-row\{appearance:none;width:100%;display:grid/);
-  assert.match(css,/word-break:keep-all/);
-  assert.doesNotMatch(css,/repeat\(auto-fill,minmax\(280px,1fr\)\)/);
 });
 
-test('material detail separates direct input, file upload, and internal review',()=>{
-  assert.match(ui,/el\('details','material-item'\)/);
-  for(const label of ['직접 입력','파일 첨부','내부 검토','내용 \/ 보충 설명'])assert.match(ui,new RegExp(label));
-  assert.match(ui,/material-entry-grid/);
-  assert.match(ui,/material-review-panel/);
-  assert.match(ui,/material-file-count/);
-  assert.match(css,/\.material-entry-grid\{display:grid/);
+test('request item uses one coherent submission compose surface and secondary exception flow',()=>{
+  assert.match(ui,/material-compose/);
+  assert.match(ui,/자료 제출/);
+  assert.match(ui,/material-exception-panel/);
+  assert.match(ui,/자료를 지금 제출하기 어려운 경우/);
+  assert.doesNotMatch(ui,/material-entry-grid/);
+  assert.doesNotMatch(ui,/직접 입력/);
 });
 
-test('developer manifest is no longer exposed as a normal UI action',()=>{
-  assert.doesNotMatch(ui,/Planning manifest 보기/);
-  assert.doesNotMatch(ui,/Planning export manifest/);
+test('internal review is a separate collapsed details surface and not a numbered submitter step',()=>{
+  assert.match(ui,/el\('details','material-review-panel'\)/);
+  assert.match(ui,/제출자 화면과 분리된 내부 전용 영역/);
+  assert.doesNotMatch(ui,/material-entry-number/);
 });
 
-test('material tab replaces generic admin KPIs with material-specific operational summary',()=>{
-  assert.match(ui,/summary\.hidden=true/);
-  for(const label of ['전체 요청','요청 중','제출 완료','검토 대기'])assert.match(ui,new RegExp(label));
-  assert.match(ui,/tab\.dataset\.adminTab!=='materials'/);
+test('template manager is outline-first with secondary edit dialog and collapsed non-empty categories',()=>{
+  assert.match(ui,/template-outline-row/);
+  assert.match(ui,/material-template-item-dialog/);
+  assert.match(ui,/openItemEditor/);
+  assert.match(ui,/현재 비어 있는 분류/);
+  assert.match(ui,/section\.open=sections\.length===0/);
+  assert.doesNotMatch(css,/template-item-top/);
 });
 
-test('template manager groups independent child items by classification and supports category-specific add',()=>{
-  assert.match(ui,/template-category-list/);
-  assert.match(ui,/이 분류에 항목 추가/);
-  assert.match(ui,/새 하위 항목/);
-  assert.match(ui,/classification_hint/);
-  assert.match(css,/#material-template-dialog\{width:min\(1320px/);
-  assert.match(css,/\.material-dialog-body\{overflow:auto;overflow-x:hidden/);
-  for(const label of ['사업자·법인','상품·패키지·표시','농장·생산자·사육환경','인증·검사·성적서','사료·급이','선별·포장·물류'])assert.match(ui,new RegExp(label));
+test('single template is applied automatically while multi-template choice remains available',()=>{
+  assert.match(ui,/boot\.templates\|\|\[\]\)\.length>1/);
+  assert.match(ui,/현재 기본 항목으로 자동 적용/);
+  assert.match(ui,/template\?\.value\|\|boot\.templates\?\.\[0\]\?\.templateId/);
 });
 
-test('request creation can assign internal or external accounts instead of PARTNER-only filtering',()=>{
-  assert.match(ui,/내부·외부 계정 모두 지정/);
-  assert.match(ui,/자료 제출 담당자 배정/);
-  assert.match(ui,/a\.id!==user\?\.id&&a\.id!=='OWNER'/);
-  assert.doesNotMatch(ui,/filter\(a=>a\.role==='PARTNER'\)/);
+test('file UX has queue remove progress result and drag-drop for new and revision uploads',()=>{
+  for(const phrase of ['material-file-queue','material-remove-file','material-queue-status','dragenter','dragover','dragleave','dataTransfer?.files','새 버전 업로드'])assert.match(ui,new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
+  assert.match(ui,/multiple:true/);
+  assert.match(ui,/multiple:false/);
+  assert.match(ui,/uploadOne\(item,entry\.file,materialFileId/);
 });
 
-test('permission catalog uses operator-facing Korean instead of developer vocabulary',()=>{
+test('operator UI removes developer-facing English eyebrow labels',()=>{
+  assert.doesNotMatch(ui,/PLANNING MATERIAL WORKSPACE/);
+  assert.doesNotMatch(ui,/PLANNING MATERIAL REQUEST/);
+  assert.doesNotMatch(ui,/REQUESTED MATERIALS/);
+  assert.doesNotMatch(ui,/MATERIAL SUBMISSION/);
+});
+
+test('permission catalog stays operator-facing and backend vocabulary is not reintroduced',()=>{
   for(const phrase of ['자료요청 만들기·담당자 배정','제출 자료 검토','요청 항목 구성 관리','배정받은 자료 제출','현재값 확정'])assert.match(access,new RegExp(phrase));
   assert.doesNotMatch(access,/자료요청 package를 만들고 제출자를 배정/);
   assert.doesNotMatch(access,/Planning Material request의 파일·메모만 제출/);
 });
 
-test('upload UI keeps existing upload contract while adding selection and drag-drop affordance',()=>{
-  assert.match(ui,/planning\.material\.upload\.begin/);
-  assert.match(ui,/planning\.material\.upload\.chunk/);
-  assert.match(ui,/planning\.material\.upload\.finish/);
-  assert.match(ui,/material-upload-zone/);
-  assert.match(ui,/dragover/);
-  assert.match(ui,/dataTransfer\.files/);
-});
-
-test('390px layout explicitly prevents horizontal overflow',()=>{
+test('390px contract prevents workspace horizontal overflow and stacks queue rows',()=>{
   assert.match(css,/@media\(max-width:390px\)/);
   assert.match(css,/\.material-workspace,\.material-detail,\.material-external-page\{max-width:100%;overflow-x:hidden\}/);
+  assert.match(css,/\.material-queue-row\{grid-template-columns:1fr\}/);
   assert.match(css,/font-size:16px/);
 });
