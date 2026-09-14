@@ -60,11 +60,18 @@ The Planning Material request flow was rebuilt around the actual user task rathe
 - If multiple templates exist, an explicit configuration selector remains.
 - Existing internal/external assignee support remains.
 
-## Verification before deployment
+## Verification and deployment
 
-Validated tree checkpoint: `17ede232e9b6c625c0c63a77f4302a1b9486f46d`.
+Validated interaction-test checkpoint: `17ede232e9b6c625c0c63a77f4302a1b9486f46d`.
 
-`isolated-node-checks` = SUCCESS.
+Deployment checkpoint: `58054a55c56d49bb03c821f6c523257c7920050c`.
+
+Cloudflare Pages = SUCCESS.
+
+- Atomic Preview: `https://a636445e.code1-workspace.pages.dev`
+- Stable branch Preview: `https://coding-runtime-backend-stagi.code1-workspace.pages.dev`
+
+At the validated tree, `isolated-node-checks` = SUCCESS.
 
 Staging test suite:
 
@@ -79,6 +86,8 @@ Interaction tests use `happy-dom` and dispatch DOM events rather than only match
 3. Assigned submitter/PARTNER mode: same compose/drop affordance with no internal review controls.
 
 Locked npm audit = 0 vulnerabilities. Existing unrelated root-suite baseline failures remain unchanged and accepted by the branch baseline guard.
+
+This docs-only checkpoint intentionally uses `[CF-Pages-Skip]` and triggers the credential-free stable Preview smoke after the successful application deployment.
 
 ## Authentication/browser acceptance still required
 
