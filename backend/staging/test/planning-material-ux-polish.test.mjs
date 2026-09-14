@@ -14,10 +14,10 @@ test('material workspace keeps request discovery readable and uses one Korean co
   assert.match(ui,/material-request-row/);
   assert.match(ui,/요청 항목 관리/);
   assert.doesNotMatch(ui,/업로드 항목 관리/);
-  assert.match(css,/\.material-request-row\{appearance:none;width:100%;display:grid/);
+  assert.match(css,/\.material-request-row\{appearance:none;width:100%;min-width:0;display:grid/);
 });
 
-test('request item uses one coherent submission compose surface and secondary exception flow',()=>{
+test('request item keeps one coherent submission surface and secondary exception flow',()=>{
   assert.match(ui,/material-compose/);
   assert.match(ui,/자료 제출/);
   assert.match(ui,/material-exception-panel/);
@@ -26,28 +26,42 @@ test('request item uses one coherent submission compose surface and secondary ex
   assert.doesNotMatch(ui,/직접 입력/);
 });
 
-test('internal review is a separate collapsed details surface and not a numbered submitter step',()=>{
+test('response kind drives typed controls instead of universal text plus file',()=>{
+  assert.match(ui,/responseKindOptions=\[\['TEXT'/);
+  assert.match(ui,/\['LONG_TEXT','서술형 내용 입력'\]/);
+  assert.match(ui,/\['FILE','파일 제출'\]/);
+  assert.match(ui,/\['TEXT_FILE','내용 \+ 파일 제출'\]/);
+  assert.match(ui,/if\(\['TEXT','LONG_TEXT','TEXT_FILE'\]\.includes\(item\.responseKind\)\)renderTextResponse/);
+  assert.match(ui,/if\(\['FILE','TEXT_FILE'\]\.includes\(item\.responseKind\)\)renderFileResponse/);
+});
+
+test('internal review is separate and never rendered for external submitter',()=>{
+  assert.match(ui,/if\(!external&&access\.canReview\)/);
   assert.match(ui,/el\('details','material-review-panel'\)/);
   assert.match(ui,/제출자 화면과 분리된 내부 전용 영역/);
-  assert.doesNotMatch(ui,/material-entry-number/);
 });
 
-test('template manager is outline-first with secondary edit dialog and collapsed non-empty categories',()=>{
+test('template manager is outline-first and response kind lives in secondary edit detail',()=>{
   assert.match(ui,/template-outline-row/);
   assert.match(ui,/material-template-item-dialog/);
-  assert.match(ui,/openItemEditor/);
+  assert.match(ui,/field\('응답 방식',responseKind/);
   assert.match(ui,/현재 비어 있는 분류/);
   assert.match(ui,/section\.open=sections\.length===0/);
-  assert.doesNotMatch(css,/template-item-top/);
 });
 
-test('single template is applied automatically while multi-template choice remains available',()=>{
-  assert.match(ui,/boot\.templates\|\|\[\]\)\.length>1/);
-  assert.match(ui,/현재 기본 항목으로 자동 적용/);
-  assert.match(ui,/template\?\.value\|\|boot\.templates\?\.\[0\]\?\.templateId/);
+test('draft preview and explicit publish lifecycle are operator-visible',()=>{
+  for(const phrase of ['초안 미리보기','초안 저장','게시하기 전까지 실제 제출자','planning.material.template.publish','게시 후 생성하는 새 자료요청부터 적용'])assert.match(ui,new RegExp(phrase));
+  assert.match(ui,/publishedTemplates\(\)/);
+  assert.match(ui,/publishedRevision/);
 });
 
-test('file UX has queue remove progress result and drag-drop for new and revision uploads',()=>{
+test('single published template is auto-applied while multi-template choice remains available',()=>{
+  assert.match(ui,/available\.length>1/);
+  assert.match(ui,/게시 r\$\{only\.publishedRevision\}/);
+  assert.match(ui,/template\?\.value\|\|available\[0\]\?\.templateId/);
+});
+
+test('file UX retains queue remove progress drag-drop and new-version path',()=>{
   for(const phrase of ['material-file-queue','material-remove-file','material-queue-status','dragenter','dragover','dragleave','dataTransfer?.files','새 버전 업로드'])assert.match(ui,new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
   assert.match(ui,/multiple:true/);
   assert.match(ui,/multiple:false/);
