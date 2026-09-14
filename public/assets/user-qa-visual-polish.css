@@ -1,0 +1,42 @@
+/* USER QA bounded visual corrections — STAGING only. */
+
+/* Farm materials: the selected group card keeps a white surface, so explicitly restore readable title color. */
+.farm-work #categories .group-card.active{color:var(--ink)!important}
+.farm-work #categories .group-card.active strong{color:var(--ink)!important}
+.farm-work #categories .group-card.active .group-number{color:#315f8b!important}
+
+/* Planning material request: restore task-first hierarchy so the requested evidence is unmistakable. */
+.material-detail .material-item-list{counter-reset:material-request-item;gap:18px!important}
+.material-detail .material-item{counter-increment:material-request-item;border:1px solid #d7e0e8!important;border-left:4px solid #175fa3!important;border-radius:16px!important;box-shadow:0 7px 24px rgba(25,42,59,.045)!important;background:#fff!important}
+.material-detail .material-item[open]{border-left-color:#0f5b9f!important;box-shadow:0 10px 30px rgba(25,42,59,.075)!important}
+.material-detail .material-item-summary{align-items:flex-start!important;min-height:96px!important;padding:20px 22px!important;background:#fff!important;gap:20px!important}
+.material-detail .material-item-name{display:flex!important;align-items:center!important;gap:7px!important;flex-wrap:wrap!important;min-width:0!important;flex:1 1 auto!important}
+.material-detail .material-item-name::before{content:'제출 항목 ' counter(material-request-item,decimal-leading-zero);display:block;width:100%;font-size:12px;line-height:1.2;font-weight:800;letter-spacing:.04em;color:#55718c;margin-bottom:3px}
+.material-detail .material-item-name>strong{font-size:23px!important;line-height:1.35!important;font-weight:790!important;letter-spacing:-.02em!important;color:#192a3b!important;word-break:keep-all!important;overflow-wrap:anywhere!important}
+.material-detail .material-response-kind,.material-detail .material-required,.material-detail .material-optional{font-size:12px!important;padding:5px 9px!important;align-self:center!important}
+.material-detail .material-item-summary-meta{padding-top:20px!important;flex:0 0 auto!important}
+.material-detail .material-state,.material-detail .material-file-count{font-size:12px!important}
+.material-detail .material-chevron{margin-top:2px!important}
+.material-detail .material-item-body{padding:0 22px 22px!important;border-top:1px solid #e6ebef!important;background:#fff!important}
+.material-detail .material-compose{border:0!important;border-radius:0!important;padding:18px 0 0!important;background:#fff!important;gap:14px!important}
+.material-detail .material-compose-head h4{font-size:13px!important;line-height:1.3!important;font-weight:760!important;color:#55718c!important;margin:0 0 3px!important}
+.material-detail .material-compose-head p{font-size:13px!important;line-height:1.5!important;color:#6c7c8b!important}
+.material-detail .material-request-guide{font-size:14px!important;line-height:1.65!important;padding:13px 15px!important;background:#f4f7fa!important;color:#44596d!important}
+.material-detail .material-compose-files>h5{font-size:17px!important;line-height:1.4!important;margin:4px 0 0!important;color:#192a3b!important}
+.material-detail .material-upload-zone{min-height:128px!important;border-width:2px!important;background:#fbfcfe!important}
+.material-detail .material-drop-copy>strong{font-size:15px!important;color:#24384b!important}
+.material-detail .material-exception-panel,.material-detail .material-review-panel{margin-top:2px!important}
+
+@media(max-width:760px){
+  .material-detail .material-item-summary{display:grid!important;grid-template-columns:minmax(0,1fr)!important;min-height:0!important;padding:17px 16px!important;gap:10px!important}
+  .material-detail .material-item-name>strong{font-size:21px!important}
+  .material-detail .material-item-summary-meta{padding-top:0!important;justify-content:flex-start!important}
+  .material-detail .material-item-body{padding:0 16px 16px!important}
+}
+
+@media(max-width:390px){
+  .material-detail .material-item-name>strong{font-size:20px!important}
+  .material-detail .material-item-name::before{font-size:11px!important}
+  .material-detail .material-item-summary{padding:15px 14px!important}
+  .material-detail .material-item-body{padding:0 14px 14px!important}
+}
