@@ -1,190 +1,181 @@
 # CODE1 CODING CURRENT
 
 Updated: 2026-09-14 KST
-Status: `MSG-20260914-0096` CONSUMED / MATERIAL UX IA DEPLOYED / AUTHENTICATED BROWSER QA REQUIRED / STAGING ONLY
+Status: `MSG-20260914-0099` CONSUMED / MATERIAL FIELD TYPES + DRAFT-PUBLISH TECHNICAL PASS / `BLOCKED_AUTH_SESSION` / STAGING ONLY
 Branch: `coding/runtime-backend-staging`
 Base main: `a71a71eae73706862308e194110f4fcc2d25db01`
 Supabase STAGING: `bsintmkyhptizrjoizfb`
 Stable Preview: `https://coding-runtime-backend-stagi.code1-workspace.pages.dev`
 Production/main mutation: 0
 Production Supabase/R2 mutation: 0
-Live legacy Google mutation: 0
-PLANNING_DELTA_SEQ_SEEN = 20260914-046
-CROSS_TRACK_BUS_LAST_SEEN = MSG-20260914-0096
-LAST_PLANNING_INBOUND_CONSUMED = MSG-20260914-0096
-LAST_CODING_OUTBOUND = MSG-20260914-0093
+Live legacy Google/Drive hot-path mutation: 0
+Credential read/reset/synthesis: 0
+PLANNING_DELTA_SEQ_SEEN = 20260914-048
+CROSS_TRACK_BUS_LAST_SEEN = MSG-20260914-0101
+LAST_PLANNING_INBOUND_CONSUMED = MSG-20260914-0099
+LAST_CODING_OUTBOUND = MSG-20260914-0101
 
 ## Current Planning authority
 
-Active Work Order: `WO-20260914-CODING-MATERIAL-UX-001`.
+Active Work Order: `WO-20260914-CODING-MATERIAL-FIELD-TYPES-001`.
 
-Latest CODING authority: `MSG-20260914-0096 / Planning Delta 20260914-046 / MATERIAL_WORKSPACE_UX_ARCHITECTURE_CORRECTION / P0`.
+Authority: `MSG-20260914-0099 / Planning Delta 20260914-048 / P0`.
 
-`MSG-0096` supersedes the remaining UX interpretation/work under `MSG-0094`. It does **not** revoke the accepted REV B technical backend baseline.
+Fresh Bus read immediately before outbound showed no newer PLANNING -> CODING instruction. CODING published `MSG-20260914-0101` with technical evidence and the remaining authenticated-browser blocker.
 
-Fresh Message Bus read after deployment shows no newer PLANNING -> CODING inbound than `MSG-0096`.
+## Model correction implemented
 
-## Preserved REV B technical baseline
+The existing farm-material submission implementation was directly inspected first. Planning Material remains a separate domain, but reuses its proven domain-neutral pattern: catalog-level input type + immutable response snapshot + non-destructive exposure/history behavior.
 
-No migration replay or schema expansion was performed for this UX Work Order.
+Template response kinds:
 
-Supabase STAGING migrations remain:
+- `TEXT`
+- `LONG_TEXT`
+- `FILE`
+- `TEXT_FILE`
 
-- `planning_material_workspace_0021`
-- `planning_material_acceptance_0022`
-- `planning_material_transactional_acceptance_0023`
+New request items snapshot `response_kind_snapshot` from the PUBLISHED template revision. Existing request items are not retrofitted; legacy snapshots intentionally remain NULL and preserve pre-0024 behavior/history.
 
-Fresh Supabase schema read confirmed the existing model is sufficient:
+Typed server validation:
 
-- `planning_material_template_items.item_key + classification_hint`
-- immutable request-item snapshots (`label_snapshot`, `description_snapshot`, `required_snapshot`, `sort_order_snapshot`, `classification_hint`)
-- request assignees
-- planning material files + immutable file revisions
+- TEXT/LONG_TEXT: text satisfies a required item; planning-material file insertion is rejected.
+- FILE: a current file satisfies a required item; normal text submission is rejected.
+- TEXT_FILE: both channels are required when the item is required.
 
-Preserved unchanged:
+Typed browser rendering:
 
-- private R2 original-file authority
-- multipart/checksum/idempotency/recovery contract
-- RBAC and assigned-request authorization
-- immutable request/template snapshots
-- file revision/current/superseded history
-- deterministic Planning export manifest
-- deduplicated `PLANNING_IMPACT` event/outbox
-- review/currentness/public-claim separation
-- `public_delivery_allowed=false`
+- `제품명` TEXT => text control only, no file zone.
+- FILE evidence => file/drop zone only, no normal text field.
+- TEXT_FILE => both only when explicitly configured.
 
-## MSG-0096 UX architecture correction
+## Draft / Preview / Publish lifecycle
 
-The request-item flow is now organized by user task rather than by implementation controls.
+Implemented explicit lifecycle:
 
-### 자료 제출
+1. `초안 저장` creates a DRAFT revision.
+2. `초안 미리보기` renders the exact submitter control shape internally.
+3. Draft items are not visible to real submitters/new requests.
+4. `게시` explicitly advances `published_revision`.
+5. New requests snapshot only the latest PUBLISHED revision.
+6. A never-published draft-only item may be physically deleted before publish.
+7. A previously published item removed from the current configuration is archived/inactivated for future requests while existing request snapshots/version history remain immutable.
 
-Each request item has one coherent `자료 제출` compose surface:
+## MSG-0096 behavior preserved
 
-- explanation/text and attachments coexist in one submitter surface;
-- there is no equal competing `직접 입력 / 파일 첨부 / 내부 검토` step sequence;
-- `추후 제출 / 자료 없음 / 해당 없음` are secondary actions inside a collapsed exception panel;
-- internal review is a separate collapsed internal-only panel and is never rendered in assigned submitter/PARTNER mode;
-- ordinary operator surfaces no longer expose developer-facing English eyebrow labels.
+- entire visible drop zone clickable/keyboard accessible
+- dragenter/dragover/dragleave/drop feedback
+- multi-file drop/select
+- filename + size queue
+- per-file remove before upload
+- per-file progress/success/error
+- retry/reupload/new-version path
+- existing file/version history
+- internal review separated from submitter compose flow
+- private R2/RBAC/idempotency/audit/manifest/PLANNING_IMPACT contracts
 
-### File interaction
+## Supabase STAGING verification
 
-The normal upload and new-version paths now share explicit interaction behavior:
+Applied:
 
-- entire visible drop zone is clickable and keyboard accessible;
-- normal file picker remains available;
-- dragenter/dragover/dragleave/drop interaction with drag-over visual feedback;
-- multi-file select/drop on the normal upload path;
-- pre-upload queue with filename + human-readable size;
-- per-file removal before upload;
-- per-file upload state/progress/success/failure;
-- one failed file does not erase other file results;
-- existing current file `새 버전` opens a revision uploader that reuses the same drop interaction while preserving version history.
+- `planning_material_field_types_lifecycle_0024`
+- `planning_material_field_types_acceptance_0025`
 
-### 요청 항목 관리
+Pre/post legacy request-item readback:
 
-One operator-facing name is used: `요청 항목 관리`.
+- row count = 14
+- legacy NULL `response_kind_snapshot` = 14
+- fingerprint = `0badfd86ac001a1dcd9441a7868c8f3a`
 
-The first surface is now a scannable category/item outline:
+The fingerprint and row count remained unchanged after 0024 and after privileged 0025 acceptance.
 
-- categories use existing `classification_hint`;
-- child-item identity uses existing `item_key`;
-- only the first non-empty category opens initially;
-- empty categories are summarized rather than expanded;
-- outline rows show item summary and state, not all editing controls;
-- label, guidance, category move, required and active state are changed in a secondary item-edit dialog;
-- add/reorder/required/archive/template revision semantics remain on the existing versioned template RPC.
+0025 synthetic acceptance exercised draft isolation/delete, explicit publish, required TEXT, required FILE, explicit TEXT_FILE, type guard failures, required-file blocking, file completion, published-item future removal, and old-request snapshot preservation. All synthetic rows were removed before commit; residue readback = 0.
 
-### New request
+Relevant material RPC functions remain executable by `service_role` only and denied to browser DB roles `anon` / `authenticated`.
 
-- one active template => no redundant template selector; current default is applied automatically;
-- multiple templates => selector remains;
-- active internal and external accounts remain available as assignee candidates while server-side authorization remains unchanged.
+## Git / CI / Preview
 
-## Implementation checkpoints
-
-- request-flow JS refactor: `ef90b1e3c2bae014320f58d5876928ed013c73e9`
-- IA/responsive CSS: `91f14a9569b54fa28f6ac7e46ea65132651cf957`
-- source guard update: `5cdbefb8a75d805385c0257091d88cf12db2a93b`
-- interactive DOM regression checkpoint: `17ede232e9b6c625c0c63a77f4302a1b9486f46d`
-- Cloudflare Pages deployment checkpoint: `58054a55c56d49bb03c821f6c523257c7920050c`
-- atomic Preview: `https://a636445e.code1-workspace.pages.dev`
+- field-type interaction checkpoint: `70f582b8ef896ca470038426d211efd2774c1d1c`
+- DB acceptance source: `aa55258a27c18c00810ae0061e24338515a5b304`
+- Cloudflare deployment: `795243ddf5d0880481fca616e7e3b7ea93c4ab16`
+- atomic Preview: `https://dcd66a17.code1-workspace.pages.dev`
 - stable Preview: `https://coding-runtime-backend-stagi.code1-workspace.pages.dev`
-- stable smoke trigger/checkpoint: `9d560b01a1956f312130883447a50a1f88f02658`
+- final typed smoke checkpoint: `7da7017fbcd6ac48f2cabeb6c0d1c329e2f6d6ed`
+- durable evidence: `docs/coding/PLANNING_MATERIAL_FIELD_TYPES_EVIDENCE_20260914.md`
 
-## Verification
+Verification:
 
-At the validated tree:
+- Cloudflare Pages deploy = SUCCESS
+- isolated-node-checks = SUCCESS
+- field-type interaction suite included in STAGING tests
+- earlier complete STAGING tree = 199/199 PASS / 0 fail
+- locked npm audit = 0
+- known root baseline failures unchanged
 
-- staging tests: 187 total / 187 pass / 0 fail
-- `isolated-node-checks` = SUCCESS
-- locked npm audit = 0 vulnerabilities
-
-New `happy-dom` interaction tests dispatch DOM events rather than only searching source strings and verify:
-
-1. OWNER flow: one compose surface, secondary exceptions, collapsed internal review, outline-first settings, single-template auto application.
-2. File flow: whole-zone click, dragover feedback, two-file drop, queue creation, pre-upload removal, multipart begin/chunk/finish, completed result state.
-3. Assigned submitter/PARTNER mode: same compose/drop affordance and no internal review controls.
-
-Cloudflare Pages deployment `58054a55...` = SUCCESS.
-
-Credential-free stable Preview smoke `9d560b01...` = SUCCESS:
+Stable Preview read-only smoke = PASS:
 
 - `/` 200
-- `/assets/accounts.js` 200
-- `/assets/planning-materials.js` 200
-- `/assets/planning-materials.css` 200
+- accounts JS 200
+- Planning Material JS/CSS 200
+- typed response bundle contract PASS
+- draft/publish bundle contract PASS
+- 390px/overflow/upload/review CSS contract PASS
 - session configured=true / authenticated=false
-- unauthenticated material bootstrap/get/upload-begin/submit => 401 `UNAUTHENTICATED`
-- dynamic loader contract PASS
-- remote mutation NONE
+- unauthenticated bootstrap/get/upload/submit/publish all 401 `UNAUTHENTICATED`
+- remote mutation = NONE
 
-## Remaining MSG-0096 gate
+## Remaining mandatory gate — BLOCKED_AUTH_SESSION
 
-The required **real authenticated browser QA is not yet complete and must not be inferred from CI/DOM simulation**.
+Actual authenticated OWNER + assigned submitter/PARTNER desktop + 390px browser QA is still required by MSG-0099 and is **not claimed**.
 
-Still required through existing authorized sessions:
+Readback established:
+
+- this execution context has no interactive Computer/Cloud Browser tool carrying the user's existing staging session;
+- the repository has no Playwright/Puppeteer authenticated browser runner with a pre-authorized session;
+- `bootstrap-owner-web-login-staging.mjs` is not a session-reuse path: it requires `CODE1_OPERATOR_SESSION_SECRET` and a new `CODE1_STAGING_OWNER_PASSWORD`, resets OWNER password/session version, then logs in;
+- that credential-reset path was not executed;
+- current STAGING account readback contains active OWNER and no active PARTNER account, so there is no existing assigned PARTNER identity/session to use.
+
+Per the existing-authorized-session safety rule, CODING did not read/reset/synthesize credentials and did not invent a QA PARTNER account. Therefore the WO cannot truthfully be marked CLOSED in this execution context.
+
+Required remaining browser acceptance once authorized sessions exist:
 
 ### OWNER desktop + 390px
 
-- request detail has one coherent `자료 제출` surface;
-- exception actions remain secondary;
-- internal review is separate/collapsed;
-- actual file drag/drop gesture works;
-- multi-file queue, filename/size, remove, progress, success/failure are usable;
-- existing file `새 버전` drag/drop path is usable and preserves prior version;
-- `요청 항목 관리` is outline-first with secondary edit detail and no dense field wall;
-- one-template request creation does not show a redundant selector;
-- horizontal overflow = 0;
-- page/console errors = 0.
+- exact typed controls: TEXT only / FILE only / explicit TEXT_FILE both
+- draft item internal preview only
+- delete draft before publish
+- publish then verify subsequent new request snapshot
+- remove published item then verify new request exclusion + old history preservation
+- actual drag/drop, queue/removal/progress/reupload usability
+- internal review separation
+- horizontal overflow 0
+- page/console errors 0
 
-### assigned submitter/PARTNER desktop + 390px
+### assigned PARTNER desktop + 390px
 
-- only assigned requests are visible;
-- same coherent submit/drop flow works;
-- internal review controls are absent;
-- actual drag/drop gesture works;
-- horizontal overflow = 0;
-- page/console errors = 0.
+- only assigned request access
+- typed submitter surfaces identical to published snapshot
+- draft/internal controls absent
+- actual drag/drop path
+- internal review absent
+- horizontal overflow 0
+- page/console errors 0
 
-Credentials must not be read, reset or synthesized to manufacture this evidence.
-
-## Hard boundaries preserved
+## Hard boundaries
 
 - STAGING ONLY
 - Production/main/live mutation = 0
 - Production Supabase/R2 mutation = 0
-- Supabase STAGING schema/migration mutation for this UX WO = 0
 - Drive hot-path dual-write = 0
-- credential mutation/access = 0
-- paid resources = none
-- automatic VERIFIED / APPROVED_CURRENT / public delivery = none
-- DESIGN/Figma/HOME/UIUX = untouched
-- retention freeze/purge = none
+- credentials/session-secret/password mutation = 0
+- no fabricated browser evidence
+- no automatic VERIFIED / APPROVED_CURRENT / public delivery
+- no unrelated DESIGN/UIUX/Productionization work
 
 ## NEXT_ATOMIC_ACTION
 
-1. Use existing authorized OWNER and assigned submitter/PARTNER browser sessions to perform the `MSG-0096` desktop + 390px QA, including an actual drag/drop gesture and console/overflow checks.
-2. If concrete defects appear, fix only bounded defects and rerun impacted CI/smoke.
-3. Only after the authenticated browser gate is truthfully complete, publish the required CODING -> PLANNING `IMPLEMENTATION_EVIDENCE` for `MSG-0096` with before/after visuals, click paths, drag/drop results, commit/Preview refs and mutation audit.
-4. Do not auto-start Drive mirroring, Productionization, retention work or unrelated cross-track work.
+1. Fresh-read Message Bus first.
+2. If Planning issues newer CODING authority, process it before anything else.
+3. Otherwise remain `BLOCKED_AUTH_SESSION` until an existing authorized OWNER session and assigned PARTNER session are available in an interactive browser-capable execution context.
+4. Run the exact desktop + 390px browser acceptance above; fix only concrete bounded defects if found.
+5. Only after truthful browser PASS, publish final CODING -> PLANNING completion evidence and request WO closure.
