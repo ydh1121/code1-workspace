@@ -4,6 +4,7 @@ import {dispatchAdminOps} from './admin-ops.mjs';
 import {dispatchOpsChangeRelay,isOpsChangeRelayAction} from './ops-change-relay.mjs';
 import {dispatchMediaUpload,isMediaUploadAction} from './media-upload-runtime.mjs';
 import {dispatchPlanningMaterial,isPlanningMaterialAction} from './planning-material-runtime.mjs';
+import {deletePlanningMaterialRequest,isPlanningMaterialRequestDeleteAction} from './planning-material-request-delete-runtime.mjs';
 import {deckBootstrap,deckAssets,saveDeck} from './deck-runtime.mjs';
 import {uploadDeckAsset,getDeckMediaMaybe} from './deck-media-runtime.mjs';
 
@@ -29,7 +30,12 @@ export async function dispatchCode1Staging(env,principal,action,payload={},fetch
   if(isDeckDriveLink(action,payload))throw Error('DECK_DRIVE_LINK_DISABLED');
   if(isDeckUpload(action,payload)){if(!DECK_WRITE_GATE_OPEN)throw Error('DECK_WRITE_GATE_CLOSED');return uploadDeckAsset(env,principal,payload,fetchImpl);}
   if(action==='media'){const deckMedia=await getDeckMediaMaybe(env,principal,payload,fetchImpl);if(deckMedia)return deckMedia;}
-  if(isPlanningMaterialAction(action))return dispatchPlanningMaterial(env,principal,action,payload,fetchImpl);
+  if(isPlanningMaterialRequestDeleteAction(action))return deletePlanningMaterialRequest(env,principal,payload,fetchImpl);
+  if(isPlanningMaterialAction(action)){
+    const data=await dispatchPlanningMaterial(env,principal,action,payload,fetchImpl);
+    if(action==='planning.material.bootstrap'&&Array.isArray(data?.requests))data.requests=data.requests.filter(request=>request.status!=='ARCHIVED');
+    return data;
+  }
   if(isOpsChangeRelayAction(action))return dispatchOpsChangeRelay(env,principal,action,payload,fetchImpl);
   if(ADMIN_ACTIONS.has(action))return dispatchAdminOps(env,principal,action,payload,fetchImpl);
   if(PLANNING_ACTIONS.has(action))return dispatchPlanningApi(env,principal,action,payload,fetchImpl);
