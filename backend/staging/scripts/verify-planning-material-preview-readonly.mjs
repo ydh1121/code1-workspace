@@ -15,8 +15,9 @@ const unauthRpc=async(action,payload={})=>{
   console.log(`PASS POST /api/rpc ${action} -> 401 UNAUTHENTICATED`);
 };
 
-await must('/',{contains:['/assets/accounts.js','CODE1 Internal Workspace']});
+await must('/',{contains:['/assets/accounts.js','/assets/planning-material-request-actions.js','CODE1 Internal Workspace']});
 await must('/assets/accounts.js',{contains:['loadMaterialModule','/assets/planning-materials.js','/assets/planning-materials.css','PARTNER','MATERIAL_UPLOAD_ASSIGNED']});
+await must('/assets/planning-material-request-actions.js',{contains:['planning.material.request.delete','SUPER_ADMIN','비어 있고 아직 사용되지 않은 요청은 완전히 삭제됩니다','material-request-delete']});
 await must('/assets/planning-materials.js',{contains:[
   '상세페이지 및 제안서 파일',
   'planning.material.bootstrap',
@@ -38,7 +39,8 @@ if(session.status!==200||new URL(session.url).origin!==origin||sj.configured!==t
 console.log('PASS GET /api/session configured=true authenticated=false');
 await unauthRpc('planning.material.bootstrap',{});
 await unauthRpc('planning.material.request.get',{materialRequestId:'PMR_READONLY_SMOKE'});
+await unauthRpc('planning.material.request.delete',{materialRequestId:'PMR_READONLY_SMOKE',confirmTitle:'readonly',requestId:'0123456789abcdef0123456789abcdef'});
 await unauthRpc('planning.material.upload.begin',{requestItemId:'PMI_READONLY_SMOKE'});
 await unauthRpc('planning.material.request.submit',{materialRequestId:'PMR_READONLY_SMOKE',targetStatus:'SUBMITTED'});
 await unauthRpc('planning.material.template.publish',{templateId:'PMT_READONLY_SMOKE',revision:1});
-console.log(JSON.stringify({origin,staticRoutes:'PASS',fieldTypeBundleContract:'PASS',draftPublishBundleContract:'PASS',dynamicLoaderContract:'PASS',sessionGate:'PASS',unauthenticatedRpcFailClosed:'PASS',remoteMutation:'NONE'},null,2));
+console.log(JSON.stringify({origin,staticRoutes:'PASS',fieldTypeBundleContract:'PASS',draftPublishBundleContract:'PASS',requestDeleteBundleContract:'PASS',dynamicLoaderContract:'PASS',sessionGate:'PASS',unauthenticatedRpcFailClosed:'PASS',remoteMutation:'NONE'},null,2));
