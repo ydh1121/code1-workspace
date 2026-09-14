@@ -14,7 +14,7 @@ const farmUi=fs.readFileSync(resolve(root,'public/assets/app.js'),'utf8');
 
 test('field model follows proven catalog type plus immutable snapshot pattern',()=>{
   assert.match(farmSchema,/input_type text not null/);
-  assert.match(farmSchema,/insert into public\.submission_answers\([\s\S]*input_type/);
+  assert.match(farmSchema,/insert into submission_answers\(submission_id,item_key,revision,input_type,value_jsonb,evidence_required/);
   assert.match(migration,/add column if not exists response_kind text not null default 'TEXT_FILE'/);
   assert.match(migration,/add column if not exists response_kind_snapshot text/);
   assert.match(migration,/response_kind in \('TEXT','LONG_TEXT','FILE','TEXT_FILE'\)/);
