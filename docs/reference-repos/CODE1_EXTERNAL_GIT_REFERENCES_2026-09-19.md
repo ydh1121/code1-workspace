@@ -261,7 +261,7 @@ These have some technical relevance but currently overlap CODE1 infrastructure, 
 - calesthio/OpenMontage — large agentic video-production system, AGPL-3.0. Reference only if a future media automation track is explicitly opened.
 - designed-by-ai/skills — generic agent-skills repo; currently lower signal than Vercel/Anthropic references.
 - SenteLabsAI/OpenExecutive — multi-agent virtual executive model conflicts with CODE1's explicit PLANNING dispatcher and track boundaries.
-- tot ec equivalent in screenshot: `totec448-spec/chat-on-steroids` — local ChatGPT/browser/multi-agent workflow layer; conflicts with current Durable SSOT and browser/orchestrator restrictions.
+- totec448-spec/chat-on-steroids — local ChatGPT/browser/multi-agent workflow layer; conflicts with current Durable SSOT and browser/orchestrator restrictions.
 - JuliusBrussee/caveman — token-saving proxy/prompt style; conflicts with precision and auditability required by CODE1.
 
 ## 4. SKIP for CODE1 current scope
